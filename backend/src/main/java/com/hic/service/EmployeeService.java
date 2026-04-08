@@ -1,0 +1,187 @@
+package com.hic.service;
+
+import com.hic.dto.EmployeeDTO;
+import com.hic.dto.EmployeeResponseDTO;
+import com.hic.dto.PaginatedResponse;
+import com.hic.exception.BadRequestException;
+import com.hic.exception.ResourceNotFoundException;
+import com.hic.model.Department;
+import com.hic.model.Employee;
+import com.hic.model.Employee.EmploymentStatus;
+import com.hic.model.Position;
+import com.hic.repository.DepartmentRepository;
+import com.hic.repository.EmployeeRepository;
+import com.hic.repository.PositionRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class EmployeeService {
+
+    private final EmployeeRepository employeeRepository;
+    private final DepartmentRepository departmentRepository;
+    private final PositionRepository positionRepository;
+
+    public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
+        Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy != null ? sortBy : "id"));
+        Page<Employee> employeePage = employeeRepository.findAll(pageable);
+        return buildPaginatedResponse(employeePage);
+    }
+
+    public EmployeeResponseDTO getById(Long id) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", id));
+        return toResponseDTO(employee);
+    }
+
+    public PaginatedResponse<EmployeeResponseDTO> getByBranch(Long branchId, int page, int size) {
+        List<Department> departments = departmentRepository.findByBranchId(branchId);
+        List<Long> deptIds = departments.stream().map(Department::getId).collect(Collectors.toList());
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Employee> employeePage = employeeRepository.findByDepartmentIdIn(deptIds, pageable);
+        return buildPaginatedResponse(employeePage);
+    }
+
+    public List<EmployeeResponseDTO> getByDepartment(Long departmentId) {
+        return employeeRepository.findByDepartmentId(departmentId)
+                .stream()
+                .map(this::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    public List<EmployeeResponseDTO> getByStatus(EmploymentStatus status) {
+        return employeeRepository.findByEmploymentStatus(status)
+                .stream()
+                .map(this::toResponseDTO)
+                .collect(Collectors.toList());
+    }
+
+    public PaginatedResponse<EmployeeResponseDTO> search(String query, int page, int size) {
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Employee> employeePage = employeeRepository.search(query, pageable);
+        return buildPaginatedResponse(employeePage);
+    }
+
+    @Transactional
+    public EmployeeResponseDTO create(EmployeeDTO dto) {
+        validateDepartmentExists(dto.getDepartmentId());
+
+        if (dto.getFinNumber() != null && !dto.getFinNumber().isBlank()) {
+            employeeRepository.findByFinNumber(dto.getFinNumber()).ifPresent(e -> {
+                throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
+            });
+        }
+
+        Employee employee = new Employee();
+        mapDtoToEmployee(dto, employee);
+        employee.setEmployeeId(generateEmployeeId());
+        if (employee.getEmploymentStatus() == null) {
+            employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
+        }
+
+        Employee saved = employeeRepository.save(employee);
+        return toResponseDTO(saved);
+    }
+
+    @Transactional
+    public EmployeeResponseDTO update(Long id, EmployeeDTO dto) {
+        Employee employee = employeeRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", id));
+
+        validateDepartmentExists(dto.getDepartmentId());
+        mapDtoToEmployee(dto, employee);
+
+        Employee saved = employeeRepository.save(employee);
+        return toResponseDTO(saved);
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        if (!employeeRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Employee", id);
+        }
+        employeeRepository.deleteById(id);
+    }
+
+    private void mapDtoToEmployee(EmployeeDTO dto, Employee employee) {
+        employee.setFirstName(dto.getFirstName());
+        employee.setLastName(dto.getLastName());
+        employee.setBirthDate(dto.getBirthDate());
+        employee.setGender(dto.getGender());
+        employee.setMobilePhone(dto.getMobilePhone());
+        employee.setEmail(dto.getEmail());
+        employee.setFinNumber(dto.getFinNumber());
+        employee.setFaceId(dto.getFaceId());
+        employee.setCardId(dto.getCardId());
+        employee.setDepartmentId(dto.getDepartmentId());
+        employee.setPositionId(dto.getPositionId());
+        employee.setHireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now());
+        if (dto.getEmploymentStatus() != null) {
+            employee.setEmploymentStatus(dto.getEmploymentStatus());
+        }
+    }
+
+    private EmployeeResponseDTO toResponseDTO(Employee employee) {
+        EmployeeResponseDTO dto = new EmployeeResponseDTO();
+        dto.setId(employee.getId());
+        dto.setEmployeeId(employee.getEmployeeId());
+        dto.setFirstName(employee.getFirstName());
+        dto.setLastName(employee.getLastName());
+        dto.setBirthDate(employee.getBirthDate());
+        dto.setGender(employee.getGender());
+        dto.setMobilePhone(employee.getMobilePhone());
+        dto.setEmail(employee.getEmail());
+        dto.setFinNumber(employee.getFinNumber());
+        dto.setFaceId(employee.getFaceId());
+        dto.setCardId(employee.getCardId());
+        dto.setDepartmentId(employee.getDepartmentId());
+        dto.setPositionId(employee.getPositionId());
+        dto.setHireDate(employee.getHireDate());
+        dto.setEmploymentStatus(employee.getEmploymentStatus());
+        dto.setCreatedAt(employee.getCreatedAt());
+        dto.setUpdatedAt(employee.getUpdatedAt());
+
+        if (employee.getDepartmentId() != null) {
+            departmentRepository.findById(employee.getDepartmentId())
+                    .ifPresent(d -> dto.setDepartmentName(d.getDepartmentName()));
+        }
+        if (employee.getPositionId() != null) {
+            positionRepository.findById(employee.getPositionId())
+                    .ifPresent(p -> dto.setPositionName(p.getPositionName()));
+        }
+
+        return dto;
+    }
+
+    private PaginatedResponse<EmployeeResponseDTO> buildPaginatedResponse(Page<Employee> page) {
+        List<EmployeeResponseDTO> content = page.getContent()
+                .stream()
+                .map(this::toResponseDTO)
+                .collect(Collectors.toList());
+        return PaginatedResponse.of(content, page.getTotalElements(),
+                page.getTotalPages(), page.getNumber(), page.getSize());
+    }
+
+    private void validateDepartmentExists(Long departmentId) {
+        if (!departmentRepository.existsById(departmentId)) {
+            throw new ResourceNotFoundException("Department", departmentId);
+        }
+    }
+
+    private String generateEmployeeId() {
+        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        long count = employeeRepository.count() + 1;
+        return String.format("EMP%s%04d", datePart, count);
+    }
+}

@@ -9,7 +9,8 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     fetchEmployees(0, 20)
-  }, [fetchEmployees])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <Layout>

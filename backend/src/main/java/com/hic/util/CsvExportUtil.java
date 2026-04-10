@@ -15,6 +15,24 @@ import java.util.List;
 @Component
 public class CsvExportUtil {
 
+    public byte[] exportAttendanceReport(List<com.hic.dto.ReportDTO.AttendanceReportDTO> data) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {
+            writer.print('\uFEFF');
+            writer.println("Employee ID,Employee Name,Present Days,Absent Days,Late Days,Total Hours");
+            for (com.hic.dto.ReportDTO.AttendanceReportDTO item : data) {
+                writer.printf("%s,%s,%s,%s,%s,%s%n",
+                        nullSafe(item.getEmployeeId()),
+                        csvEscape(item.getEmployeeName()),
+                        nullSafe(item.getPresentDays()),
+                        nullSafe(item.getAbsentDays()),
+                        nullSafe(item.getLateDays()),
+                        nullSafe(item.getTotalHoursWorked()));
+            }
+        }
+        return out.toByteArray();
+    }
+
     public byte[] writeEmployeesCsv(List<Employee> employees) {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8))) {

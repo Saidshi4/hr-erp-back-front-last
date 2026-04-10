@@ -14,6 +14,61 @@ import java.util.List;
 @Component
 public class ExcelExportUtil {
 
+    public byte[] exportAttendanceReport(List<com.hic.dto.ReportDTO.AttendanceReportDTO> data,
+                                          java.time.LocalDate start, java.time.LocalDate end) {
+        try (Workbook workbook = createWorkbook()) {
+            Sheet sheet = workbook.createSheet("Attendance Report");
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            Row header = sheet.createRow(0);
+            String[] headers = {"Employee ID", "Employee Name", "Present Days", "Absent Days", "Late Days", "Total Hours"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+                sheet.setColumnWidth(i, 5000);
+            }
+            int rowNum = 1;
+            for (com.hic.dto.ReportDTO.AttendanceReportDTO item : data) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId() : 0);
+                row.createCell(1).setCellValue(nullSafe(item.getEmployeeName()));
+                row.createCell(2).setCellValue(item.getPresentDays() != null ? item.getPresentDays() : 0);
+                row.createCell(3).setCellValue(item.getAbsentDays() != null ? item.getAbsentDays() : 0);
+                row.createCell(4).setCellValue(item.getLateDays() != null ? item.getLateDays() : 0);
+                row.createCell(5).setCellValue(item.getTotalHoursWorked() != null ? item.getTotalHoursWorked() : 0);
+            }
+            return toByteArray(workbook);
+        } catch (IOException e) {
+            throw new ExportException("Failed to generate attendance report Excel", e);
+        }
+    }
+
+    public byte[] exportEmployeeSummary(List<com.hic.dto.ReportDTO.EmployeeSummaryDTO> data) {
+        try (Workbook workbook = createWorkbook()) {
+            Sheet sheet = workbook.createSheet("Employees");
+            CellStyle headerStyle = createHeaderStyle(workbook);
+            Row header = sheet.createRow(0);
+            String[] headers = {"Employee ID", "Employee Name", "Department", "Status"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = header.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+                sheet.setColumnWidth(i, 5000);
+            }
+            int rowNum = 1;
+            for (com.hic.dto.ReportDTO.EmployeeSummaryDTO item : data) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId() : 0);
+                row.createCell(1).setCellValue(nullSafe(item.getEmployeeName()));
+                row.createCell(2).setCellValue(nullSafe(item.getDepartmentName()));
+                row.createCell(3).setCellValue(nullSafe(item.getEmploymentStatus()));
+            }
+            return toByteArray(workbook);
+        } catch (IOException e) {
+            throw new ExportException("Failed to generate employee summary Excel", e);
+        }
+    }
+
     public Workbook createWorkbook() {
         return new XSSFWorkbook();
     }

@@ -1,12 +1,16 @@
 package com.hic.dto;
 
+import com.hic.model.LeaveRequest.LeaveStatus;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Data
 public class LeaveRequestDTO {
+
+    private Long id;
 
     @NotNull(message = "Employee ID is required")
     private Long employeeId;
@@ -19,4 +23,9 @@ public class LeaveRequestDTO {
 
     @NotNull(message = "End date is required")
     private LocalDate endDate;
+
+    private LeaveStatus status;
+    private Long approvedBy;
+    private LocalDate approvalDate;
+    private LocalDateTime createdAt;
 }

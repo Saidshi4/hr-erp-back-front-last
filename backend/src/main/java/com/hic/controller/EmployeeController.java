@@ -6,6 +6,7 @@ import com.hic.dto.PaginatedResponse;
 import com.hic.dto.ApiResponse;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.service.EmployeeService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -58,12 +59,12 @@ public class EmployeeController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<EmployeeResponseDTO>> create(@RequestBody EmployeeDTO dto) {
+    public ResponseEntity<ApiResponse<EmployeeResponseDTO>> create(@Valid @RequestBody EmployeeDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(employeeService.create(dto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<EmployeeResponseDTO>> update(@PathVariable Long id, @RequestBody EmployeeDTO dto) {
+    public ResponseEntity<ApiResponse<EmployeeResponseDTO>> update(@PathVariable Long id, @Valid @RequestBody EmployeeDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(employeeService.update(id, dto)));
     }
 

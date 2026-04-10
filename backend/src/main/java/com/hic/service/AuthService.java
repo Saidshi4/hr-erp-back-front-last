@@ -46,6 +46,16 @@ public class AuthService {
         return jwtUtil.validateToken(token);
     }
 
+    public String refreshToken(String refreshToken) {
+        if (!jwtUtil.validateToken(refreshToken)) {
+            throw new UnauthorizedException("Invalid or expired refresh token");
+        }
+        String username = jwtUtil.extractUsername(refreshToken);
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("User not found"));
+        return jwtUtil.generateToken(user.getUsername(), user.getUserType());
+    }
+
     public UserDTO getUserFromToken(String token) {
         if (!jwtUtil.validateToken(token)) {
             throw new UnauthorizedException("Invalid or expired token");

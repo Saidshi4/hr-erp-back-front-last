@@ -51,9 +51,8 @@ public class ReportService {
         List<Employee> employees = getFilteredEmployees(branchId, null);
         List<Long> empIds = employees.stream().map(Employee::getId).collect(Collectors.toList());
 
-        return leaveRequestRepository.findAll().stream()
-                .filter(lr -> empIds.contains(lr.getEmployeeId()))
-                .filter(lr -> !lr.getStartDate().isAfter(end) && !lr.getEndDate().isBefore(start))
+        return leaveRequestRepository.findByEmployeeIdsAndDateRange(empIds, start, end)
+                .stream()
                 .map(lr -> {
                     ReportDTO.LeaveReportDTO dto = new ReportDTO.LeaveReportDTO();
                     dto.setLeaveRequestId(lr.getId());

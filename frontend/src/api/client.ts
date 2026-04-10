@@ -10,9 +10,17 @@ const client = axios.create({
 })
 
 client.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  // Read token from Zustand persisted storage
+  const authStorage = localStorage.getItem('auth-storage')
+  if (authStorage) {
+    try {
+      const { state } = JSON.parse(authStorage)
+      if (state?.token) {
+        config.headers.Authorization = `Bearer ${state.token}`
+      }
+    } catch {
+      // ignore parse errors
+    }
   }
   return config
 })
@@ -21,7 +29,7 @@ client.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
+      localStorage.removeItem('auth-storage')
       window.location.href = '/login'
     }
     return Promise.reject(error)

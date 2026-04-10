@@ -4,6 +4,7 @@ import com.hic.dto.LeaveRequestDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.model.LeaveRequest.LeaveStatus;
 import com.hic.service.LeaveService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -32,7 +33,7 @@ public class LeaveController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<LeaveRequestDTO>> create(@RequestBody LeaveRequestDTO dto) {
+    public ResponseEntity<ApiResponse<LeaveRequestDTO>> create(@Valid @RequestBody LeaveRequestDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(leaveService.create(dto)));
     }
 

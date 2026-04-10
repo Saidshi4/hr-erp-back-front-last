@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.DeviceSyncDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.service.DeviceSyncService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,12 +27,12 @@ public class DeviceController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<DeviceSyncDTO.DeviceConfigDTO>> create(@RequestBody DeviceSyncDTO.DeviceConfigDTO dto) {
+    public ResponseEntity<ApiResponse<DeviceSyncDTO.DeviceConfigDTO>> create(@Valid @RequestBody DeviceSyncDTO.DeviceConfigDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(deviceSyncService.createDevice(dto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<DeviceSyncDTO.DeviceConfigDTO>> update(@PathVariable Long id, @RequestBody DeviceSyncDTO.DeviceConfigDTO dto) {
+    public ResponseEntity<ApiResponse<DeviceSyncDTO.DeviceConfigDTO>> update(@PathVariable Long id, @Valid @RequestBody DeviceSyncDTO.DeviceConfigDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(deviceSyncService.updateDevice(id, dto)));
     }
 

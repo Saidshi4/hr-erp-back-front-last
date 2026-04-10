@@ -30,7 +30,7 @@ public class ExcelExportUtil {
             int rowNum = 1;
             for (com.hic.dto.ReportDTO.AttendanceReportDTO item : data) {
                 Row row = sheet.createRow(rowNum++);
-                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId() : 0);
+                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId().toString() : "");
                 row.createCell(1).setCellValue(nullSafe(item.getEmployeeName()));
                 row.createCell(2).setCellValue(item.getPresentDays() != null ? item.getPresentDays() : 0);
                 row.createCell(3).setCellValue(item.getAbsentDays() != null ? item.getAbsentDays() : 0);
@@ -58,7 +58,7 @@ public class ExcelExportUtil {
             int rowNum = 1;
             for (com.hic.dto.ReportDTO.EmployeeSummaryDTO item : data) {
                 Row row = sheet.createRow(rowNum++);
-                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId() : 0);
+                row.createCell(0).setCellValue(item.getEmployeeId() != null ? item.getEmployeeId().toString() : "");
                 row.createCell(1).setCellValue(nullSafe(item.getEmployeeName()));
                 row.createCell(2).setCellValue(nullSafe(item.getDepartmentName()));
                 row.createCell(3).setCellValue(nullSafe(item.getEmploymentStatus()));

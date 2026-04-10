@@ -10,6 +10,7 @@ import java.util.Optional;
 
 @Repository
 public interface WorkScheduleRepository extends JpaRepository<WorkSchedule, Long> {
+    List<WorkSchedule> findByEmployeeId(Long employeeId);
     List<WorkSchedule> findByEmployeeIdAndEffectiveDateLessThanEqual(Long employeeId, LocalDate date);
     Optional<WorkSchedule> findTopByEmployeeIdAndEffectiveDateLessThanEqualOrderByEffectiveDateDesc(
             Long employeeId, LocalDate date);

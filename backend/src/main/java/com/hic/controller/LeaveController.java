@@ -1,0 +1,52 @@
+package com.hic.controller;
+
+import com.hic.dto.LeaveRequestDTO;
+import com.hic.dto.ApiResponse;
+import com.hic.model.LeaveRequest.LeaveStatus;
+import com.hic.service.LeaveService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/leaves")
+@RequiredArgsConstructor
+public class LeaveController {
+    private final LeaveService leaveService;
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<LeaveRequestDTO>>> getAll() {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.getAll()));
+    }
+
+    @GetMapping("/employee/{employeeId}")
+    public ResponseEntity<ApiResponse<List<LeaveRequestDTO>>> getByEmployee(@PathVariable Long employeeId) {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.getByEmployee(employeeId)));
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<LeaveRequestDTO>> getById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.getById(id)));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<LeaveRequestDTO>> create(@RequestBody LeaveRequestDTO dto) {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.create(dto)));
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<LeaveRequestDTO>> updateStatus(
+            @PathVariable Long id,
+            @RequestParam LeaveStatus status,
+            @RequestParam(required = false) Long approvedBy) {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.updateStatus(id, status, approvedBy)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
+        leaveService.delete(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+}

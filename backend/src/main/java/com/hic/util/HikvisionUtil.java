@@ -12,6 +12,26 @@ public class HikvisionUtil {
     @Value("${hikvision.default-username:admin}")
     private String defaultUsername;
 
+    public boolean testConnection(String deviceIp, int port, String username, String password) {
+        try {
+            java.net.URL url = new java.net.URL(buildDeviceUrl(deviceIp, port, "/ISAPI/System/status"));
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(5000);
+            if (username != null && password != null) {
+                String encoded = java.util.Base64.getEncoder()
+                        .encodeToString((username + ":" + password).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                conn.setRequestProperty("Authorization", "Basic " + encoded);
+            }
+            int code = conn.getResponseCode();
+            conn.disconnect();
+            return code == 200 || code == 401;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public String buildDeviceUrl(String deviceIp, int port, String path) {
         return String.format("http://%s:%d%s", deviceIp, port, path);
     }

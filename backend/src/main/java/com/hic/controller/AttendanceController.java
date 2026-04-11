@@ -5,6 +5,7 @@ import com.hic.dto.AttendanceLogDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.service.AttendanceService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
@@ -21,7 +22,7 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
 
     @PostMapping("/log")
-    public ResponseEntity<ApiResponse<AttendanceLogDTO>> logAttendance(@RequestBody AttendanceDTO dto) {
+    public ResponseEntity<ApiResponse<AttendanceLogDTO>> logAttendance(@Valid @RequestBody AttendanceDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(attendanceService.logAttendance(dto)));
     }
 

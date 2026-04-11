@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.BranchDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.service.BranchService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,12 +27,12 @@ public class BranchController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<BranchDTO>> create(@RequestBody BranchDTO dto) {
+    public ResponseEntity<ApiResponse<BranchDTO>> create(@Valid @RequestBody BranchDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(branchService.create(dto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<BranchDTO>> update(@PathVariable Long id, @RequestBody BranchDTO dto) {
+    public ResponseEntity<ApiResponse<BranchDTO>> update(@PathVariable Long id, @Valid @RequestBody BranchDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(branchService.update(id, dto)));
     }
 

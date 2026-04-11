@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.DepartmentDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.service.DepartmentService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -31,12 +32,12 @@ public class DepartmentController {
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<DepartmentDTO>> create(@RequestBody DepartmentDTO dto) {
+    public ResponseEntity<ApiResponse<DepartmentDTO>> create(@Valid @RequestBody DepartmentDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(departmentService.create(dto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<DepartmentDTO>> update(@PathVariable Long id, @RequestBody DepartmentDTO dto) {
+    public ResponseEntity<ApiResponse<DepartmentDTO>> update(@PathVariable Long id, @Valid @RequestBody DepartmentDTO dto) {
         return ResponseEntity.ok(ApiResponse.success(departmentService.update(id, dto)));
     }
 

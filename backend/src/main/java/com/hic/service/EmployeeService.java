@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -54,17 +56,13 @@ public class EmployeeService {
     }
 
     public List<EmployeeResponseDTO> getByDepartment(Long departmentId) {
-        return employeeRepository.findByDepartmentId(departmentId)
-                .stream()
-                .map(this::toResponseDTO)
-                .collect(Collectors.toList());
+        List<Employee> employees = employeeRepository.findByDepartmentId(departmentId);
+        return mapEmployeeListToDTOs(employees);
     }
 
     public List<EmployeeResponseDTO> getByStatus(EmploymentStatus status) {
-        return employeeRepository.findByEmploymentStatus(status)
-                .stream()
-                .map(this::toResponseDTO)
-                .collect(Collectors.toList());
+        List<Employee> employees = employeeRepository.findByEmploymentStatus(status);
+        return mapEmployeeListToDTOs(employees);
     }
 
     public PaginatedResponse<EmployeeResponseDTO> search(String query, int page, int size) {
@@ -133,6 +131,12 @@ public class EmployeeService {
     }
 
     private EmployeeResponseDTO toResponseDTO(Employee employee) {
+        return toResponseDTO(employee, null, null);
+    }
+
+    private EmployeeResponseDTO toResponseDTO(Employee employee,
+                                               Map<Long, String> departmentNames,
+                                               Map<Long, String> positionNames) {
         EmployeeResponseDTO dto = new EmployeeResponseDTO();
         dto.setId(employee.getId());
         dto.setEmployeeId(employee.getEmployeeId());
@@ -153,22 +157,46 @@ public class EmployeeService {
         dto.setUpdatedAt(employee.getUpdatedAt());
 
         if (employee.getDepartmentId() != null) {
-            departmentRepository.findById(employee.getDepartmentId())
-                    .ifPresent(d -> dto.setDepartmentName(d.getDepartmentName()));
+            if (departmentNames != null) {
+                dto.setDepartmentName(departmentNames.get(employee.getDepartmentId()));
+            } else {
+                departmentRepository.findById(employee.getDepartmentId())
+                        .ifPresent(d -> dto.setDepartmentName(d.getDepartmentName()));
+            }
         }
         if (employee.getPositionId() != null) {
-            positionRepository.findById(employee.getPositionId())
-                    .ifPresent(p -> dto.setPositionName(p.getPositionName()));
+            if (positionNames != null) {
+                dto.setPositionName(positionNames.get(employee.getPositionId()));
+            } else {
+                positionRepository.findById(employee.getPositionId())
+                        .ifPresent(p -> dto.setPositionName(p.getPositionName()));
+            }
         }
 
         return dto;
     }
 
-    private PaginatedResponse<EmployeeResponseDTO> buildPaginatedResponse(Page<Employee> page) {
-        List<EmployeeResponseDTO> content = page.getContent()
-                .stream()
-                .map(this::toResponseDTO)
+    private List<EmployeeResponseDTO> mapEmployeeListToDTOs(List<Employee> employees) {
+        if (employees.isEmpty()) return List.of();
+        Set<Long> deptIds = employees.stream()
+                .filter(e -> e.getDepartmentId() != null)
+                .map(Employee::getDepartmentId)
+                .collect(Collectors.toSet());
+        Set<Long> posIds = employees.stream()
+                .filter(e -> e.getPositionId() != null)
+                .map(Employee::getPositionId)
+                .collect(Collectors.toSet());
+        Map<Long, String> deptNames = departmentRepository.findAllById(deptIds).stream()
+                .collect(Collectors.toMap(Department::getId, Department::getDepartmentName));
+        Map<Long, String> posNames = positionRepository.findAllById(posIds).stream()
+                .collect(Collectors.toMap(Position::getId, Position::getPositionName));
+        return employees.stream()
+                .map(e -> toResponseDTO(e, deptNames, posNames))
                 .collect(Collectors.toList());
+    }
+
+    private PaginatedResponse<EmployeeResponseDTO> buildPaginatedResponse(Page<Employee> page) {
+        List<EmployeeResponseDTO> content = mapEmployeeListToDTOs(page.getContent());
         return PaginatedResponse.of(content, page.getTotalElements(),
                 page.getTotalPages(), page.getNumber(), page.getSize());
     }

@@ -15,7 +15,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
+<<<<<<< HEAD
     "types": ["vite/client"],
+=======
+>>>>>>> 34a5d15449f57a176995d2c80af2fa33d43c2f7b
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
@@ -23,4 +26,8 @@
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 34a5d15449f57a176995d2c80af2fa33d43c2f7b

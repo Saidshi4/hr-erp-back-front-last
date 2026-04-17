@@ -16,4 +16,8 @@ CREATE INDEX IF NOT EXISTS idx_attendance_logs_employee_date
 
 -- Add index on daily_attendance_summary for date range queries
 CREATE INDEX IF NOT EXISTS idx_daily_summary_employee_date
+<<<<<<< HEAD
     ON daily_attendance_summaries(employee_id, attendance_date);
+=======
+    ON daily_attendance_summary(employee_id, attendance_date);
+>>>>>>> 34a5d15449f57a176995d2c80af2fa33d43c2f7b

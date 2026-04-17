@@ -1,0 +1,191 @@
+package com.hic.service;
+
+import com.hic.dto.EmployeeDTO;
+import com.hic.dto.EmployeeResponseDTO;
+import com.hic.exception.BadRequestException;
+import com.hic.exception.ResourceNotFoundException;
+import com.hic.model.Department;
+import com.hic.model.Employee;
+import com.hic.model.Employee.EmploymentStatus;
+import com.hic.repository.DepartmentRepository;
+import com.hic.repository.EmployeeRepository;
+import com.hic.repository.PositionRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDate;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+@ExtendWith(MockitoExtension.class)
+class EmployeeServiceTest {
+
+    @Mock
+    private EmployeeRepository employeeRepository;
+
+    @Mock
+    private DepartmentRepository departmentRepository;
+
+    @Mock
+    private PositionRepository positionRepository;
+
+    @InjectMocks
+    private EmployeeService employeeService;
+
+    private Department testDepartment;
+    private Employee testEmployee;
+    private EmployeeDTO testEmployeeDTO;
+
+    @BeforeEach
+    void setUp() {
+        testDepartment = new Department();
+        testDepartment.setId(1L);
+        testDepartment.setDepartmentName("Engineering");
+        testDepartment.setBranchId(1L);
+
+        testEmployee = new Employee();
+        testEmployee.setId(1L);
+        testEmployee.setEmployeeId("EMP202401001");
+        testEmployee.setFirstName("John");
+        testEmployee.setLastName("Doe");
+        testEmployee.setDepartmentId(1L);
+        testEmployee.setEmploymentStatus(EmploymentStatus.ACTIVE);
+
+        testEmployeeDTO = new EmployeeDTO();
+        testEmployeeDTO.setFirstName("John");
+        testEmployeeDTO.setLastName("Doe");
+        testEmployeeDTO.setDepartmentId(1L);
+        testEmployeeDTO.setHireDate(LocalDate.now());
+    }
+
+    @Test
+    void getById_existingEmployee_returnsDTO() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+
+        EmployeeResponseDTO result = employeeService.getById(1L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getFirstName()).isEqualTo("John");
+        assertThat(result.getLastName()).isEqualTo("Doe");
+        assertThat(result.getDepartmentName()).isEqualTo("Engineering");
+    }
+
+    @Test
+    void getById_nonExistentEmployee_throwsResourceNotFoundException() {
+        when(employeeRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> employeeService.getById(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void create_validDTO_savesEmployee() {
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.count()).thenReturn(0L);
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
+            Employee e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+
+        EmployeeResponseDTO result = employeeService.create(testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getFirstName()).isEqualTo("John");
+        assertThat(result.getEmploymentStatus()).isEqualTo(EmploymentStatus.ACTIVE);
+        verify(employeeRepository).save(any(Employee.class));
+    }
+
+    @Test
+    void create_duplicateFin_throwsBadRequestException() {
+        testEmployeeDTO.setFinNumber("ABC1234567");
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.findByFinNumber("ABC1234567")).thenReturn(Optional.of(testEmployee));
+
+        assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("FIN number");
+    }
+
+    @Test
+    void create_invalidDepartment_throwsResourceNotFoundException() {
+        when(departmentRepository.existsById(1L)).thenReturn(false);
+
+        assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void update_existingEmployee_updatesAndReturns() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+
+        testEmployeeDTO.setFirstName("Jane");
+        EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        verify(employeeRepository).save(any(Employee.class));
+    }
+
+    @Test
+    void delete_existingEmployee_deletesSuccessfully() {
+        when(employeeRepository.existsById(1L)).thenReturn(true);
+
+        employeeService.delete(1L);
+
+        verify(employeeRepository).deleteById(1L);
+    }
+
+    @Test
+    void delete_nonExistentEmployee_throwsResourceNotFoundException() {
+        when(employeeRepository.existsById(99L)).thenReturn(false);
+
+        assertThatThrownBy(() -> employeeService.delete(99L))
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void getAll_returnsPaginatedResponse() {
+        Page<Employee> page = new PageImpl<>(List.of(testEmployee));
+        when(employeeRepository.findAll(any(Pageable.class))).thenReturn(page);
+        when(departmentRepository.findAllById(anyCollection())).thenReturn(List.of(testDepartment));
+        when(positionRepository.findAllById(anyCollection())).thenReturn(Collections.emptyList());
+
+        var result = employeeService.getAll(0, 20, null);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getTotalElements()).isEqualTo(1L);
+    }
+
+    @Test
+    void getByDepartment_returnsBatchLoadedDTOs() {
+        when(employeeRepository.findByDepartmentId(1L)).thenReturn(List.of(testEmployee));
+        when(departmentRepository.findAllById(anyCollection())).thenReturn(List.of(testDepartment));
+        when(positionRepository.findAllById(anyCollection())).thenReturn(Collections.emptyList());
+
+        List<EmployeeResponseDTO> result = employeeService.getByDepartment(1L);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getDepartmentName()).isEqualTo("Engineering");
+        // Verify no extra findById calls (N+1 prevention)
+        verify(departmentRepository, never()).findById(anyLong());
+        verify(positionRepository, never()).findById(anyLong());
+    }
+}

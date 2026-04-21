@@ -6,13 +6,14 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Simple IP-based rate limiter using a sliding window.
@@ -28,7 +29,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${rate-limit.login-max-per-minute:10}")
     private int loginMaxPerMinute;
 
-    // IP -> (window start ms, count)
+    private static final long WINDOW_MS = 60_000L;
+
+    // IP -> [window start ms, count]
     private final Map<String, long[]> requestCounts = new ConcurrentHashMap<>();
     private final Map<String, long[]> loginCounts = new ConcurrentHashMap<>();
 
@@ -61,10 +64,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private boolean isRateLimited(String ip, Map<String, long[]> counts, int maxPerMinute) {
         long now = System.currentTimeMillis();
-        long windowMs = 60_000L;
 
         counts.compute(ip, (key, val) -> {
-            if (val == null || now - val[0] > windowMs) {
+            if (val == null || now - val[0] > WINDOW_MS) {
                 return new long[]{now, 1};
             }
             val[1]++;
@@ -81,5 +83,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
             return xff.split(",")[0].trim();
         }
         return request.getRemoteAddr();
+    }
+
+    /**
+     * Periodically remove expired entries to prevent unbounded map growth.
+     * Runs every 5 minutes.
+     */
+    @Scheduled(fixedDelay = 300_000)
+    public void cleanExpiredEntries() {
+        long now = System.currentTimeMillis();
+        evictExpired(requestCounts, now);
+        evictExpired(loginCounts, now);
+    }
+
+    private void evictExpired(Map<String, long[]> counts, long now) {
+        Iterator<Map.Entry<String, long[]>> it = counts.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, long[]> entry = it.next();
+            if (now - entry.getValue()[0] > WINDOW_MS) {
+                it.remove();
+            }
+        }
     }
 }

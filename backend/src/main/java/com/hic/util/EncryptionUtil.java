@@ -25,11 +25,14 @@ public class EncryptionUtil {
     private String secretKeyStr;
 
     private SecretKey getSecretKey() {
-        byte[] keyBytes = secretKeyStr.getBytes(StandardCharsets.UTF_8);
-        // Pad or truncate to 32 bytes for AES-256
-        byte[] key = new byte[32];
-        System.arraycopy(keyBytes, 0, key, 0, Math.min(keyBytes.length, 32));
-        return new SecretKeySpec(key, "AES");
+        try {
+            // Use SHA-256 to derive a proper 256-bit key from the configured secret
+            java.security.MessageDigest sha256 = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] keyBytes = sha256.digest(secretKeyStr.getBytes(StandardCharsets.UTF_8));
+            return new SecretKeySpec(keyBytes, "AES");
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-256 not available", e);
+        }
     }
 
     public String encrypt(String plaintext) {

@@ -19,6 +19,11 @@ const defaultForm: LeaveFormData = {
   endDate: new Date().toISOString().split('T')[0],
 }
 
+const MILLIS_PER_DAY = 86_400_000
+
+const calcDays = (start: string, end: string) =>
+  Math.ceil((new Date(end).getTime() - new Date(start).getTime()) / MILLIS_PER_DAY) + 1
+
 export default function LeavesPage() {
   const { leaves, loading, error, fetchLeaves, createLeave, updateStatus } = useLeaveStore()
   const { employees, fetchEmployees } = useEmployeeStore()
@@ -148,7 +153,7 @@ export default function LeavesPage() {
                 <tbody className="divide-y divide-gray-100">
                   {filteredLeaves.map((leave: LeaveRequest) => {
                     const days = leave.startDate && leave.endDate
-                      ? Math.ceil((new Date(leave.endDate).getTime() - new Date(leave.startDate).getTime()) / 86400000) + 1
+                      ? calcDays(leave.startDate, leave.endDate)
                       : '-'
                     return (
                       <tr key={leave.id} className="hover:bg-gray-50">
@@ -267,7 +272,7 @@ export default function LeavesPage() {
               </div>
               {form.startDate && form.endDate && form.endDate >= form.startDate && (
                 <p className="text-sm text-blue-600">
-                  Duration: {Math.ceil((new Date(form.endDate).getTime() - new Date(form.startDate).getTime()) / 86400000) + 1} day(s)
+                  Duration: {calcDays(form.startDate, form.endDate)} day(s)
                 </p>
               )}
             </div>

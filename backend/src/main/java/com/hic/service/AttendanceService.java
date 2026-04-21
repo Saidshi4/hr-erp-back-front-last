@@ -14,6 +14,7 @@ import com.hic.repository.DailyAttendanceSummaryRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.WorkScheduleRepository;
 import com.hic.util.DateUtil;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,6 +46,10 @@ public class AttendanceService {
         log.setEventType(dto.getEventType());
         log.setVerificationMethod(dto.getVerificationMethod());
         log.setStatus("ACTIVE");
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            log.setTenantId(tenantId);
+        }
         AttendanceLog saved = attendanceLogRepository.save(log);
         if (dto.getCheckInTime() != null) {
             generateDailySummary(dto.getEmployeeId(), dto.getCheckInTime().toLocalDate());
@@ -53,13 +58,19 @@ public class AttendanceService {
     }
 
     public List<AttendanceLogDTO> getLogsForEmployee(Long employeeId, LocalDateTime start, LocalDateTime end) {
-        return attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(employeeId, start, end)
-                .stream().map(this::toLogDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTimeBetween(tenantId, employeeId, start, end)
+                : attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(employeeId, start, end);
+        return logs.stream().map(this::toLogDTO).collect(Collectors.toList());
     }
 
     public List<AttendanceLogDTO> getLogsByDateRange(LocalDateTime start, LocalDateTime end) {
-        return attendanceLogRepository.findByCheckInTimeBetween(start, end)
-                .stream().map(this::toLogDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(tenantId, start, end)
+                : attendanceLogRepository.findByCheckInTimeBetween(start, end);
+        return logs.stream().map(this::toLogDTO).collect(Collectors.toList());
     }
 
     @Transactional

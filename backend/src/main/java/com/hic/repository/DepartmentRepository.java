@@ -8,5 +8,10 @@ import java.util.List;
 
 @Repository
 public interface DepartmentRepository extends JpaRepository<Department, Long> {
+    // Tenant-aware methods
+    List<Department> findByTenantId(Long tenantId);
+    List<Department> findByTenantIdAndBranchId(Long tenantId, Long branchId);
+
+    // Legacy methods
     List<Department> findByBranchId(Long branchId);
 }

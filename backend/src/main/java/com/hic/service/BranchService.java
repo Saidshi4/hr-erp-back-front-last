@@ -5,6 +5,7 @@ import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Branch;
 import com.hic.repository.BranchRepository;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,7 +20,11 @@ public class BranchService {
     private final BranchRepository branchRepository;
 
     public List<BranchDTO> getAll() {
-        return branchRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<Branch> branches = tenantId != null
+                ? branchRepository.findByTenantId(tenantId)
+                : branchRepository.findAll();
+        return branches.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     public BranchDTO getById(Long id) {
@@ -29,7 +34,12 @@ public class BranchService {
 
     @Transactional
     public BranchDTO create(BranchDTO dto) {
-        if (branchRepository.findByBranchCode(dto.getBranchCode()).isPresent()) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            branchRepository.findByTenantIdAndBranchCode(tenantId, dto.getBranchCode()).ifPresent(b -> {
+                throw new BadRequestException("Branch code already exists: " + dto.getBranchCode());
+            });
+        } else if (branchRepository.findByBranchCode(dto.getBranchCode()).isPresent()) {
             throw new BadRequestException("Branch code already exists: " + dto.getBranchCode());
         }
         Branch branch = new Branch();
@@ -37,6 +47,9 @@ public class BranchService {
         branch.setBranchCode(dto.getBranchCode());
         branch.setLocation(dto.getLocation());
         branch.setIsHeadOffice(dto.getIsHeadOffice() != null ? dto.getIsHeadOffice() : false);
+        if (tenantId != null) {
+            branch.setTenantId(tenantId);
+        }
         return toDTO(branchRepository.save(branch));
     }
 

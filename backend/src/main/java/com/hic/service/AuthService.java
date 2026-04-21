@@ -27,7 +27,7 @@ public class AuthService {
             throw new UnauthorizedException("Invalid username or password");
         }
 
-        String token = jwtUtil.generateToken(user.getUsername(), user.getUserType());
+        String token = jwtUtil.generateToken(user.getUsername(), user.getUserType(), user.getTenantId(), user.getId());
         String refreshToken = jwtUtil.generateRefreshToken(user.getUsername());
 
         UserDTO userDTO = new UserDTO(
@@ -36,7 +36,8 @@ public class AuthService {
                 user.getEmail(),
                 user.getUserType(),
                 user.getBranchId(),
-                user.getDepartmentId()
+                user.getDepartmentId(),
+                user.getTenantId()
         );
 
         return new LoginResponse(token, refreshToken, userDTO);
@@ -53,7 +54,7 @@ public class AuthService {
         String username = jwtUtil.extractUsername(refreshToken);
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
-        return jwtUtil.generateToken(user.getUsername(), user.getUserType());
+        return jwtUtil.generateToken(user.getUsername(), user.getUserType(), user.getTenantId(), user.getId());
     }
 
     public UserDTO getUserFromToken(String token) {
@@ -70,7 +71,8 @@ public class AuthService {
                 user.getEmail(),
                 user.getUserType(),
                 user.getBranchId(),
-                user.getDepartmentId()
+                user.getDepartmentId(),
+                user.getTenantId()
         );
     }
 }

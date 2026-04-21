@@ -5,9 +5,11 @@ import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.LeaveRequest;
 import com.hic.model.LeaveRequest.LeaveStatus;
+import com.hic.model.LeaveType;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
 import com.hic.repository.LeaveTypeRepository;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,11 +27,26 @@ public class LeaveService {
     private final LeaveTypeRepository leaveTypeRepository;
 
     public List<LeaveRequestDTO> getAll() {
-        return leaveRequestRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<LeaveRequest> requests = tenantId != null
+                ? leaveRequestRepository.findByTenantId(tenantId)
+                : leaveRequestRepository.findAll();
+        return requests.stream().map(this::toDTO).collect(Collectors.toList());
+    }
+
+    public List<LeaveType> getAllLeaveTypes() {
+        Long tenantId = TenantContext.getTenantId();
+        return tenantId != null
+                ? leaveTypeRepository.findByTenantId(tenantId)
+                : leaveTypeRepository.findAll();
     }
 
     public List<LeaveRequestDTO> getByEmployee(Long employeeId) {
-        return leaveRequestRepository.findByEmployeeId(employeeId).stream().map(this::toDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<LeaveRequest> requests = tenantId != null
+                ? leaveRequestRepository.findByTenantIdAndEmployeeId(tenantId, employeeId)
+                : leaveRequestRepository.findByEmployeeId(employeeId);
+        return requests.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     public LeaveRequestDTO getById(Long id) {
@@ -54,6 +71,10 @@ public class LeaveService {
         req.setStartDate(dto.getStartDate());
         req.setEndDate(dto.getEndDate());
         req.setStatus(LeaveStatus.PENDING);
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            req.setTenantId(tenantId);
+        }
         return toDTO(leaveRequestRepository.save(req));
     }
 
@@ -63,7 +84,7 @@ public class LeaveService {
                 .orElseThrow(() -> new ResourceNotFoundException("LeaveRequest", id));
         req.setStatus(status);
         if (status == LeaveStatus.APPROVED) {
-            req.setApprovedBy(approvedBy);
+            req.setApprovedBy(approvedBy != null ? approvedBy : TenantContext.getUserId());
             req.setApprovalDate(LocalDate.now());
         }
         return toDTO(leaveRequestRepository.save(req));

@@ -19,7 +19,10 @@ public class Employee {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "employee_id", nullable = false, unique = true)
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
+    @Column(name = "employee_id", nullable = false)
     private String employeeId;
 
     @Column(name = "first_name", nullable = false)

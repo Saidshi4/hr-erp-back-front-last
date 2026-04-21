@@ -9,6 +9,8 @@ import com.hic.model.DeviceSyncHistory.SyncStatus;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.DeviceSyncHistoryRepository;
 import com.hic.util.HikvisionUtil;
+import com.hic.util.EncryptionUtil;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -26,9 +28,14 @@ public class DeviceSyncService {
     private final DeviceConfigRepository deviceConfigRepository;
     private final DeviceSyncHistoryRepository syncHistoryRepository;
     private final HikvisionUtil hikvisionUtil;
+    private final EncryptionUtil encryptionUtil;
 
     public List<DeviceSyncDTO.DeviceConfigDTO> getAllDevices() {
-        return deviceConfigRepository.findAll().stream().map(this::toConfigDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<DeviceConfig> devices = tenantId != null
+                ? deviceConfigRepository.findByTenantId(tenantId)
+                : deviceConfigRepository.findAll();
+        return devices.stream().map(this::toConfigDTO).collect(Collectors.toList());
     }
 
     public DeviceSyncDTO.DeviceConfigDTO getDeviceById(Long id) {
@@ -41,6 +48,10 @@ public class DeviceSyncService {
         DeviceConfig device = new DeviceConfig();
         mapDtoToDevice(dto, device);
         device.setStatus("ACTIVE");
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            device.setTenantId(tenantId);
+        }
         return toConfigDTO(deviceConfigRepository.save(device));
     }
 
@@ -74,7 +85,9 @@ public class DeviceSyncService {
                     device.getDeviceIp(),
                     device.getDevicePort() != null ? device.getDevicePort() : 80,
                     device.getUsername(),
-                    device.getPasswordEncrypted()
+                    encryptionUtil.isEncrypted(device.getPasswordEncrypted())
+                            ? encryptionUtil.decrypt(device.getPasswordEncrypted())
+                            : device.getPasswordEncrypted()
             );
 
             if (!reachable) {
@@ -113,7 +126,10 @@ public class DeviceSyncService {
         device.setDeviceIp(dto.getDeviceIp());
         device.setDevicePort(dto.getDevicePort());
         device.setUsername(dto.getUsername());
-        device.setPasswordEncrypted(dto.getPassword());
+        // Encrypt password only if a non-empty value is provided
+        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+            device.setPasswordEncrypted(encryptionUtil.encrypt(dto.getPassword()));
+        }
         device.setBranchId(dto.getBranchId());
         if (dto.getStatus() != null) device.setStatus(dto.getStatus());
     }

@@ -12,6 +12,7 @@ import com.hic.model.Position;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.PositionRepository;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,7 +38,10 @@ public class EmployeeService {
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy != null ? sortBy : "id"));
-        Page<Employee> employeePage = employeeRepository.findAll(pageable);
+        Long tenantId = TenantContext.getTenantId();
+        Page<Employee> employeePage = tenantId != null
+                ? employeeRepository.findByTenantId(tenantId, pageable)
+                : employeeRepository.findAll(pageable);
         return buildPaginatedResponse(employeePage);
     }
 
@@ -51,23 +55,35 @@ public class EmployeeService {
         List<Department> departments = departmentRepository.findByBranchId(branchId);
         List<Long> deptIds = departments.stream().map(Department::getId).collect(Collectors.toList());
         Pageable pageable = PageRequest.of(page, size);
-        Page<Employee> employeePage = employeeRepository.findByDepartmentIdIn(deptIds, pageable);
+        Long tenantId = TenantContext.getTenantId();
+        Page<Employee> employeePage = tenantId != null
+                ? employeeRepository.findByTenantIdAndDepartmentIdIn(tenantId, deptIds, pageable)
+                : employeeRepository.findByDepartmentIdIn(deptIds, pageable);
         return buildPaginatedResponse(employeePage);
     }
 
     public List<EmployeeResponseDTO> getByDepartment(Long departmentId) {
-        List<Employee> employees = employeeRepository.findByDepartmentId(departmentId);
+        Long tenantId = TenantContext.getTenantId();
+        List<Employee> employees = tenantId != null
+                ? employeeRepository.findByTenantIdAndDepartmentId(tenantId, departmentId)
+                : employeeRepository.findByDepartmentId(departmentId);
         return mapEmployeeListToDTOs(employees);
     }
 
     public List<EmployeeResponseDTO> getByStatus(EmploymentStatus status) {
-        List<Employee> employees = employeeRepository.findByEmploymentStatus(status);
+        Long tenantId = TenantContext.getTenantId();
+        List<Employee> employees = tenantId != null
+                ? employeeRepository.findByTenantIdAndEmploymentStatus(tenantId, status)
+                : employeeRepository.findByEmploymentStatus(status);
         return mapEmployeeListToDTOs(employees);
     }
 
     public PaginatedResponse<EmployeeResponseDTO> search(String query, int page, int size) {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Employee> employeePage = employeeRepository.search(query, pageable);
+        Long tenantId = TenantContext.getTenantId();
+        Page<Employee> employeePage = tenantId != null
+                ? employeeRepository.searchByTenant(tenantId, query, pageable)
+                : employeeRepository.search(query, pageable);
         return buildPaginatedResponse(employeePage);
     }
 
@@ -75,15 +91,26 @@ public class EmployeeService {
     public EmployeeResponseDTO create(EmployeeDTO dto) {
         validateDepartmentExists(dto.getDepartmentId());
 
+        Long tenantId = TenantContext.getTenantId();
+
         if (dto.getFinNumber() != null && !dto.getFinNumber().isBlank()) {
-            employeeRepository.findByFinNumber(dto.getFinNumber()).ifPresent(e -> {
-                throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
-            });
+            if (tenantId != null) {
+                employeeRepository.findByTenantIdAndFinNumber(tenantId, dto.getFinNumber()).ifPresent(e -> {
+                    throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
+                });
+            } else {
+                employeeRepository.findByFinNumber(dto.getFinNumber()).ifPresent(e -> {
+                    throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
+                });
+            }
         }
 
         Employee employee = new Employee();
         mapDtoToEmployee(dto, employee);
-        employee.setEmployeeId(generateEmployeeId());
+        if (tenantId != null) {
+            employee.setTenantId(tenantId);
+        }
+        employee.setEmployeeId(generateEmployeeId(tenantId));
         if (employee.getEmploymentStatus() == null) {
             employee.setEmploymentStatus(EmploymentStatus.ACTIVE);
         }
@@ -207,9 +234,9 @@ public class EmployeeService {
         }
     }
 
-    private String generateEmployeeId() {
+    private String generateEmployeeId(Long tenantId) {
         String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
-        long count = employeeRepository.count() + 1;
+        long count = tenantId != null ? employeeRepository.countByTenantId(tenantId) + 1 : employeeRepository.count() + 1;
         return String.format("EMP%s%04d", datePart, count);
     }
 }

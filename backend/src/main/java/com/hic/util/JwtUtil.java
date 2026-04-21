@@ -31,8 +31,18 @@ public class JwtUtil {
     }
 
     public String generateToken(String username, UserType userType) {
+        return generateToken(username, userType, null, null);
+    }
+
+    public String generateToken(String username, UserType userType, Long tenantId, Long userId) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userType", userType.name());
+        if (tenantId != null) {
+            claims.put("tenantId", tenantId);
+        }
+        if (userId != null) {
+            claims.put("userId", userId);
+        }
         return buildToken(claims, username, expiration);
     }
 
@@ -70,6 +80,26 @@ public class JwtUtil {
         String userTypeStr = extractClaims(token).get("userType", String.class);
         if (userTypeStr != null) {
             return UserType.valueOf(userTypeStr);
+        }
+        return null;
+    }
+
+    public Long extractTenantId(String token) {
+        Object tenantIdObj = extractClaims(token).get("tenantId");
+        if (tenantIdObj instanceof Integer) {
+            return ((Integer) tenantIdObj).longValue();
+        } else if (tenantIdObj instanceof Long) {
+            return (Long) tenantIdObj;
+        }
+        return null;
+    }
+
+    public Long extractUserId(String token) {
+        Object userIdObj = extractClaims(token).get("userId");
+        if (userIdObj instanceof Integer) {
+            return ((Integer) userIdObj).longValue();
+        } else if (userIdObj instanceof Long) {
+            return (Long) userIdObj;
         }
         return null;
     }

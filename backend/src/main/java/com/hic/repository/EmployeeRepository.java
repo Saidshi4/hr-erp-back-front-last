@@ -16,16 +16,36 @@ import java.util.Optional;
 @Repository
 public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
+    // Tenant-aware methods
+    Page<Employee> findByTenantId(Long tenantId, Pageable pageable);
+
+    List<Employee> findByTenantIdAndDepartmentId(Long tenantId, Long departmentId);
+
+    List<Employee> findByTenantIdAndEmploymentStatus(Long tenantId, EmploymentStatus status);
+
+    Optional<Employee> findByTenantIdAndFinNumber(Long tenantId, String finNumber);
+
+    Optional<Employee> findByTenantIdAndEmployeeId(Long tenantId, String employeeId);
+
+    Page<Employee> findByTenantIdAndDepartmentIdIn(Long tenantId, Collection<Long> departmentIds, Pageable pageable);
+
+    long countByTenantId(Long tenantId);
+
+    @Query("SELECT e FROM Employee e WHERE e.tenantId = :tenantId AND (" +
+           "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.employeeId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.email) LIKE LOWER(CONCAT('%', :query, '%')))")
+    Page<Employee> searchByTenant(@Param("tenantId") Long tenantId,
+                                   @Param("query") String query,
+                                   Pageable pageable);
+
+    // Legacy non-tenant methods (backward compatibility)
     List<Employee> findByDepartmentId(Long departmentId);
-
     List<Employee> findByEmploymentStatus(EmploymentStatus status);
-
     Optional<Employee> findByFinNumber(String finNumber);
-
     Optional<Employee> findByEmployeeId(String employeeId);
-
     List<Employee> findByDepartmentIdIn(Collection<Long> departmentIds);
-
     Page<Employee> findByDepartmentIdIn(Collection<Long> departmentIds, Pageable pageable);
 
     @Query("SELECT e FROM Employee e WHERE " +

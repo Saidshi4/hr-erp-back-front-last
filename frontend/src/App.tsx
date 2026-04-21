@@ -7,8 +7,9 @@ const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'))
 const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const LeavesPage = lazy(() => import('./pages/LeavesPage'))
-const ReportsPage = lazy(() => import('./pages/ReportsPage'))
 const DevicesPage = lazy(() => import('./pages/DevicesPage'))
+const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
@@ -33,8 +34,9 @@ export default function App() {
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute><AppLayout><AttendancePage /></AppLayout></ProtectedRoute>} />
           <Route path="/leaves" element={<ProtectedRoute><AppLayout><LeavesPage /></AppLayout></ProtectedRoute>} />
-          <Route path="/reports" element={<ProtectedRoute><AppLayout><ReportsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/devices" element={<ProtectedRoute><AppLayout><DevicesPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/access-logs" element={<ProtectedRoute><AppLayout><AccessLogsPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

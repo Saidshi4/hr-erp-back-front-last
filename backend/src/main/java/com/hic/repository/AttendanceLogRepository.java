@@ -22,4 +22,5 @@ public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Lo
                                                                LocalDateTime end);
     List<AttendanceLog> findByDeviceId(String deviceId);
     List<AttendanceLog> findByCheckInTimeBetween(LocalDateTime start, LocalDateTime end);
+    long countByCheckInTimeBetween(LocalDateTime start, LocalDateTime end);
 }

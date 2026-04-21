@@ -14,9 +14,11 @@ public interface DeviceConfigRepository extends JpaRepository<DeviceConfig, Long
     List<DeviceConfig> findByTenantIdAndStatus(Long tenantId, String status);
     Optional<DeviceConfig> findByTenantIdAndDeviceId(Long tenantId, String deviceId);
     long countByTenantIdAndStatus(Long tenantId, String status);
+    long countByTenantId(Long tenantId);
 
     // Legacy methods
     List<DeviceConfig> findByBranchId(Long branchId);
     List<DeviceConfig> findByStatus(String status);
     Optional<DeviceConfig> findByDeviceId(String deviceId);
+    long countByStatus(String status);
 }

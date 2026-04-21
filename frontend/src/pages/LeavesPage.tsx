@@ -174,7 +174,7 @@ export default function LeavesPage() {
                   <div className="hidden md:block text-center min-w-[160px]">
                     <p className="text-xs text-gray-400 mb-0.5">Duration</p>
                     <p className="text-sm text-gray-700">{leave.startDate} → {leave.endDate}</p>
-                    <p className="text-xs text-gray-400">{days} day{days !== 1 ? 's' : ''}</p>
+                    <p className="text-xs text-gray-400">{days > 0 ? `${days} day${days !== 1 ? 's' : ''}` : '—'}</p>
                   </div>
 
                   {/* Status */}

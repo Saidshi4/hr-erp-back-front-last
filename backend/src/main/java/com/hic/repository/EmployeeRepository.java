@@ -31,6 +31,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     long countByTenantId(Long tenantId);
 
+    long countByTenantIdAndEmploymentStatus(Long tenantId, EmploymentStatus status);
+
+    long countByEmploymentStatus(EmploymentStatus status);
+
     @Query("SELECT e FROM Employee e WHERE e.tenantId = :tenantId AND (" +
            "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +

@@ -1,6 +1,5 @@
--- Fix admin password hash to use BCrypt cost factor 12
+-- Fix admin password hash to use BCrypt cost factor 12 with a secure random salt
 -- The original V004 hash was not a valid BCrypt hash for 'admin123'
--- This migration updates it to a correct $2a$12$ hash
 UPDATE users
-SET password_hash = '$2a$12$abcdefghijklmnopqrstuu8nVP5YIGOh70Ay1z97h1tTXrbCO0wzK'
+SET password_hash = '$2a$12$tsWFUh9Wahb8CFGeVCIR.uSHAQomV.a4Gjfef3WK/UT.XznSvMUQ6'
 WHERE username = 'admin';

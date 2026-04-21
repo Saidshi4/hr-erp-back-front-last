@@ -44,19 +44,19 @@ public class DashboardController {
 
         if (tenantId != null) {
             totalEmployees = employeeRepository.countByTenantId(tenantId);
-            activeEmployees = employeeRepository.findByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ACTIVE).size();
-            onLeaveEmployees = employeeRepository.findByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ON_LEAVE).size();
+            activeEmployees = employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ACTIVE);
+            onLeaveEmployees = employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ON_LEAVE);
             activeDevices = deviceConfigRepository.countByTenantIdAndStatus(tenantId, "ACTIVE");
-            totalDevices = deviceConfigRepository.findByTenantId(tenantId).size();
+            totalDevices = deviceConfigRepository.countByTenantId(tenantId);
             todayAttendance = attendanceLogRepository.countByTenantIdAndCheckInTimeBetween(tenantId, todayStart, todayEnd);
             pendingLeaves = leaveRequestRepository.countByTenantIdAndStatus(tenantId, LeaveStatus.PENDING);
         } else {
             totalEmployees = employeeRepository.count();
-            activeEmployees = employeeRepository.findByEmploymentStatus(EmploymentStatus.ACTIVE).size();
-            onLeaveEmployees = employeeRepository.findByEmploymentStatus(EmploymentStatus.ON_LEAVE).size();
-            activeDevices = deviceConfigRepository.findByStatus("ACTIVE").size();
+            activeEmployees = employeeRepository.countByEmploymentStatus(EmploymentStatus.ACTIVE);
+            onLeaveEmployees = employeeRepository.countByEmploymentStatus(EmploymentStatus.ON_LEAVE);
+            activeDevices = deviceConfigRepository.countByStatus("ACTIVE");
             totalDevices = deviceConfigRepository.count();
-            todayAttendance = attendanceLogRepository.findByCheckInTimeBetween(todayStart, todayEnd).size();
+            todayAttendance = attendanceLogRepository.countByCheckInTimeBetween(todayStart, todayEnd);
             pendingLeaves = leaveRequestRepository.findByStatus(LeaveStatus.PENDING).size();
         }
 

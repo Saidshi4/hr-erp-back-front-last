@@ -42,8 +42,8 @@ export default function AccessLogsPage() {
     )
   })
 
-  const grantedCount = filteredLogs.filter(l => l.status === 'ACTIVE' || l.checkInTime).length
-  const deniedCount = filteredLogs.filter(l => !l.checkInTime && l.status !== 'ACTIVE').length
+  const grantedCount = filteredLogs.filter(l => !!l.checkInTime).length
+  const deniedCount = filteredLogs.filter(l => !l.checkInTime).length
 
   return (
     <Layout>

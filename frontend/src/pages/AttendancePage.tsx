@@ -134,7 +134,7 @@ export default function AttendancePage() {
                     <div className="hidden md:block text-center min-w-[120px]">
                       <p className="text-xs text-gray-400 mb-0.5">Check In</p>
                       <p className="text-sm font-medium text-gray-700">{formatTime(log.checkInTime)}</p>
-                      <p className="text-xs text-gray-400">{log.checkInTime ? new Date(log.checkInTime).toLocaleDateString() : ''}</p>
+                      <p className="text-xs text-gray-400">{log.checkInTime ? new Date(log.checkInTime).toLocaleDateString() : '—'}</p>
                     </div>
                     <div className="hidden md:block text-center min-w-[120px]">
                       <p className="text-xs text-gray-400 mb-0.5">Check Out</p>

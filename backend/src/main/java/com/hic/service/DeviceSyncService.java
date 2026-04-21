@@ -9,6 +9,7 @@ import com.hic.model.DeviceSyncHistory.SyncStatus;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.DeviceSyncHistoryRepository;
 import com.hic.util.HikvisionUtil;
+import com.hic.util.EncryptionUtil;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ public class DeviceSyncService {
     private final DeviceConfigRepository deviceConfigRepository;
     private final DeviceSyncHistoryRepository syncHistoryRepository;
     private final HikvisionUtil hikvisionUtil;
+    private final EncryptionUtil encryptionUtil;
 
     public List<DeviceSyncDTO.DeviceConfigDTO> getAllDevices() {
         Long tenantId = TenantContext.getTenantId();
@@ -83,7 +85,9 @@ public class DeviceSyncService {
                     device.getDeviceIp(),
                     device.getDevicePort() != null ? device.getDevicePort() : 80,
                     device.getUsername(),
-                    device.getPasswordEncrypted()
+                    encryptionUtil.isEncrypted(device.getPasswordEncrypted())
+                            ? encryptionUtil.decrypt(device.getPasswordEncrypted())
+                            : device.getPasswordEncrypted()
             );
 
             if (!reachable) {
@@ -122,7 +126,10 @@ public class DeviceSyncService {
         device.setDeviceIp(dto.getDeviceIp());
         device.setDevicePort(dto.getDevicePort());
         device.setUsername(dto.getUsername());
-        device.setPasswordEncrypted(dto.getPassword());
+        // Encrypt password only if a non-empty value is provided
+        if (dto.getPassword() != null && !dto.getPassword().isBlank()) {
+            device.setPasswordEncrypted(encryptionUtil.encrypt(dto.getPassword()));
+        }
         device.setBranchId(dto.getBranchId());
         if (dto.getStatus() != null) device.setStatus(dto.getStatus());
     }

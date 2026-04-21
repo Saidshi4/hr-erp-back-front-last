@@ -8,5 +8,10 @@ import java.util.List;
 
 @Repository
 public interface PositionRepository extends JpaRepository<Position, Long> {
+    // Tenant-aware methods
+    List<Position> findByTenantId(Long tenantId);
+    List<Position> findByTenantIdAndDepartmentId(Long tenantId, Long departmentId);
+
+    // Legacy methods
     List<Position> findByDepartmentId(Long departmentId);
 }

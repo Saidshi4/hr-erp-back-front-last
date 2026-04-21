@@ -8,6 +8,7 @@ import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.service.EmployeeService;
 import com.hic.util.JwtUtil;
+import com.hic.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -39,6 +40,9 @@ class EmployeeControllerTest {
 
     @MockBean
     private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     @MockBean
     private EmployeeService employeeService;

@@ -8,6 +8,7 @@ import com.hic.exception.UnauthorizedException;
 import com.hic.model.User.UserType;
 import com.hic.service.AuthService;
 import com.hic.util.JwtUtil;
+import com.hic.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -38,6 +39,9 @@ class AuthControllerTest {
     private JwtUtil jwtUtil;
 
     @MockBean
+    private UserRepository userRepository;
+
+    @MockBean
     private AuthService authService;
 
     @Test
@@ -46,7 +50,7 @@ class AuthControllerTest {
         request.setUsername("admin");
         request.setPassword("admin123");
 
-        UserDTO userDTO = new UserDTO(1L, "admin", "admin@hic.az", UserType.HEAD_OFFICE_HR, 1L, null);
+        UserDTO userDTO = new UserDTO(1L, "admin", "admin@hic.az", UserType.HEAD_OFFICE_HR, 1L, null, null);
         LoginResponse response = new LoginResponse("access-token", "refresh-token", userDTO);
 
         when(authService.login(any(LoginRequest.class))).thenReturn(response);

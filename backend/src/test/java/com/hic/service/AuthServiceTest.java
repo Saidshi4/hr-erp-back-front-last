@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -60,7 +62,7 @@ class AuthServiceTest {
 
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
         when(passwordUtil.verifyPassword("admin123", testUser.getPasswordHash())).thenReturn(true);
-        when(jwtUtil.generateToken("admin", UserType.HEAD_OFFICE_HR)).thenReturn("access-token");
+        when(jwtUtil.generateToken(anyString(), any(UserType.class), any(), any())).thenReturn("access-token");
         when(jwtUtil.generateRefreshToken("admin")).thenReturn("refresh-token");
 
         LoginResponse response = authService.login(request);
@@ -119,7 +121,7 @@ class AuthServiceTest {
         when(jwtUtil.validateToken("valid-refresh-token")).thenReturn(true);
         when(jwtUtil.extractUsername("valid-refresh-token")).thenReturn("admin");
         when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
-        when(jwtUtil.generateToken("admin", UserType.HEAD_OFFICE_HR)).thenReturn("new-access-token");
+        when(jwtUtil.generateToken(anyString(), any(UserType.class), any(), any())).thenReturn("new-access-token");
 
         String newToken = authService.refreshToken("valid-refresh-token");
 

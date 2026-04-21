@@ -89,10 +89,17 @@ export default function LeavesPage() {
   const pendingCount = leaves.filter((l: LeaveRequest) => l.status === 'PENDING').length
   const approvedCount = leaves.filter((l: LeaveRequest) => l.status === 'APPROVED').length
 
+  const statusStyles: Record<string, { bg: string; color: string }> = {
+    APPROVED: { bg: '#d1fae5', color: '#065f46' },
+    PENDING: { bg: '#fef3c7', color: '#92400e' },
+    REJECTED: { bg: '#fee2e2', color: '#991b1b' },
+  }
+
   return (
     <Layout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Leave Requests</h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -101,27 +108,30 @@ export default function LeavesPage() {
           </div>
           <button
             onClick={openCreate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
+            style={{ background: '#a855f7' }}
           >
-            + New Request
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New Request
           </button>
         </div>
 
-        {/* Status Filter Tabs */}
-        <div className="flex gap-2 mb-4">
+        {/* Status Tabs */}
+        <div className="flex gap-2 mb-5">
           {(['ALL', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === s
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'
-              }`}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={statusFilter === s
+                ? { background: '#a855f7', color: '#fff' }
+                : { background: '#fff', color: '#6b7280', border: '1px solid #e5e7eb' }}
             >
               {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
               {s === 'PENDING' && pendingCount > 0 && (
-                <span className="ml-1 bg-yellow-400 text-yellow-900 rounded-full px-1.5 py-0.5 text-xs">
+                <span className="ml-1.5 bg-yellow-400 text-yellow-900 rounded-full px-1.5 py-0.5 text-xs">
                   {pendingCount}
                 </span>
               )}
@@ -129,83 +139,82 @@ export default function LeavesPage() {
           ))}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
-          ) : error ? (
-            <div className="p-8 text-center text-red-500">{error}</div>
-          ) : filteredLeaves.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">No leave requests found.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Employee</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Leave Type</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Start Date</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">End Date</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Days</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredLeaves.map((leave: LeaveRequest) => {
-                    const days = leave.startDate && leave.endDate
-                      ? calcDays(leave.startDate, leave.endDate)
-                      : '-'
-                    return (
-                      <tr key={leave.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                          {getEmployeeName(leave.employeeId)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">
-                          {getLeaveTypeName(leave.leaveTypeId)}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{leave.startDate}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{leave.endDate}</td>
-                        <td className="px-6 py-4 text-sm text-gray-600">{days}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            leave.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                            leave.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                            'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {leave.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          {leave.status === 'PENDING' && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => updateStatus(leave.id, 'APPROVED')}
-                                className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => updateStatus(leave.id, 'REJECTED')}
-                                className="text-xs bg-red-100 text-red-700 px-2 py-1 rounded hover:bg-red-200"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
-                          {leave.status !== 'PENDING' && (
-                            <span className="text-xs text-gray-400">
-                              {leave.approvalDate ? `on ${leave.approvalDate}` : '—'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {loading ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
+            <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
+            Loading leave requests...
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
+        ) : filteredLeaves.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
+            No leave requests found.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredLeaves.map((leave: LeaveRequest) => {
+              const days = leave.startDate && leave.endDate ? calcDays(leave.startDate, leave.endDate) : 0
+              const statusStyle = statusStyles[leave.status] ?? { bg: '#f3f4f6', color: '#6b7280' }
+              return (
+                <div key={leave.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
+                  {/* Icon */}
+                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#faf5ff' }}>
+                    <svg className="w-5 h-5" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900">{getEmployeeName(leave.employeeId)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{getLeaveTypeName(leave.leaveTypeId)}</p>
+                  </div>
+
+                  {/* Dates */}
+                  <div className="hidden md:block text-center min-w-[160px]">
+                    <p className="text-xs text-gray-400 mb-0.5">Duration</p>
+                    <p className="text-sm text-gray-700">{leave.startDate} → {leave.endDate}</p>
+                    <p className="text-xs text-gray-400">{days > 0 ? `${days} day${days !== 1 ? 's' : ''}` : '—'}</p>
+                  </div>
+
+                  {/* Status */}
+                  <span
+                    className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                    style={statusStyle}
+                  >
+                    {leave.status.charAt(0) + leave.status.slice(1).toLowerCase()}
+                  </span>
+
+                  {/* Actions */}
+                  <div className="flex-shrink-0">
+                    {leave.status === 'PENDING' ? (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => updateStatus(leave.id, 'APPROVED')}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                          style={{ background: '#d1fae5', color: '#065f46' }}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => updateStatus(leave.id, 'REJECTED')}
+                          className="px-3 py-1.5 text-xs font-medium rounded-lg transition-colors"
+                          style={{ background: '#fee2e2', color: '#991b1b' }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        {leave.approvalDate ? `${leave.approvalDate}` : '—'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Create Leave Modal */}
@@ -224,7 +233,7 @@ export default function LeavesPage() {
                 <select
                   value={form.employeeId}
                   onChange={(e) => setForm({ ...form, employeeId: e.target.value ? Number(e.target.value) : '' })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select employee...</option>
                   {employees.map((emp: Employee) => (
@@ -239,7 +248,7 @@ export default function LeavesPage() {
                 <select
                   value={form.leaveTypeId}
                   onChange={(e) => setForm({ ...form, leaveTypeId: e.target.value ? Number(e.target.value) : '' })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select leave type...</option>
                   {leaveTypes.map((lt) => (
@@ -256,7 +265,7 @@ export default function LeavesPage() {
                     type="date"
                     value={form.startDate}
                     onChange={(e) => setForm({ ...form, startDate: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                   />
                 </div>
                 <div>
@@ -266,12 +275,12 @@ export default function LeavesPage() {
                     value={form.endDate}
                     min={form.startDate}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                   />
                 </div>
               </div>
               {form.startDate && form.endDate && form.endDate >= form.startDate && (
-                <p className="text-sm text-blue-600">
+                <p className="text-sm" style={{ color: '#a855f7' }}>
                   Duration: {calcDays(form.startDate, form.endDate)} day(s)
                 </p>
               )}
@@ -286,7 +295,8 @@ export default function LeavesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
+                style={{ background: '#a855f7' }}
               >
                 {saving ? 'Submitting...' : 'Submit Request'}
               </button>

@@ -110,93 +110,176 @@ export default function DevicesPage() {
   }
 
   const activeCount = devices.filter((d: DeviceConfig) => d.status === 'ACTIVE').length
+  const inactiveCount = devices.length - activeCount
 
   return (
     <Layout>
-      <div className="p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Devices</h1>
-            <p className="text-sm text-gray-500 mt-1">{activeCount} active of {devices.length} total</p>
+            <p className="text-sm text-gray-500 mt-1">
+              <span className="inline-flex items-center gap-1.5 mr-3">
+                <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
+                {activeCount} online
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                {inactiveCount} offline
+              </span>
+            </p>
           </div>
-          <button
-            onClick={openCreate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-          >
-            + Add Device
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchDevices()}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
+              style={{ background: '#a855f7' }}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Device
+            </button>
+          </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm">
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
-          ) : error ? (
-            <div className="p-8 text-center text-red-500">{error}</div>
-          ) : devices.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              No devices configured. Click "Add Device" to get started.
+        {/* Summary cards */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: '#f3e8ff' }}>
+              <svg className="w-5 h-5" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Device ID</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Name</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">IP Address</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Status</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Last Sync</th>
-                    <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {devices.map((device: DeviceConfig) => (
-                    <tr key={device.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-600 font-mono">{device.deviceId}</td>
-                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{device.deviceName || '-'}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600 font-mono">
-                        {device.deviceIp}{device.devicePort && device.devicePort !== 80 ? `:${device.devicePort}` : ''}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          device.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                          {device.status || 'UNKNOWN'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {device.lastSyncTime ? new Date(device.lastSyncTime).toLocaleString() : 'Never'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSync(device.id)}
-                            disabled={syncingId === device.id}
-                            className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded hover:bg-blue-200 disabled:opacity-50"
-                          >
-                            {syncingId === device.id ? 'Syncing...' : 'Sync'}
-                          </button>
-                          <button
-                            onClick={() => openEdit(device)}
-                            className="text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded hover:bg-gray-200"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm(device)}
-                            className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded hover:bg-red-200"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              <p className="text-xs text-gray-400">Total Devices</p>
+              <p className="text-lg font-bold text-gray-900">{devices.length}</p>
             </div>
-          )}
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-green-50">
+              <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Online</p>
+              <p className="text-lg font-bold text-gray-900">{activeCount}</p>
+            </div>
+          </div>
+          <div className="bg-white rounded-xl p-4 shadow-sm flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-red-50">
+              <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Offline</p>
+              <p className="text-lg font-bold text-gray-900">{inactiveCount}</p>
+            </div>
+          </div>
         </div>
+
+        {/* Device List */}
+        {loading ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
+            <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
+            Loading devices...
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
+        ) : devices.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-purple-50 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-purple-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <p className="text-gray-500 text-sm">No devices configured yet.</p>
+            <button onClick={openCreate} className="mt-3 text-sm font-medium" style={{ color: '#a855f7' }}>
+              + Add your first device
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {devices.map((device: DeviceConfig) => (
+              <div key={device.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
+                {/* Icon */}
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: '#f3e8ff' }}>
+                  <svg className="w-6 h-6" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-semibold text-gray-900 text-sm">{device.deviceName || device.deviceId}</p>
+                    <span
+                      className="px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={device.status === 'ACTIVE'
+                        ? { background: '#d1fae5', color: '#065f46' }
+                        : { background: '#fee2e2', color: '#991b1b' }}
+                    >
+                      <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${device.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-400'}`}></span>
+                      {device.status === 'ACTIVE' ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-400 font-mono">{device.deviceId}</p>
+                </div>
+
+                {/* IP */}
+                <div className="hidden md:block text-center min-w-[130px]">
+                  <p className="text-xs text-gray-400 mb-0.5">IP Address</p>
+                  <p className="text-sm font-mono text-gray-700">
+                    {device.deviceIp}{device.devicePort && device.devicePort !== 80 ? `:${device.devicePort}` : ''}
+                  </p>
+                </div>
+
+                {/* Last Sync */}
+                <div className="hidden lg:block text-center min-w-[150px]">
+                  <p className="text-xs text-gray-400 mb-0.5">Last Sync</p>
+                  <p className="text-sm text-gray-600">
+                    {device.lastSyncTime ? new Date(device.lastSyncTime).toLocaleString() : 'Never'}
+                  </p>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleSync(device.id)}
+                    disabled={syncingId === device.id}
+                    className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50"
+                    style={{ color: '#a855f7', borderColor: '#e9d5ff', background: '#faf5ff' }}
+                  >
+                    <svg className={`w-3.5 h-3.5 ${syncingId === device.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {syncingId === device.id ? 'Syncing...' : 'Sync'}
+                  </button>
+                  <button
+                    onClick={() => openEdit(device)}
+                    className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => setDeleteConfirm(device)}
+                    className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Create/Edit Modal */}
@@ -219,7 +302,7 @@ export default function DevicesPage() {
                   value={form.deviceId}
                   onChange={(e) => setForm({ ...form, deviceId: e.target.value })}
                   placeholder="e.g., HIK-001"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -229,7 +312,7 @@ export default function DevicesPage() {
                   value={form.deviceName}
                   onChange={(e) => setForm({ ...form, deviceName: e.target.value })}
                   placeholder="e.g., Main Entrance"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -239,7 +322,7 @@ export default function DevicesPage() {
                   value={form.deviceIp}
                   onChange={(e) => setForm({ ...form, deviceIp: e.target.value })}
                   placeholder="192.168.1.100"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -249,7 +332,7 @@ export default function DevicesPage() {
                   value={form.devicePort}
                   onChange={(e) => setForm({ ...form, devicePort: e.target.value ? Number(e.target.value) : '' })}
                   placeholder="80"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -258,7 +341,7 @@ export default function DevicesPage() {
                   type="text"
                   value={form.username}
                   onChange={(e) => setForm({ ...form, username: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -269,7 +352,7 @@ export default function DevicesPage() {
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -277,7 +360,7 @@ export default function DevicesPage() {
                 <select
                   value={form.branchId}
                   onChange={(e) => setForm({ ...form, branchId: e.target.value ? Number(e.target.value) : '' })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select branch...</option>
                   {branches.map((b) => (
@@ -290,7 +373,7 @@ export default function DevicesPage() {
                 <select
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="ACTIVE">Active</option>
                   <option value="INACTIVE">Inactive</option>
@@ -307,7 +390,8 @@ export default function DevicesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
+                style={{ background: '#a855f7' }}
               >
                 {saving ? 'Saving...' : editingDevice ? 'Update' : 'Create'}
               </button>
@@ -321,8 +405,8 @@ export default function DevicesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Device</h2>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete <strong>{deleteConfirm.deviceName || deleteConfirm.deviceId}</strong>?
+            <p className="text-gray-600 mb-6 text-sm">
+              Are you sure you want to delete <strong>{deleteConfirm.deviceName || deleteConfirm.deviceId}</strong>? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">
               <button

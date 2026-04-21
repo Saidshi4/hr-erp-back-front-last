@@ -26,6 +26,14 @@ const defaultForm: EmployeeFormData = {
   hireDate: new Date().toISOString().split('T')[0],
 }
 
+const AVATAR_COLORS = ['#6366f1', '#a855f7', '#10b981', '#f59e0b', '#ef4444', '#3b82f6']
+
+function getAvatarColor(name: string) {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
 export default function EmployeesPage() {
   const { employees, loading, error, fetchEmployees, createEmployee, updateEmployee, deleteEmployee, totalPages, currentPage } = useEmployeeStore()
   const [search, setSearch] = useState('')
@@ -111,102 +119,144 @@ export default function EmployeesPage() {
 
   return (
     <Layout>
-      <div className="p-8">
+      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Employees</h1>
+            <p className="text-sm text-gray-500 mt-1">{employees.length} total employees</p>
+          </div>
           <button
             onClick={openCreate}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors"
+            style={{ background: '#a855f7' }}
           >
-            + Add Employee
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Employee
           </button>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm">
-          <div className="p-4 border-b">
-            <input
-              type="text"
-              placeholder="Search employees..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full max-w-sm px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
-          ) : error ? (
-            <div className="p-8 text-center text-red-500">{error}</div>
-          ) : (
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Employee ID</th>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Name</th>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Department</th>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Status</th>
-                  <th className="text-left px-6 py-3 text-sm font-medium text-gray-500">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map((emp: Employee) => (
-                  <tr key={emp.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-600">{emp.employeeId}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                      {emp.firstName} {emp.lastName}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-600">{emp.departmentName || '-'}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        emp.employmentStatus === 'ACTIVE'
-                          ? 'bg-green-100 text-green-700'
-                          : emp.employmentStatus === 'ON_LEAVE'
-                          ? 'bg-yellow-100 text-yellow-700'
-                          : 'bg-red-100 text-red-700'
-                      }`}>
-                        {emp.employmentStatus}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">
-                      <button
-                        onClick={() => openEdit(emp)}
-                        className="text-blue-600 hover:text-blue-800 mr-3"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(emp)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Delete
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
-
-          {totalPages > 1 && (
-            <div className="p-4 border-t flex items-center justify-between">
-              <button
-                onClick={() => fetchEmployees(currentPage - 1)}
-                disabled={currentPage === 0}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-gray-500">Page {currentPage + 1} of {totalPages}</span>
-              <button
-                onClick={() => fetchEmployees(currentPage + 1)}
-                disabled={currentPage >= totalPages - 1}
-                className="px-4 py-2 text-sm border border-gray-300 rounded-lg disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+        {/* Search */}
+        <div className="bg-white rounded-xl shadow-sm p-4 mb-4 flex items-center gap-3">
+          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search employees..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 outline-none text-sm text-gray-700 placeholder-gray-400"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           )}
         </div>
+
+        {/* Employee List */}
+        {loading ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
+            <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
+            Loading employees...
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
+        ) : filtered.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
+            {search ? 'No employees match your search.' : 'No employees yet.'}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filtered.map((emp: Employee) => {
+              const name = `${emp.firstName} ${emp.lastName}`
+              const initials = `${emp.firstName.charAt(0)}${emp.lastName.charAt(0)}`.toUpperCase()
+              const avatarColor = getAvatarColor(name)
+              return (
+                <div key={emp.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+                  {/* Avatar */}
+                  <div
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-white text-sm font-bold flex-shrink-0"
+                    style={{ background: avatarColor }}
+                  >
+                    {initials}
+                  </div>
+
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm">{name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {emp.departmentName || 'No department'} · {emp.employeeId}
+                    </p>
+                  </div>
+
+                  {/* Email */}
+                  <div className="hidden md:block min-w-[180px]">
+                    <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                    <p className="text-sm text-gray-600 truncate">{emp.email || '—'}</p>
+                  </div>
+
+                  {/* Status */}
+                  <div className="flex-shrink-0">
+                    <span
+                      className="px-2.5 py-1 rounded-full text-xs font-medium"
+                      style={emp.employmentStatus === 'ACTIVE'
+                        ? { background: '#d1fae5', color: '#065f46' }
+                        : emp.employmentStatus === 'ON_LEAVE'
+                        ? { background: '#fef3c7', color: '#92400e' }
+                        : { background: '#fee2e2', color: '#991b1b' }}
+                    >
+                      {emp.employmentStatus === 'ACTIVE' ? 'Active' :
+                       emp.employmentStatus === 'ON_LEAVE' ? 'On Leave' : 'Inactive'}
+                    </span>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => openEdit(emp)}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm(emp)}
+                      className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              onClick={() => fetchEmployees(currentPage - 1)}
+              disabled={currentPage === 0}
+              className="px-4 py-2 text-sm border border-gray-300 bg-white rounded-lg disabled:opacity-50 hover:bg-gray-50"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-500">Page {currentPage + 1} of {totalPages}</span>
+            <button
+              onClick={() => fetchEmployees(currentPage + 1)}
+              disabled={currentPage >= totalPages - 1}
+              className="px-4 py-2 text-sm border border-gray-300 bg-white rounded-lg disabled:opacity-50 hover:bg-gray-50"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Create/Edit Modal */}
@@ -228,7 +278,7 @@ export default function EmployeesPage() {
                   type="text"
                   value={form.firstName}
                   onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -237,7 +287,7 @@ export default function EmployeesPage() {
                   type="text"
                   value={form.lastName}
                   onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -246,7 +296,7 @@ export default function EmployeesPage() {
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -255,7 +305,7 @@ export default function EmployeesPage() {
                   type="text"
                   value={form.mobilePhone}
                   onChange={(e) => setForm({ ...form, mobilePhone: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -263,7 +313,7 @@ export default function EmployeesPage() {
                 <select
                   value={form.gender}
                   onChange={(e) => setForm({ ...form, gender: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select...</option>
                   <option value="MALE">Male</option>
@@ -275,7 +325,7 @@ export default function EmployeesPage() {
                 <select
                   value={form.departmentId}
                   onChange={(e) => setForm({ ...form, departmentId: e.target.value ? Number(e.target.value) : '' })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select...</option>
                   {departments.map((d) => (
@@ -289,7 +339,7 @@ export default function EmployeesPage() {
                   type="text"
                   value={form.finNumber}
                   onChange={(e) => setForm({ ...form, finNumber: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
@@ -298,7 +348,7 @@ export default function EmployeesPage() {
                   type="date"
                   value={form.hireDate}
                   onChange={(e) => setForm({ ...form, hireDate: e.target.value })}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
             </div>
@@ -312,7 +362,8 @@ export default function EmployeesPage() {
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
+                style={{ background: '#a855f7' }}
               >
                 {saving ? 'Saving...' : editingEmployee ? 'Update' : 'Create'}
               </button>
@@ -326,7 +377,7 @@ export default function EmployeesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Employee</h2>
-            <p className="text-gray-600 mb-6">
+            <p className="text-gray-600 mb-6 text-sm">
               Are you sure you want to delete <strong>{deleteConfirm.firstName} {deleteConfirm.lastName}</strong>? This action cannot be undone.
             </p>
             <div className="flex justify-end gap-3">

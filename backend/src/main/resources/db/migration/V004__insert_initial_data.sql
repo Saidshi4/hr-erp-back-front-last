@@ -10,11 +10,7 @@ ON CONFLICT DO NOTHING;
 
 -- Insert admin user (password: admin123 BCrypt hashed)
 INSERT INTO users (username, email, password_hash, user_type, branch_id)
-<<<<<<< HEAD
-SELECT 'admin123', 'admin@hic.az', '$2y$12$4F6moAz.IWlGU3rdUUoQpuLUJ5KlKtA6oX3sUT2hV1/gjjugFqTQq', 'HEAD_OFFICE_HR', b.id
-=======
 SELECT 'admin', 'admin@hic.az', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lh7y', 'HEAD_OFFICE_HR', b.id
->>>>>>> 34a5d15449f57a176995d2c80af2fa33d43c2f7b
 FROM branches b WHERE b.branch_code = 'HO'
 ON CONFLICT (username) DO NOTHING;
 

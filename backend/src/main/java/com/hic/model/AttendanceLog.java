@@ -14,6 +14,9 @@ public class AttendanceLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
     @Column(name = "employee_id", nullable = false)
     private Long employeeId;
 

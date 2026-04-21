@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.LeaveRequestDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.model.LeaveRequest.LeaveStatus;
+import com.hic.model.LeaveType;
 import com.hic.service.LeaveService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,11 @@ import java.util.List;
 @RequiredArgsConstructor
 public class LeaveController {
     private final LeaveService leaveService;
+
+    @GetMapping("/types")
+    public ResponseEntity<ApiResponse<List<LeaveType>>> getLeaveTypes() {
+        return ResponseEntity.ok(ApiResponse.success(leaveService.getAllLeaveTypes()));
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<LeaveRequestDTO>>> getAll() {

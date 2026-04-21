@@ -15,4 +15,5 @@ public class UserDTO {
     private UserType userType;
     private Long branchId;
     private Long departmentId;
+    private Long tenantId;
 }

@@ -14,10 +14,13 @@ public class Branch {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "tenant_id", nullable = false)
+    private Long tenantId;
+
     @Column(name = "branch_name", nullable = false)
     private String branchName;
 
-    @Column(name = "branch_code", nullable = false, unique = true)
+    @Column(name = "branch_code", nullable = false)
     private String branchCode;
 
     @Column(name = "location")

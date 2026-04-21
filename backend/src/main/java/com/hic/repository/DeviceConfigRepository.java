@@ -9,6 +9,13 @@ import java.util.Optional;
 
 @Repository
 public interface DeviceConfigRepository extends JpaRepository<DeviceConfig, Long> {
+    // Tenant-aware methods
+    List<DeviceConfig> findByTenantId(Long tenantId);
+    List<DeviceConfig> findByTenantIdAndStatus(Long tenantId, String status);
+    Optional<DeviceConfig> findByTenantIdAndDeviceId(Long tenantId, String deviceId);
+    long countByTenantIdAndStatus(Long tenantId, String status);
+
+    // Legacy methods
     List<DeviceConfig> findByBranchId(Long branchId);
     List<DeviceConfig> findByStatus(String status);
     Optional<DeviceConfig> findByDeviceId(String deviceId);

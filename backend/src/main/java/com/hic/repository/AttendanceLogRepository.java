@@ -9,6 +9,14 @@ import java.util.List;
 
 @Repository
 public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Long> {
+
+    // Tenant-aware methods
+    List<AttendanceLog> findByTenantIdAndCheckInTimeBetween(Long tenantId, LocalDateTime start, LocalDateTime end);
+    List<AttendanceLog> findByTenantIdAndEmployeeIdAndCheckInTimeBetween(Long tenantId, Long employeeId,
+                                                                          LocalDateTime start, LocalDateTime end);
+    long countByTenantIdAndCheckInTimeBetween(Long tenantId, LocalDateTime start, LocalDateTime end);
+
+    // Legacy methods
     List<AttendanceLog> findByEmployeeIdAndCheckInTimeBetween(Long employeeId,
                                                                LocalDateTime start,
                                                                LocalDateTime end);

@@ -14,7 +14,10 @@ public class DeviceConfig {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "device_id", nullable = false, unique = true)
+    @Column(name = "tenant_id")
+    private Long tenantId;
+
+    @Column(name = "device_id", nullable = false)
     private String deviceId;
 
     @Column(name = "device_name")

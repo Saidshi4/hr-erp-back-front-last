@@ -7,6 +7,9 @@ interface DeviceState {
   loading: boolean
   error: string | null
   fetchDevices: () => Promise<void>
+  createDevice: (data: Partial<DeviceConfig> & { password?: string }) => Promise<void>
+  updateDevice: (id: number, data: Partial<DeviceConfig> & { password?: string }) => Promise<void>
+  deleteDevice: (id: number) => Promise<void>
   syncDevice: (id: number) => Promise<void>
 }
 
@@ -22,6 +25,18 @@ export const useDeviceStore = create<DeviceState>((set, get) => ({
     } catch (e: unknown) {
       set({ error: (e as Error).message, loading: false })
     }
+  },
+  createDevice: async (data) => {
+    await deviceApi.create(data)
+    await get().fetchDevices()
+  },
+  updateDevice: async (id, data) => {
+    await deviceApi.update(id, data)
+    await get().fetchDevices()
+  },
+  deleteDevice: async (id) => {
+    await deviceApi.delete(id)
+    await get().fetchDevices()
   },
   syncDevice: async (id) => {
     await deviceApi.sync(id)

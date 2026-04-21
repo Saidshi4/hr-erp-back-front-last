@@ -9,6 +9,7 @@ import com.hic.model.DeviceSyncHistory.SyncStatus;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.DeviceSyncHistoryRepository;
 import com.hic.util.HikvisionUtil;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,7 +29,11 @@ public class DeviceSyncService {
     private final HikvisionUtil hikvisionUtil;
 
     public List<DeviceSyncDTO.DeviceConfigDTO> getAllDevices() {
-        return deviceConfigRepository.findAll().stream().map(this::toConfigDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<DeviceConfig> devices = tenantId != null
+                ? deviceConfigRepository.findByTenantId(tenantId)
+                : deviceConfigRepository.findAll();
+        return devices.stream().map(this::toConfigDTO).collect(Collectors.toList());
     }
 
     public DeviceSyncDTO.DeviceConfigDTO getDeviceById(Long id) {
@@ -41,6 +46,10 @@ public class DeviceSyncService {
         DeviceConfig device = new DeviceConfig();
         mapDtoToDevice(dto, device);
         device.setStatus("ACTIVE");
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            device.setTenantId(tenantId);
+        }
         return toConfigDTO(deviceConfigRepository.save(device));
     }
 

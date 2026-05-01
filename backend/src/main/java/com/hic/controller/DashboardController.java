@@ -3,7 +3,6 @@ package com.hic.controller;
 import com.hic.dto.ApiResponse;
 import com.hic.dto.DashboardStatsDTO;
 import com.hic.model.AttendanceLog;
-import com.hic.model.DeviceConfig;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.LeaveRequest.LeaveStatus;
 import com.hic.repository.AttendanceLogRepository;
@@ -12,6 +11,7 @@ import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -123,18 +123,10 @@ public class DashboardController {
 
     @GetMapping("/access-logs/latest")
     public ResponseEntity<ApiResponse<List<AttendanceLog>>> getLatestAccessLogs() {
-        LocalDateTime start = LocalDateTime.now().minusDays(7);
-        LocalDateTime end = LocalDateTime.now();
         Long tenantId = TenantContext.getTenantId();
-        List<AttendanceLog> logs = tenantId != null
-                ? attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(tenantId, start, end)
-                : attendanceLogRepository.findByCheckInTimeBetween(start, end);
-        // Return last 10 only
-        List<AttendanceLog> latest = logs.stream()
-                .sorted((a, b) -> b.getCheckInTime() != null && a.getCheckInTime() != null
-                        ? b.getCheckInTime().compareTo(a.getCheckInTime()) : 0)
-                .limit(10)
-                .toList();
+        List<AttendanceLog> latest = tenantId != null
+                ? attendanceLogRepository.findByTenantIdOrderByCheckInTimeDesc(tenantId, PageRequest.of(0, 10))
+                : attendanceLogRepository.findAllByOrderByCheckInTimeDesc(PageRequest.of(0, 10));
         return ResponseEntity.ok(ApiResponse.success(latest));
     }
 

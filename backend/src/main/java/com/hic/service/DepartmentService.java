@@ -52,8 +52,10 @@ public class DepartmentService {
         if (dto.getBranchId() != null) {
             dept.setBranchId(dto.getBranchId());
         } else {
-            // default to first branch
-            branchRepository.findAll().stream().findFirst().ifPresent(b -> dept.setBranchId(b.getId()));
+            // default to head office branch
+            branchRepository.findByBranchCode("HO")
+                    .or(() -> branchRepository.findAll().stream().findFirst())
+                    .ifPresent(b -> dept.setBranchId(b.getId()));
         }
         Long tenantId = TenantContext.getTenantId();
         if (tenantId != null) dept.setTenantId(tenantId);

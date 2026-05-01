@@ -61,6 +61,15 @@ public class Employee {
     @Column(name = "hire_date")
     private LocalDate hireDate;
 
+    @Column(name = "father_name")
+    private String fatherName;
+
+    @Column(name = "area")
+    private String area;
+
+    @Column(name = "shift_type")
+    private String shiftType;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "employment_status", nullable = false)
     private EmploymentStatus employmentStatus = EmploymentStatus.ACTIVE;

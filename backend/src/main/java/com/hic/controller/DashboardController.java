@@ -2,6 +2,7 @@ package com.hic.controller;
 
 import com.hic.dto.ApiResponse;
 import com.hic.dto.DashboardStatsDTO;
+import com.hic.model.AttendanceLog;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.LeaveRequest.LeaveStatus;
 import com.hic.repository.AttendanceLogRepository;
@@ -10,12 +11,16 @@ import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -72,4 +77,66 @@ public class DashboardController {
 
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSummary() {
+        Long tenantId = TenantContext.getTenantId();
+
+        long totalEmployees = tenantId != null
+                ? employeeRepository.countByTenantId(tenantId)
+                : employeeRepository.count();
+        long activeEmployees = tenantId != null
+                ? employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ACTIVE)
+                : employeeRepository.countByEmploymentStatus(EmploymentStatus.ACTIVE);
+        long onLeaveEmployees = tenantId != null
+                ? employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ON_LEAVE)
+                : employeeRepository.countByEmploymentStatus(EmploymentStatus.ON_LEAVE);
+        long pendingLeaves = tenantId != null
+                ? leaveRequestRepository.countByTenantIdAndStatus(tenantId, LeaveStatus.PENDING)
+                : leaveRequestRepository.findByStatus(LeaveStatus.PENDING).size();
+
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "totalEmployees", totalEmployees,
+                "activeEmployees", activeEmployees,
+                "onLeaveEmployees", onLeaveEmployees,
+                "pendingLeaves", pendingLeaves
+        )));
+    }
+
+    @GetMapping("/device-status")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDeviceStatus() {
+        Long tenantId = TenantContext.getTenantId();
+        long totalDevices = tenantId != null
+                ? deviceConfigRepository.countByTenantId(tenantId)
+                : deviceConfigRepository.count();
+        long onlineDevices = tenantId != null
+                ? deviceConfigRepository.countByTenantIdAndStatus(tenantId, "ACTIVE")
+                : deviceConfigRepository.countByStatus("ACTIVE");
+        long offlineDevices = totalDevices - onlineDevices;
+
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "totalDevices", totalDevices,
+                "onlineDevices", onlineDevices,
+                "offlineDevices", offlineDevices
+        )));
+    }
+
+    @GetMapping("/access-logs/latest")
+    public ResponseEntity<ApiResponse<List<AttendanceLog>>> getLatestAccessLogs() {
+        Long tenantId = TenantContext.getTenantId();
+        List<AttendanceLog> latest = tenantId != null
+                ? attendanceLogRepository.findByTenantIdOrderByCheckInTimeDesc(tenantId, PageRequest.of(0, 10))
+                : attendanceLogRepository.findAllByOrderByCheckInTimeDesc(PageRequest.of(0, 10));
+        return ResponseEntity.ok(ApiResponse.success(latest));
+    }
+
+    @GetMapping("/current-time")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getCurrentTime() {
+        LocalDateTime now = LocalDateTime.now();
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "datetime", now.toString(),
+                "formatted", now.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))
+        )));
+    }
 }
+

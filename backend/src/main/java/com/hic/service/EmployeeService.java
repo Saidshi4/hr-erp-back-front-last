@@ -155,6 +155,9 @@ public class EmployeeService {
         if (dto.getEmploymentStatus() != null) {
             employee.setEmploymentStatus(dto.getEmploymentStatus());
         }
+        if (dto.getFatherName() != null) employee.setFatherName(dto.getFatherName());
+        if (dto.getArea() != null) employee.setArea(dto.getArea());
+        if (dto.getShiftType() != null) employee.setShiftType(dto.getShiftType());
     }
 
     private EmployeeResponseDTO toResponseDTO(Employee employee) {
@@ -179,6 +182,9 @@ public class EmployeeService {
         dto.setDepartmentId(employee.getDepartmentId());
         dto.setPositionId(employee.getPositionId());
         dto.setHireDate(employee.getHireDate());
+        dto.setFatherName(employee.getFatherName());
+        dto.setArea(employee.getArea());
+        dto.setShiftType(employee.getShiftType());
         dto.setEmploymentStatus(employee.getEmploymentStatus());
         dto.setCreatedAt(employee.getCreatedAt());
         dto.setUpdatedAt(employee.getUpdatedAt());

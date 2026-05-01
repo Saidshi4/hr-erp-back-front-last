@@ -21,6 +21,9 @@ public class Position {
     @Column(name = "position_name", nullable = false)
     private String positionName;
 
+    @Column(name = "description")
+    private String description;
+
     @Column(name = "department_id", nullable = false)
     private Long departmentId;
 

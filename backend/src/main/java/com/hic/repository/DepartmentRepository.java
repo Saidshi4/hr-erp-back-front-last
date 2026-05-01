@@ -14,4 +14,8 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
 
     // Legacy methods
     List<Department> findByBranchId(Long branchId);
+
+    // Parent department lookup
+    List<Department> findByParentDepartmentId(Long parentDepartmentId);
+    long countByParentDepartmentId(Long parentDepartmentId);
 }

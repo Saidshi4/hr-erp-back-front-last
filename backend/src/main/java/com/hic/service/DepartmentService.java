@@ -5,6 +5,8 @@ import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Department;
 import com.hic.repository.BranchRepository;
 import com.hic.repository.DepartmentRepository;
+import com.hic.repository.EmployeeRepository;
+import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,9 +20,14 @@ public class DepartmentService {
 
     private final DepartmentRepository departmentRepository;
     private final BranchRepository branchRepository;
+    private final EmployeeRepository employeeRepository;
 
     public List<DepartmentDTO> getAll() {
-        return departmentRepository.findAll().stream().map(this::toDTO).collect(Collectors.toList());
+        Long tenantId = TenantContext.getTenantId();
+        List<Department> departments = tenantId != null
+                ? departmentRepository.findByTenantId(tenantId)
+                : departmentRepository.findAll();
+        return departments.stream().map(this::toDTO).collect(Collectors.toList());
     }
 
     public List<DepartmentDTO> getByBranch(Long branchId) {
@@ -34,12 +41,24 @@ public class DepartmentService {
 
     @Transactional
     public DepartmentDTO create(DepartmentDTO dto) {
-        if (!branchRepository.existsById(dto.getBranchId())) {
+        // branchId is optional now, use head office if not provided
+        if (dto.getBranchId() != null && !branchRepository.existsById(dto.getBranchId())) {
             throw new ResourceNotFoundException("Branch", dto.getBranchId());
         }
         Department dept = new Department();
         dept.setDepartmentName(dto.getDepartmentName());
-        dept.setBranchId(dto.getBranchId());
+        dept.setDescription(dto.getDescription());
+        dept.setParentDepartmentId(dto.getParentDepartmentId());
+        if (dto.getBranchId() != null) {
+            dept.setBranchId(dto.getBranchId());
+        } else {
+            // default to head office branch
+            branchRepository.findByBranchCode("HO")
+                    .or(() -> branchRepository.findAll().stream().findFirst())
+                    .ifPresent(b -> dept.setBranchId(b.getId()));
+        }
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) dept.setTenantId(tenantId);
         return toDTO(departmentRepository.save(dept));
     }
 
@@ -48,6 +67,8 @@ public class DepartmentService {
         Department dept = departmentRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Department", id));
         dept.setDepartmentName(dto.getDepartmentName());
+        dept.setDescription(dto.getDescription());
+        dept.setParentDepartmentId(dto.getParentDepartmentId());
         if (dto.getBranchId() != null) dept.setBranchId(dto.getBranchId());
         return toDTO(departmentRepository.save(dept));
     }
@@ -64,8 +85,20 @@ public class DepartmentService {
         DepartmentDTO dto = new DepartmentDTO();
         dto.setId(dept.getId());
         dto.setDepartmentName(dept.getDepartmentName());
+        dto.setDescription(dept.getDescription());
         dto.setBranchId(dept.getBranchId());
+        dto.setParentDepartmentId(dept.getParentDepartmentId());
         dto.setCreatedAt(dept.getCreatedAt());
+
+        // Resolve parent name
+        if (dept.getParentDepartmentId() != null) {
+            departmentRepository.findById(dept.getParentDepartmentId())
+                    .ifPresent(p -> dto.setParentDepartmentName(p.getDepartmentName()));
+        }
+
+        // Count employees in this department
+        dto.setEmployeeCount(employeeRepository.countByDepartmentId(dept.getId()));
+
         return dto;
     }
 }

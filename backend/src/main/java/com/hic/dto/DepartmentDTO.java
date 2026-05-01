@@ -1,7 +1,6 @@
 package com.hic.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -14,8 +13,15 @@ public class DepartmentDTO {
     @NotBlank(message = "Department name is required")
     private String departmentName;
 
-    @NotNull(message = "Branch ID is required")
+    private String description;
+
     private Long branchId;
+
+    private Long parentDepartmentId;
+
+    private String parentDepartmentName;
+
+    private long employeeCount;
 
     private LocalDateTime createdAt;
 }

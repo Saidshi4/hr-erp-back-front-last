@@ -2,6 +2,8 @@ package com.hic.controller;
 
 import com.hic.dto.ApiResponse;
 import com.hic.dto.DashboardStatsDTO;
+import com.hic.model.AttendanceLog;
+import com.hic.model.DeviceConfig;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.LeaveRequest.LeaveStatus;
 import com.hic.repository.AttendanceLogRepository;
@@ -16,6 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/dashboard")
@@ -72,4 +77,74 @@ public class DashboardController {
 
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
+
+    @GetMapping("/summary")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getSummary() {
+        Long tenantId = TenantContext.getTenantId();
+
+        long totalEmployees = tenantId != null
+                ? employeeRepository.countByTenantId(tenantId)
+                : employeeRepository.count();
+        long activeEmployees = tenantId != null
+                ? employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ACTIVE)
+                : employeeRepository.countByEmploymentStatus(EmploymentStatus.ACTIVE);
+        long onLeaveEmployees = tenantId != null
+                ? employeeRepository.countByTenantIdAndEmploymentStatus(tenantId, EmploymentStatus.ON_LEAVE)
+                : employeeRepository.countByEmploymentStatus(EmploymentStatus.ON_LEAVE);
+        long pendingLeaves = tenantId != null
+                ? leaveRequestRepository.countByTenantIdAndStatus(tenantId, LeaveStatus.PENDING)
+                : leaveRequestRepository.findByStatus(LeaveStatus.PENDING).size();
+
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "totalEmployees", totalEmployees,
+                "activeEmployees", activeEmployees,
+                "onLeaveEmployees", onLeaveEmployees,
+                "pendingLeaves", pendingLeaves
+        )));
+    }
+
+    @GetMapping("/device-status")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getDeviceStatus() {
+        Long tenantId = TenantContext.getTenantId();
+        long totalDevices = tenantId != null
+                ? deviceConfigRepository.countByTenantId(tenantId)
+                : deviceConfigRepository.count();
+        long onlineDevices = tenantId != null
+                ? deviceConfigRepository.countByTenantIdAndStatus(tenantId, "ACTIVE")
+                : deviceConfigRepository.countByStatus("ACTIVE");
+        long offlineDevices = totalDevices - onlineDevices;
+
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "totalDevices", totalDevices,
+                "onlineDevices", onlineDevices,
+                "offlineDevices", offlineDevices
+        )));
+    }
+
+    @GetMapping("/access-logs/latest")
+    public ResponseEntity<ApiResponse<List<AttendanceLog>>> getLatestAccessLogs() {
+        LocalDateTime start = LocalDateTime.now().minusDays(7);
+        LocalDateTime end = LocalDateTime.now();
+        Long tenantId = TenantContext.getTenantId();
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(tenantId, start, end)
+                : attendanceLogRepository.findByCheckInTimeBetween(start, end);
+        // Return last 10 only
+        List<AttendanceLog> latest = logs.stream()
+                .sorted((a, b) -> b.getCheckInTime() != null && a.getCheckInTime() != null
+                        ? b.getCheckInTime().compareTo(a.getCheckInTime()) : 0)
+                .limit(10)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.success(latest));
+    }
+
+    @GetMapping("/current-time")
+    public ResponseEntity<ApiResponse<Map<String, String>>> getCurrentTime() {
+        LocalDateTime now = LocalDateTime.now();
+        return ResponseEntity.ok(ApiResponse.success(Map.of(
+                "datetime", now.toString(),
+                "formatted", now.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))
+        )));
+    }
 }
+

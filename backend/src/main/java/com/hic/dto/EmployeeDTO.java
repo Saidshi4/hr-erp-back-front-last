@@ -34,4 +34,7 @@ public class EmployeeDTO {
     private Long positionId;
     private LocalDate hireDate;
     private EmploymentStatus employmentStatus;
+    private String fatherName;
+    private String area;
+    private String shiftType;
 }

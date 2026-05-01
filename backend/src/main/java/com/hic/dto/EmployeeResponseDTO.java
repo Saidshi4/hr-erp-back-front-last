@@ -24,6 +24,9 @@ public class EmployeeResponseDTO {
     private Long positionId;
     private String positionName;
     private LocalDate hireDate;
+    private String fatherName;
+    private String area;
+    private String shiftType;
     private EmploymentStatus employmentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

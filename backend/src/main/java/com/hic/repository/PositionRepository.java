@@ -14,4 +14,6 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
 
     // Legacy methods
     List<Position> findByDepartmentId(Long departmentId);
+
+    long countByDepartmentId(Long departmentId);
 }

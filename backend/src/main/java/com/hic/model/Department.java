@@ -20,8 +20,14 @@ public class Department {
     @Column(name = "department_name", nullable = false)
     private String departmentName;
 
+    @Column(name = "description")
+    private String description;
+
     @Column(name = "branch_id", nullable = false)
     private Long branchId;
+
+    @Column(name = "parent_department_id")
+    private Long parentDepartmentId;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

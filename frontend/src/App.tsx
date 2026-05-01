@@ -5,6 +5,8 @@ import { useAuthStore } from './store/authStore'
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage'))
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'))
+const PositionsPage = lazy(() => import('./pages/PositionsPage'))
 const AttendancePage = lazy(() => import('./pages/AttendancePage'))
 const LeavesPage = lazy(() => import('./pages/LeavesPage'))
 const DevicesPage = lazy(() => import('./pages/DevicesPage'))
@@ -32,6 +34,8 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/departments" element={<ProtectedRoute><AppLayout><DepartmentsPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/positions" element={<ProtectedRoute><AppLayout><PositionsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute><AppLayout><AttendancePage /></AppLayout></ProtectedRoute>} />
           <Route path="/leaves" element={<ProtectedRoute><AppLayout><LeavesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/devices" element={<ProtectedRoute><AppLayout><DevicesPage /></AppLayout></ProtectedRoute>} />

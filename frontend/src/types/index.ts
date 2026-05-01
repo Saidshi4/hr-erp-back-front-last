@@ -18,7 +18,21 @@ export interface Branch {
 export interface Department {
   id: number
   departmentName: string
-  branchId: number
+  description?: string
+  branchId?: number
+  parentDepartmentId?: number
+  parentDepartmentName?: string
+  employeeCount?: number
+  createdAt?: string
+}
+
+export interface Position {
+  id: number
+  positionName: string
+  description?: string
+  departmentId: number
+  departmentName?: string
+  employeeCount?: number
   createdAt?: string
 }
 
@@ -27,6 +41,7 @@ export interface Employee {
   employeeId: string
   firstName: string
   lastName: string
+  fatherName?: string
   birthDate?: string
   gender?: string
   mobilePhone?: string
@@ -37,6 +52,8 @@ export interface Employee {
   positionId?: number
   positionName?: string
   hireDate?: string
+  area?: string
+  shiftType?: string
   employmentStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE'
   createdAt?: string
   updatedAt?: string

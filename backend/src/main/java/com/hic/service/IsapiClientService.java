@@ -53,7 +53,7 @@ public class IsapiClientService {
         try {
             Long isapiDeviceId = findIsapiDeviceIdByIp(ip);
             if (isapiDeviceId == null) {
-                isapiDeviceId = registerDeviceInIsapi(ip, username, password);
+                isapiDeviceId = registerDeviceInIsapi(ip, port, username, password);
             }
             if (isapiDeviceId == null) {
                 log.warn("IsapiClientService: could not resolve ISAPI device id for ip={}", ip);
@@ -115,7 +115,7 @@ public class IsapiClientService {
      * Returns the ISAPI-internal device ID for the given IP, or {@code null} if
      * no matching device exists in ISAPI.
      */
-    Long findIsapiDeviceIdByIp(String ip) {
+    private Long findIsapiDeviceIdByIp(String ip) {
         try {
             ResponseEntity<List<Map<String, Object>>> response = restTemplate.exchange(
                     isapiBaseUrl + "/api/devices",
@@ -143,10 +143,11 @@ public class IsapiClientService {
      * Registers a new device in ISAPI and returns its assigned ID.
      * Returns {@code null} if the registration fails.
      */
-    Long registerDeviceInIsapi(String ip, String username, String password) {
+    private Long registerDeviceInIsapi(String ip, int port, String username, String password) {
         try {
             Map<String, Object> body = Map.of(
                     "ip", ip,
+                    "port", port,
                     "username", username,
                     "password", password,
                     "enabled", true);
@@ -171,7 +172,7 @@ public class IsapiClientService {
     /**
      * Queries ISAPI for the online status of the device identified by {@code isapiDeviceId}.
      */
-    boolean isDeviceOnline(Long isapiDeviceId) {
+    private boolean isDeviceOnline(Long isapiDeviceId) {
         try {
             @SuppressWarnings("unchecked")
             Map<String, Object> status = restTemplate.getForObject(

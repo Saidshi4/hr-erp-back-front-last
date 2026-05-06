@@ -8,4 +8,10 @@ export const deviceApi = {
   delete: (id: number) => client.delete(`/devices/${id}`),
   sync: (id: number) => client.post(`/devices/${id}/sync`),
   getHistory: (id: number) => client.get(`/devices/${id}/history`),
+
+  // ISAPI device lifecycle
+  startDevice: (id: number) => client.post(`/devices/${id}/start`),
+  stopDevice: (id: number) => client.post(`/devices/${id}/stop`),
+  getIsapiStatus: (id: number) => client.get(`/devices/${id}/isapi-status`),
+  setEnabled: (id: number, enabled: boolean) => client.patch(`/devices/${id}/enabled`, { enabled }),
 }

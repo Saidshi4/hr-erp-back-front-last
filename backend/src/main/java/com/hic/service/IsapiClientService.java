@@ -20,6 +20,11 @@ import java.util.Map;
  *
  * <p>ISAPI base URL is configured via {@code isapi.base-url} in application.yml
  * (default: {@code http://localhost:8081}).
+ *
+ * <p>The {@code enabled} flag sent during device registration is controlled by
+ * {@code isapi.device-enabled-default} (default: {@code false}).  Keeping it
+ * {@code false} prevents ISAPI from starting the alert-stream immediately on
+ * registration; use {@link #startDevice(String)} to activate a device explicitly.
  */
 @Slf4j
 @Service
@@ -30,6 +35,9 @@ public class IsapiClientService {
 
     @Value("${isapi.base-url:http://localhost:8081}")
     private String isapiBaseUrl;
+
+    @Value("${isapi.device-enabled-default:false}")
+    private boolean deviceEnabledDefault;
 
     // -----------------------------------------------------------------------
     // Device status check
@@ -150,7 +158,7 @@ public class IsapiClientService {
                     "port", port,
                     "username", username,
                     "password", password,
-                    "enabled", true);
+                    "enabled", deviceEnabledDefault);
 
             @SuppressWarnings("unchecked")
             Map<String, Object> created = restTemplate.postForObject(

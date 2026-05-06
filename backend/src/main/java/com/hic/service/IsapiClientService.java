@@ -17,6 +17,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -508,20 +509,19 @@ public class IsapiClientService {
     }
 
     /**
-     * Builds a query-string URL from pairs of {@code (name, value)}.
-     * Null values are omitted.
+     * Builds a properly encoded URL with optional query parameters.
+     * Null values are omitted. String values are percent-encoded by
+     * {@link UriComponentsBuilder} to prevent query-parameter injection.
      */
     private String buildUrl(String path, Object... pairs) {
-        StringBuilder sb = new StringBuilder(isapiBaseUrl).append(path);
-        String sep = "?";
-        for (int i = 0; i < pairs.length - 1; i += 2) {
+        UriComponentsBuilder builder = UriComponentsBuilder.fromUriString(isapiBaseUrl + path);
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
             Object val = pairs[i + 1];
             if (val != null) {
-                sb.append(sep).append(pairs[i]).append('=').append(val);
-                sep = "&";
+                builder.queryParam((String) pairs[i], val);
             }
         }
-        return sb.toString();
+        return builder.toUriString();
     }
 
     private Long toLong(Object value) {

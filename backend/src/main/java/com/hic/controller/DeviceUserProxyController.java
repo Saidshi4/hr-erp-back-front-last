@@ -67,14 +67,15 @@ public class DeviceUserProxyController {
             @PathVariable Long deviceId,
             @RequestBody IsapiDTO.DeviceUserCreateRequest request) {
         Long isapiId = resolveIsapiId(deviceId);
-        Map<String, Object> body = Map.of(
-                "employeeNo", orEmpty(request.getEmployeeNo()),
-                "name", orEmpty(request.getName()),
-                "userType", orEmpty(request.getUserType()),
-                "gender", orEmpty(request.getGender()),
-                "beginTime", orEmpty(request.getBeginTime()),
-                "endTime", orEmpty(request.getEndTime()),
-                "faceDataUrl", orEmpty(request.getFaceDataUrl())
+        // employeeNo and name are required; optional fields are only sent when non-null
+        Map<String, Object> body = buildNonNullMap(
+                "employeeNo", request.getEmployeeNo(),
+                "name", request.getName(),
+                "userType", request.getUserType(),
+                "gender", request.getGender(),
+                "beginTime", request.getBeginTime(),
+                "endTime", request.getEndTime(),
+                "faceDataUrl", request.getFaceDataUrl()
         );
         Map<String, Object> created = isapiClientService.createIsapiDeviceUser(isapiId, body);
         if (created == null) {
@@ -164,14 +165,10 @@ public class DeviceUserProxyController {
         return isapiId;
     }
 
-    private String orEmpty(String value) {
-        return value != null ? value : "";
-    }
-
     /** Builds a map including only keys whose values are non-null. */
     private Map<String, Object> buildNonNullMap(Object... pairs) {
         java.util.LinkedHashMap<String, Object> map = new java.util.LinkedHashMap<>();
-        for (int i = 0; i < pairs.length - 1; i += 2) {
+        for (int i = 0; i + 1 < pairs.length; i += 2) {
             if (pairs[i + 1] != null) {
                 map.put((String) pairs[i], pairs[i + 1]);
             }

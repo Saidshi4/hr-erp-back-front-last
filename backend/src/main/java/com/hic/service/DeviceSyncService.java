@@ -8,7 +8,6 @@ import com.hic.model.DeviceSyncHistory;
 import com.hic.model.DeviceSyncHistory.SyncStatus;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.DeviceSyncHistoryRepository;
-import com.hic.util.HikvisionUtil;
 import com.hic.util.EncryptionUtil;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +26,7 @@ public class DeviceSyncService {
 
     private final DeviceConfigRepository deviceConfigRepository;
     private final DeviceSyncHistoryRepository syncHistoryRepository;
-    private final HikvisionUtil hikvisionUtil;
+    private final IsapiClientService isapiClientService;
     private final EncryptionUtil encryptionUtil;
 
     public List<DeviceSyncDTO.DeviceConfigDTO> getAllDevices() {
@@ -81,13 +80,15 @@ public class DeviceSyncService {
         history.setSyncStartTime(LocalDateTime.now());
 
         try {
-            boolean reachable = hikvisionUtil.testConnection(
+            String password = encryptionUtil.isEncrypted(device.getPasswordEncrypted())
+                    ? encryptionUtil.decrypt(device.getPasswordEncrypted())
+                    : device.getPasswordEncrypted();
+
+            boolean reachable = isapiClientService.checkDeviceConnectivity(
                     device.getDeviceIp(),
                     device.getDevicePort() != null ? device.getDevicePort() : 80,
                     device.getUsername(),
-                    encryptionUtil.isEncrypted(device.getPasswordEncrypted())
-                            ? encryptionUtil.decrypt(device.getPasswordEncrypted())
-                            : device.getPasswordEncrypted()
+                    password
             );
 
             if (!reachable) {

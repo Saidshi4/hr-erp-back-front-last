@@ -121,6 +121,20 @@ public class DeviceSyncService {
                 .stream().map(this::toHistoryDTO).collect(Collectors.toList());
     }
 
+    /**
+     * Returns the IP address of the backend device with the given ID.
+     * Used by ISAPI proxy controllers to look up the corresponding ISAPI device.
+     *
+     * @param id backend device config ID
+     * @return device IP address
+     * @throws ResourceNotFoundException if the device does not exist
+     */
+    public String getDeviceIp(Long id) {
+        return deviceConfigRepository.findById(id)
+                .map(DeviceConfig::getDeviceIp)
+                .orElseThrow(() -> new ResourceNotFoundException("DeviceConfig", id));
+    }
+
     private void mapDtoToDevice(DeviceSyncDTO.DeviceConfigDTO dto, DeviceConfig device) {
         device.setDeviceId(dto.getDeviceId());
         device.setDeviceName(dto.getDeviceName());

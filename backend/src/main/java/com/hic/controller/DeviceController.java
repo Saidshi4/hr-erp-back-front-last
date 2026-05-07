@@ -113,6 +113,9 @@ public class DeviceController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> resetIsapiCursor(@PathVariable Long id) {
         Long isapiId = resolveIsapiId(id);
         Map<String, Object> result = isapiClientService.resetIsapiDeviceCursor(isapiId);
+        if (result == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to reset ISAPI device cursor");
+        }
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 

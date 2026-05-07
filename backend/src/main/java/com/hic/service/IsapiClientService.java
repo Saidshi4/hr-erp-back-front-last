@@ -200,6 +200,8 @@ public class IsapiClientService {
     /**
      * Resets the ISAPI event cursor ({@code lastSerialNo} and {@code lastEventTime})
      * for the given ISAPI device ID.
+     *
+     * @return ISAPI response body, or {@code null} if the ISAPI call fails
      */
     public Map<String, Object> resetIsapiDeviceCursor(Long isapiDeviceId) {
         try {

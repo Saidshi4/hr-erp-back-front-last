@@ -2,9 +2,9 @@ package com.abv.hrerpisapi.controller;
 
 import com.abv.hrerpisapi.dao.entity.DeviceCursorEntity;
 import com.abv.hrerpisapi.dao.entity.DeviceEntity;
-import com.abv.hrerpisapi.dao.repository.DeviceCursorRepository;
 import com.abv.hrerpisapi.dao.repository.DeviceRepository;
 import com.abv.hrerpisapi.device.client.IsapiClient;
+import com.abv.hrerpisapi.service.DeviceCursorService;
 import com.abv.hrerpisapi.service.DeviceWorkerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceRepository deviceRepository;
-    private final DeviceCursorRepository deviceCursorRepository;
+    private final DeviceCursorService deviceCursorService;
     private final DeviceWorkerService deviceWorkerService;
     private final IsapiClient isapiClient;
 
@@ -137,18 +137,7 @@ public class DeviceController {
     @PostMapping("/{id}/cursor/reset")
     public CursorResetResponse resetCursor(@PathVariable Long id) {
         DeviceEntity device = requireDevice(id);
-        DeviceCursorEntity cursor = deviceCursorRepository.findById(device.getId())
-                .orElseGet(() -> {
-                    DeviceCursorEntity c = new DeviceCursorEntity();
-                    c.setDeviceId(device.getId());
-                    return c;
-                });
-
-        cursor.setLastSerialNo(0L);
-        cursor.setLastEventTime(null);
-        DeviceCursorEntity saved = deviceCursorRepository.save(cursor);
-        log.info("ActionLog.device.cursor.reset.ended deviceId={} lastSerialNo={} lastEventTime={}",
-                saved.getDeviceId(), saved.getLastSerialNo(), saved.getLastEventTime());
+        DeviceCursorEntity saved = deviceCursorService.resetCursor(device.getId());
         return new CursorResetResponse(saved.getDeviceId(), saved.getLastSerialNo(), saved.getLastEventTime());
     }
 

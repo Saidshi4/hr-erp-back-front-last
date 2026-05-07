@@ -43,6 +43,13 @@ Single-page application — dashboards, HR reports, employee management, real-ti
 ### /isapi (Gradle, Java 21)
 Connects to ISAPI-compatible face-recognition and access-control devices. Polls or streams attendance events and stores them for downstream consumption by the backend.
 
+### ISAPI Cursor Reset Endpoints
+
+When history polling gets stuck because of a stale `lastSerialNo` / `lastEventTime` cursor, reset it through API instead of manual DB updates:
+
+- ISAPI service (direct): `POST /api/devices/{id}/cursor/reset`
+- Backend proxy (backend device id): `POST /api/devices/{id}/isapi-cursor/reset`
+
 ## Multi-Tenant Support
 
 The system is designed to serve multiple companies (tenants) from a single deployment. Each company's data is isolated by `company_id` / `tenant_id` fields across tables. Device-to-tenant mapping is configured through the ISAPI service.

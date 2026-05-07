@@ -37,7 +37,7 @@ class DeviceControllerTest {
     private DeviceController controller;
 
     @Test
-    void resetCursor_resetsSerialGuardFields() {
+    void resetCursor_resetsLastSerialNoAndLastEventTime() {
         DeviceEntity device = new DeviceEntity();
         device.setId(1L);
 

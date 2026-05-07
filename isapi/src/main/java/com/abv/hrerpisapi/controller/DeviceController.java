@@ -1,6 +1,8 @@
 package com.abv.hrerpisapi.controller;
 
+import com.abv.hrerpisapi.dao.entity.DeviceCursorEntity;
 import com.abv.hrerpisapi.dao.entity.DeviceEntity;
+import com.abv.hrerpisapi.dao.repository.DeviceCursorRepository;
 import com.abv.hrerpisapi.dao.repository.DeviceRepository;
 import com.abv.hrerpisapi.device.client.IsapiClient;
 import com.abv.hrerpisapi.service.DeviceWorkerService;
@@ -10,6 +12,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 
 @RestController
@@ -19,6 +22,7 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceRepository deviceRepository;
+    private final DeviceCursorRepository deviceCursorRepository;
     private final DeviceWorkerService deviceWorkerService;
     private final IsapiClient isapiClient;
 
@@ -130,6 +134,24 @@ public class DeviceController {
         return response;
     }
 
+    @PostMapping("/{id}/cursor/reset")
+    public CursorResetResponse resetCursor(@PathVariable Long id) {
+        DeviceEntity device = requireDevice(id);
+        DeviceCursorEntity cursor = deviceCursorRepository.findById(device.getId())
+                .orElseGet(() -> {
+                    DeviceCursorEntity c = new DeviceCursorEntity();
+                    c.setDeviceId(device.getId());
+                    return c;
+                });
+
+        cursor.setLastSerialNo(0L);
+        cursor.setLastEventTime(null);
+        DeviceCursorEntity saved = deviceCursorRepository.save(cursor);
+        log.info("ActionLog.device.cursor.reset.ended deviceId={} lastSerialNo={} lastEventTime={}",
+                saved.getDeviceId(), saved.getLastSerialNo(), saved.getLastEventTime());
+        return new CursorResetResponse(saved.getDeviceId(), saved.getLastSerialNo(), saved.getLastEventTime());
+    }
+
     private DeviceEntity requireDevice(Long id) {
         return deviceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
@@ -212,6 +234,13 @@ public class DeviceController {
             boolean online,
             int statusCode,
             String responseSnippet
+    ) {
+    }
+
+    public record CursorResetResponse(
+            Long deviceId,
+            Long lastSerialNo,
+            OffsetDateTime lastEventTime
     ) {
     }
 }

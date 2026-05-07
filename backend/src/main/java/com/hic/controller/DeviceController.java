@@ -105,6 +105,17 @@ public class DeviceController {
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
+    /**
+     * Resets ISAPI event cursor ({@code lastSerialNo + lastEventTime}) so
+     * the history poller no longer applies serial guard filtering after reset.
+     */
+    @PostMapping("/{id}/isapi-cursor/reset")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> resetIsapiCursor(@PathVariable Long id) {
+        Long isapiId = resolveIsapiId(id);
+        Map<String, Object> result = isapiClientService.resetIsapiDeviceCursor(isapiId);
+        return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
     // -----------------------------------------------------------------------
     // Helpers
     // -----------------------------------------------------------------------

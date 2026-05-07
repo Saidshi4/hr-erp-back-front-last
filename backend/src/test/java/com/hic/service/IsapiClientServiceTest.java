@@ -18,6 +18,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -261,6 +262,22 @@ class IsapiClientServiceTest {
         Map<String, Object> result = service.stopIsapiDevice(1L);
 
         assertThat(result).containsEntry("running", false);
+    }
+
+    @Test
+    void resetIsapiDeviceCursor_callsResetEndpoint() {
+        Map<String, Object> response = new HashMap<>();
+        response.put("deviceId", 1);
+        response.put("lastSerialNo", 0);
+        response.put("lastEventTime", null);
+        when(restTemplate.postForObject(
+                eq("http://isapi:8081/api/devices/1/cursor/reset"), any(), eq(Map.class)))
+                .thenReturn(response);
+
+        Map<String, Object> result = service.resetIsapiDeviceCursor(1L);
+
+        assertThat(result).containsEntry("lastSerialNo", 0);
+        assertThat(result).containsEntry("lastEventTime", null);
     }
 
     // -----------------------------------------------------------------------

@@ -197,6 +197,23 @@ public class IsapiClientService {
         }
     }
 
+    /**
+     * Resets the ISAPI event cursor ({@code lastSerialNo} and {@code lastEventTime})
+     * for the given ISAPI device ID.
+     */
+    public Map<String, Object> resetIsapiDeviceCursor(Long isapiDeviceId) {
+        try {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> result = restTemplate.postForObject(
+                    isapiBaseUrl + "/api/devices/" + isapiDeviceId + "/cursor/reset",
+                    new HttpEntity<>(jsonHeaders()), Map.class);
+            return result;
+        } catch (RestClientException e) {
+            log.warn("IsapiClientService: failed to reset cursor for ISAPI device id={}: {}", isapiDeviceId, e.getMessage());
+            return null;
+        }
+    }
+
     // -----------------------------------------------------------------------
     // Device user proxy
     // -----------------------------------------------------------------------

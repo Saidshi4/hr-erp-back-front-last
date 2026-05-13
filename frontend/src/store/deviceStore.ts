@@ -13,32 +13,54 @@ interface DeviceState {
   syncDevice: (id: number) => Promise<void>
 }
 
-type DeviceApiItem = Partial<DeviceConfig> & {
-  ip?: string
-  name?: string
-  enabled?: boolean
-  running?: boolean
-}
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null
 
-const normalizeDevice = (item: DeviceApiItem): DeviceConfig => ({
-  id: Number(item.id),
-  deviceId: item.deviceId ?? String(item.id ?? ''),
-  deviceName: item.deviceName ?? item.name,
-  deviceIp: item.deviceIp ?? item.ip ?? '',
-  devicePort: item.devicePort,
-  username: item.username,
-  branchId: item.branchId,
-  status: item.status ?? ((item.running ?? item.enabled) ? 'ACTIVE' : 'INACTIVE'),
-  lastSyncTime: item.lastSyncTime,
-})
+const DEVICE_STATUSES = new Set(['ACTIVE', 'INACTIVE'])
+
+const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
+  const parsedId = typeof item.id === 'number' ? item.id : Number(item.id)
+  const id = Number.isFinite(parsedId) ? parsedId : 0
+  const fallbackDeviceId = id > 0 ? String(id) : 'unknown'
+  const deviceId = typeof item.deviceId === 'string' && item.deviceId.trim() !== '' ? item.deviceId : fallbackDeviceId
+  const deviceName = typeof item.deviceName === 'string' ? item.deviceName : typeof item.name === 'string' ? item.name : undefined
+  const deviceIp = typeof item.deviceIp === 'string' ? item.deviceIp : typeof item.ip === 'string' ? item.ip : ''
+  const devicePort = typeof item.devicePort === 'number' ? item.devicePort : undefined
+  const username = typeof item.username === 'string' ? item.username : undefined
+  const branchId = typeof item.branchId === 'number' ? item.branchId : undefined
+  let status = 'INACTIVE'
+  if (typeof item.status === 'string' && DEVICE_STATUSES.has(item.status)) {
+    status = item.status
+  } else if (typeof item.running === 'boolean') {
+    status = item.running ? 'ACTIVE' : 'INACTIVE'
+  } else if (typeof item.enabled === 'boolean') {
+    status = item.enabled ? 'ACTIVE' : 'INACTIVE'
+  }
+  const lastSyncTime = typeof item.lastSyncTime === 'string' ? item.lastSyncTime : undefined
+
+  return {
+    id,
+    deviceId,
+    deviceName,
+    deviceIp,
+    devicePort,
+    username,
+    branchId,
+    // Prefer explicit runtime state first, then fallback to enabled flag.
+    status,
+    lastSyncTime,
+  }
+}
 
 const extractDevices = (payload: unknown): DeviceConfig[] => {
   // Backend may proxy device list directly as [] while older endpoints return { data: [] }.
   const list = Array.isArray(payload)
     ? payload
-    : (payload as { data?: unknown })?.data
+    : isRecord(payload)
+      ? payload.data
+      : undefined
 
-  return Array.isArray(list) ? list.map((item) => normalizeDevice(item as DeviceApiItem)) : []
+  return Array.isArray(list) ? list.filter(isRecord).map(normalizeDevice) : []
 }
 
 export const useDeviceStore = create<DeviceState>((set, get) => ({

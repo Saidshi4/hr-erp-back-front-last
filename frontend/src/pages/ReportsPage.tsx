@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import Layout from '../components/Layout'
-import client from '../api/client'
+import Layout from '../components/Layout.tsx'
+import client from '../api/client.ts'
 
 interface AttendanceReportRow {
   employeeId: number

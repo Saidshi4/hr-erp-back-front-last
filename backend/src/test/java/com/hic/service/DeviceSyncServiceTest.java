@@ -1,166 +1,86 @@
 package com.hic.service;
 
 import com.hic.dto.DeviceSyncDTO;
-import com.hic.exception.ResourceNotFoundException;
-import com.hic.model.DeviceConfig;
-import com.hic.model.DeviceSyncHistory;
-import com.hic.repository.DeviceConfigRepository;
-import com.hic.repository.DeviceSyncHistoryRepository;
-import com.hic.util.EncryptionUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestTemplate;
 
-import java.util.Optional;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-@ExtendWith(MockitoExtension.class)
 class DeviceSyncServiceTest {
 
-    @Mock
-    private DeviceConfigRepository deviceConfigRepository;
-
-    @Mock
-    private DeviceSyncHistoryRepository syncHistoryRepository;
-
-    @Mock
-    private IsapiClientService isapiClientService;
-
-    @Mock
-    private EncryptionUtil encryptionUtil;
-
-    @InjectMocks
-    private DeviceSyncService deviceSyncService;
-
-    private DeviceConfig device;
+    private DeviceSyncService service;
+    private MockRestServiceServer server;
 
     @BeforeEach
     void setUp() {
-        device = new DeviceConfig();
-        device.setId(1L);
-        device.setDeviceId("DEV-001");
-        device.setDeviceName("Test Device");
-        device.setDeviceIp("192.168.1.100");
-        device.setDevicePort(80);
-        device.setUsername("admin");
-        device.setPasswordEncrypted("plain-password");
-        device.setStatus("ACTIVE");
+        RestTemplate restTemplate = new RestTemplate();
+        server = MockRestServiceServer.bindTo(restTemplate).build();
+        service = new DeviceSyncService(restTemplate);
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://host.docker.internal:8080");
     }
 
-    // -----------------------------------------------------------------------
-    // syncDevice – happy path
-    // -----------------------------------------------------------------------
+    @Test
+    void getAllDevices_mapsIsapiResponseToFrontendDto() {
+        server.expect(requestTo("http://host.docker.internal:8080/api/devices"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        [{"id":7,"ip":"10.10.10.10","username":"admin","name":"Main Gate","enabled":true,"running":true}]
+                        """, MediaType.APPLICATION_JSON));
+
+        List<DeviceSyncDTO.DeviceConfigDTO> result = service.getAllDevices(null);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getId()).isEqualTo(7L);
+        assertThat(result.get(0).getDeviceId()).isEqualTo("7");
+        assertThat(result.get(0).getDeviceIp()).isEqualTo("10.10.10.10");
+        assertThat(result.get(0).getStatus()).isEqualTo("ACTIVE");
+        server.verify();
+    }
 
     @Test
-    void syncDevice_deviceReachable_returnsSuccess() {
-        when(deviceConfigRepository.findById(1L)).thenReturn(Optional.of(device));
-        when(encryptionUtil.isEncrypted("plain-password")).thenReturn(false);
-        when(isapiClientService.checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "plain-password"))
-                .thenReturn(true);
-        when(syncHistoryRepository.save(any(DeviceSyncHistory.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-        when(deviceConfigRepository.save(any(DeviceConfig.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
+    void createDevice_sendsMappedPayloadToIsapi() {
+        server.expect(requestTo("http://host.docker.internal:8080/api/devices"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"id":3,"ip":"192.168.1.11","username":"admin","name":"Office","enabled":false,"running":false}
+                        """, MediaType.APPLICATION_JSON));
 
-        DeviceSyncDTO.SyncResultDTO result = deviceSyncService.syncDevice(1L);
+        DeviceSyncDTO.DeviceConfigDTO request = new DeviceSyncDTO.DeviceConfigDTO();
+        request.setDeviceIp("192.168.1.11");
+        request.setUsername("admin");
+        request.setPassword("12345");
+        request.setDeviceName("Office");
+        request.setStatus("INACTIVE");
+
+        DeviceSyncDTO.DeviceConfigDTO result = service.createDevice(request);
+
+        assertThat(result.getId()).isEqualTo(3L);
+        assertThat(result.getStatus()).isEqualTo("INACTIVE");
+        server.verify();
+    }
+
+    @Test
+    void syncDevice_forwardsToStartEndpoint() {
+        server.expect(requestTo("http://host.docker.internal:8080/api/devices/9/start"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("""
+                        {"id":9,"enabled":true,"running":true}
+                        """, MediaType.APPLICATION_JSON));
+
+        DeviceSyncDTO.SyncResultDTO result = service.syncDevice(9L);
 
         assertThat(result.isSuccess()).isTrue();
-        assertThat(result.getMessage()).contains("successfully");
-        verify(isapiClientService).checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "plain-password");
-    }
-
-    // -----------------------------------------------------------------------
-    // syncDevice – device not reachable
-    // -----------------------------------------------------------------------
-
-    @Test
-    void syncDevice_deviceNotReachable_returnsFailure() {
-        when(deviceConfigRepository.findById(1L)).thenReturn(Optional.of(device));
-        when(encryptionUtil.isEncrypted("plain-password")).thenReturn(false);
-        when(isapiClientService.checkDeviceConnectivity(any(), anyInt(), any(), any()))
-                .thenReturn(false);
-        when(syncHistoryRepository.save(any(DeviceSyncHistory.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-
-        DeviceSyncDTO.SyncResultDTO result = deviceSyncService.syncDevice(1L);
-
-        assertThat(result.isSuccess()).isFalse();
-        assertThat(result.getMessage()).contains("not reachable");
-        verify(deviceConfigRepository, never()).save(device);
-    }
-
-    // -----------------------------------------------------------------------
-    // syncDevice – encrypted password is decrypted before ISAPI call
-    // -----------------------------------------------------------------------
-
-    @Test
-    void syncDevice_encryptedPassword_decryptsBeforeIsapiCall() {
-        device.setPasswordEncrypted("ENC(secret)");
-
-        when(deviceConfigRepository.findById(1L)).thenReturn(Optional.of(device));
-        when(encryptionUtil.isEncrypted("ENC(secret)")).thenReturn(true);
-        when(encryptionUtil.decrypt("ENC(secret)")).thenReturn("secret");
-        when(isapiClientService.checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "secret"))
-                .thenReturn(true);
-        when(syncHistoryRepository.save(any(DeviceSyncHistory.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-        when(deviceConfigRepository.save(any(DeviceConfig.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-
-        DeviceSyncDTO.SyncResultDTO result = deviceSyncService.syncDevice(1L);
-
-        assertThat(result.isSuccess()).isTrue();
-        verify(encryptionUtil).decrypt("ENC(secret)");
-        verify(isapiClientService).checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "secret");
-    }
-
-    // -----------------------------------------------------------------------
-    // syncDevice – default port when port is null
-    // -----------------------------------------------------------------------
-
-    @Test
-    void syncDevice_nullPort_usesDefaultPort80() {
-        device.setDevicePort(null);
-
-        when(deviceConfigRepository.findById(1L)).thenReturn(Optional.of(device));
-        when(encryptionUtil.isEncrypted(any())).thenReturn(false);
-        when(isapiClientService.checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "plain-password"))
-                .thenReturn(true);
-        when(syncHistoryRepository.save(any(DeviceSyncHistory.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-        when(deviceConfigRepository.save(any(DeviceConfig.class)))
-                .thenAnswer(inv -> inv.getArgument(0));
-
-        DeviceSyncDTO.SyncResultDTO result = deviceSyncService.syncDevice(1L);
-
-        assertThat(result.isSuccess()).isTrue();
-        verify(isapiClientService).checkDeviceConnectivity(
-                "192.168.1.100", 80, "admin", "plain-password");
-    }
-
-    // -----------------------------------------------------------------------
-    // syncDevice – device not found
-    // -----------------------------------------------------------------------
-
-    @Test
-    void syncDevice_deviceNotFound_throwsResourceNotFoundException() {
-        when(deviceConfigRepository.findById(99L)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> deviceSyncService.syncDevice(99L))
-                .isInstanceOf(ResourceNotFoundException.class);
-
-        verifyNoInteractions(isapiClientService);
+        assertThat(result.getMessage()).isEqualTo("Device stream started");
+        server.verify();
     }
 }

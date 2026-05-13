@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
-import Layout from '../components/Layout'
-import { attendanceApi } from '../api/attendanceApi'
-import { AttendanceLog } from '../types'
+import Layout from '../components/Layout.tsx'
+import { attendanceApi } from '../api/attendanceApi.ts'
+import { AccessLog } from '../types'
 
 export default function AccessLogsPage() {
   const today = new Date().toISOString().split('T')[0]
@@ -9,20 +9,23 @@ export default function AccessLogsPage() {
 
   const [startDate, setStartDate] = useState(weekAgo)
   const [endDate, setEndDate] = useState(today)
+  const [deviceIdFilter, setDeviceIdFilter] = useState('')
   const [search, setSearch] = useState('')
-  const [logs, setLogs] = useState<AttendanceLog[]>([])
+  const [logs, setLogs] = useState<AccessLog[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetched, setFetched] = useState(false)
 
   const fetchLogs = useCallback(async () => {
-    if (!startDate || !endDate) return
     setLoading(true)
     setError(null)
     try {
-      const start = `${startDate}T00:00:00`
-      const end = `${endDate}T23:59:59`
-      const res = await attendanceApi.getRange(start, end)
+      const employeeNo = search.trim() || undefined
+      const normalizedDeviceId = Number(deviceIdFilter.trim())
+      const deviceId = deviceIdFilter.trim() && !Number.isNaN(normalizedDeviceId)
+        ? normalizedDeviceId
+        : undefined
+      const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId })
       setLogs(res.data?.data ?? [])
       setFetched(true)
     } catch (e: unknown) {
@@ -30,20 +33,26 @@ export default function AccessLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [startDate, endDate])
+  }, [search, deviceIdFilter])
 
   const filteredLogs = logs.filter((log) => {
     if (!search) return true
     const s = search.toLowerCase()
-    return (
-      String(log.employeeId).includes(s) ||
-      (log.deviceId && log.deviceId.toLowerCase().includes(s)) ||
-      (log.eventType && log.eventType.toLowerCase().includes(s))
+    const matchesSearch = (
+      String(log.employeeNo ?? '').toLowerCase().includes(s) ||
+      String(log.deviceId ?? '').toLowerCase().includes(s)
     )
+    if (!matchesSearch) return false
+
+    if (!log.punchTime) return true
+    const punchDate = new Date(log.punchTime)
+    const start = new Date(`${startDate}T00:00:00`)
+    const end = new Date(`${endDate}T23:59:59`)
+    return punchDate >= start && punchDate <= end
   })
 
-  const grantedCount = filteredLogs.filter(l => !!l.checkInTime).length
-  const deniedCount = filteredLogs.filter(l => !l.checkInTime).length
+  const uniqueEmployees = new Set(filteredLogs.map(l => l.employeeNo).filter(Boolean)).size
+  const uniqueDevices = new Set(filteredLogs.map(l => l.deviceId).filter(v => v !== undefined && v !== null)).size
 
   return (
     <Layout>
@@ -76,10 +85,20 @@ export default function AccessLogsPage() {
               />
             </div>
             <div className="flex-1 min-w-[200px]">
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Device ID</label>
+              <input
+                type="text"
+                placeholder="e.g. 12"
+                value={deviceIdFilter}
+                onChange={(e) => setDeviceIdFilter(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            <div className="flex-1 min-w-[200px]">
               <label className="block text-xs font-medium text-gray-500 mb-1.5">Search</label>
               <input
                 type="text"
-                placeholder="Employee ID, device, event..."
+                placeholder="Employee No..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -118,12 +137,12 @@ export default function AccessLogsPage() {
                 <p className="text-xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Access Granted</p>
-                <p className="text-xl font-bold mt-1" style={{ color: '#10b981' }}>{grantedCount}</p>
+                <p className="text-xs text-gray-400">Unique Employees</p>
+                <p className="text-xl font-bold mt-1" style={{ color: '#10b981' }}>{uniqueEmployees}</p>
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Access Denied</p>
-                <p className="text-xl font-bold mt-1 text-red-500">{deniedCount}</p>
+                <p className="text-xs text-gray-400">Unique Devices</p>
+                <p className="text-xl font-bold mt-1 text-gray-900">{uniqueDevices}</p>
               </div>
             </div>
 
@@ -134,30 +153,23 @@ export default function AccessLogsPage() {
             ) : (
               <div className="space-y-3">
                 {filteredLogs.map((log) => {
-                  const accessGranted = !!(log.checkInTime)
                   return (
                     <div key={log.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
                       {/* Status indicator */}
                       <div
                         className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: accessGranted ? '#d1fae5' : '#fee2e2' }}
+                        style={{ background: '#d1fae5' }}
                       >
-                        {accessGranted ? (
-                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        ) : (
-                          <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        )}
+                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
                       </div>
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">Employee #{log.employeeId}</p>
+                        <p className="text-sm font-semibold text-gray-900">Employee #{log.employeeNo || '—'}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          {log.eventType || 'Access Event'} {log.deviceId ? `· Device: ${log.deviceId}` : ''}
+                          Access Event {log.deviceId ? `· Device: ${log.deviceId}` : ''}
                         </p>
                       </div>
 
@@ -165,8 +177,8 @@ export default function AccessLogsPage() {
                       <div className="hidden md:block text-center min-w-[150px]">
                         <p className="text-xs text-gray-400 mb-0.5">Access Time</p>
                         <p className="text-sm font-medium text-gray-700">
-                          {log.checkInTime
-                            ? new Date(log.checkInTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                          {log.punchTime
+                            ? new Date(log.punchTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
                             : '—'}
                         </p>
                       </div>
@@ -174,17 +186,15 @@ export default function AccessLogsPage() {
                       {/* Device */}
                       <div className="hidden lg:block text-center min-w-[120px]">
                         <p className="text-xs text-gray-400 mb-0.5">Device</p>
-                        <p className="text-sm text-gray-600 font-mono">{log.deviceId || '—'}</p>
+                        <p className="text-sm text-gray-600 font-mono">{log.deviceId ?? '—'}</p>
                       </div>
 
                       {/* Status badge */}
                       <span
                         className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
-                        style={accessGranted
-                          ? { background: '#d1fae5', color: '#065f46' }
-                          : { background: '#fee2e2', color: '#991b1b' }}
+                        style={{ background: '#d1fae5', color: '#065f46' }}
                       >
-                        {accessGranted ? 'Granted' : 'Denied'}
+                        Recorded
                       </span>
                     </div>
                   )

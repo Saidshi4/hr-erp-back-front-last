@@ -1,4 +1,4 @@
-import client from './client'
+import client from './client.ts'
 import { Position } from '../types'
 
 export const positionApi = {

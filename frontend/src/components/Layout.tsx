@@ -1,6 +1,6 @@
 import { ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '../store/authStore.ts'
 
 const navItems = [
   {

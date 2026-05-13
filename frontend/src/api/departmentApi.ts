@@ -1,4 +1,4 @@
-import client from './client'
+import client from './client.ts'
 import { Department } from '../types'
 
 export const departmentApi = {

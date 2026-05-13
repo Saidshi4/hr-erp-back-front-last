@@ -1,4 +1,4 @@
-import client from './client'
+import client from './client.ts'
 import { Employee, PaginatedResponse } from '../types'
 
 export const employeeApi = {

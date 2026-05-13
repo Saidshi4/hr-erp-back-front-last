@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
-import Layout from '../components/Layout'
-import { attendanceApi } from '../api/attendanceApi'
+import Layout from '../components/Layout.tsx'
+import { attendanceApi } from '../api/attendanceApi.ts'
 import { AttendanceLog } from '../types'
 
 export default function AttendancePage() {

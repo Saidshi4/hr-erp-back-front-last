@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { Employee, PaginatedResponse } from '../types'
-import { employeeApi } from '../api/employeeApi'
+import { employeeApi } from '../api/employeeApi.ts'
 
 interface EmployeeState {
   employees: Employee[]

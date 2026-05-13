@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { DeviceConfig } from '../types'
-import { deviceApi } from '../api/deviceApi'
+import { deviceApi } from '../api/deviceApi.ts'
 
 interface DeviceState {
   devices: DeviceConfig[]

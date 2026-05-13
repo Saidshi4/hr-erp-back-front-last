@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { DailyAttendanceSummary } from '../types'
-import { attendanceApi } from '../api/attendanceApi'
+import { attendanceApi } from '../api/attendanceApi.ts'
 
 interface AttendanceState {
   summaries: DailyAttendanceSummary[]

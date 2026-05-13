@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
+import Layout from '../components/Layout.tsx'
 import { Department } from '../types'
-import { departmentApi } from '../api/departmentApi'
+import { departmentApi } from '../api/departmentApi.ts'
 
 interface DepartmentFormData {
   departmentName: string

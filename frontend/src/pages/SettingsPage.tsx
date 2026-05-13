@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import Layout from '../components/Layout'
-import { useAuthStore } from '../store/authStore'
+import Layout from '../components/Layout.tsx'
+import { useAuthStore } from '../store/authStore.ts'
 
 export default function SettingsPage() {
   const { user } = useAuthStore()

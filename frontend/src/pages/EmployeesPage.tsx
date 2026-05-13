@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
-import { useEmployeeStore } from '../store/employeeStore'
+import Layout from '../components/Layout.tsx'
+import { useEmployeeStore } from '../store/employeeStore.ts'
 import { Employee, Department, Position } from '../types'
-import { departmentApi } from '../api/departmentApi'
-import { positionApi } from '../api/positionApi'
+import { departmentApi } from '../api/departmentApi.ts'
+import { positionApi } from '../api/positionApi.ts'
 
 interface EmployeeFormData {
   firstName: string

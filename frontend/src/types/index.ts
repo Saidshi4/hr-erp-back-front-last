@@ -70,6 +70,14 @@ export interface AttendanceLog {
   createdAt?: string
 }
 
+export interface AccessLog {
+  id: number
+  deviceId?: number
+  employeeNo?: string
+  punchTime?: string
+  rawEventId?: number
+}
+
 export interface DailyAttendanceSummary {
   id: number
   employeeId: number

@@ -50,6 +50,12 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    @ExceptionHandler(UpstreamApiException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUpstreamApi(UpstreamApiException ex) {
+        return ResponseEntity.status(ex.getStatusCode())
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Map<String, String>>> handleMethodArgumentNotValid(
             MethodArgumentNotValidException ex) {

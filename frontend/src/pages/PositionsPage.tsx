@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
+import Layout from '../components/Layout.tsx'
 import { Position, Department } from '../types'
-import { positionApi } from '../api/positionApi'
-import { departmentApi } from '../api/departmentApi'
+import { positionApi } from '../api/positionApi.ts'
+import { departmentApi } from '../api/departmentApi.ts'
 
 interface PositionFormData {
   positionName: string

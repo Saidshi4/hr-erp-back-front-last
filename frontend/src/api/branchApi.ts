@@ -1,4 +1,4 @@
-import client from './client'
+import client from './client.ts'
 import { Branch } from '../types'
 
 export const branchApi = {

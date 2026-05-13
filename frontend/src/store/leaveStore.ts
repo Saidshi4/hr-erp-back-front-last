@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { LeaveRequest } from '../types'
-import { leaveApi } from '../api/leaveApi'
+import { leaveApi } from '../api/leaveApi.ts'
 
 interface LeaveState {
   leaves: LeaveRequest[]

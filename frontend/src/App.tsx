@@ -1,17 +1,17 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
-import { useAuthStore } from './store/authStore'
+import { useAuthStore } from './store/authStore.ts'
 
-const LoginPage = lazy(() => import('./pages/LoginPage'))
-const DashboardPage = lazy(() => import('./pages/DashboardPage'))
-const EmployeesPage = lazy(() => import('./pages/EmployeesPage'))
-const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage'))
-const PositionsPage = lazy(() => import('./pages/PositionsPage'))
-const AttendancePage = lazy(() => import('./pages/AttendancePage'))
-const LeavesPage = lazy(() => import('./pages/LeavesPage'))
-const DevicesPage = lazy(() => import('./pages/DevicesPage'))
-const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage.tsx'))
+const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage.tsx'))
+const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage.tsx'))
+const PositionsPage = lazy(() => import('./pages/PositionsPage.tsx'))
+const AttendancePage = lazy(() => import('./pages/AttendancePage.tsx'))
+const LeavesPage = lazy(() => import('./pages/LeavesPage.tsx'))
+const DevicesPage = lazy(() => import('./pages/DevicesPage.tsx'))
+const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage.tsx'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'))
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()

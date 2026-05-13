@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { authApi } from '../api/authApi'
-import { useAuthStore } from '../store/authStore'
+import { authApi } from '../api/authApi.ts'
+import { useAuthStore } from '../store/authStore.ts'
 
 export default function LoginPage() {
   const [username, setUsername] = useState('')

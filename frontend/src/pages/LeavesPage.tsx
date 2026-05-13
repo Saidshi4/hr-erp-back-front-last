@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
-import { useLeaveStore } from '../store/leaveStore'
-import { useEmployeeStore } from '../store/employeeStore'
+import Layout from '../components/Layout.tsx'
+import { useLeaveStore } from '../store/leaveStore.ts'
+import { useEmployeeStore } from '../store/employeeStore.ts'
 import { LeaveRequest, LeaveType, Employee } from '../types'
-import client from '../api/client'
+import client from '../api/client.ts'
 
 interface LeaveFormData {
   employeeId: number | ''

@@ -1,64 +1,109 @@
 package com.hic.controller;
 
-import com.hic.dto.ApiResponse;
-import com.hic.service.DeviceSyncService;
-import com.hic.service.IsapiClientService;
+import com.hic.service.IsapiProxyService;
+import com.hic.repository.UserRepository;
+import com.hic.util.JwtUtil;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
+import org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration;
+import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.test.web.servlet.MockMvc;
+import jakarta.servlet.http.HttpServletRequest;
 
-import java.util.HashMap;
-import java.util.Map;
-
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
-@ExtendWith(MockitoExtension.class)
+@WebMvcTest(
+        controllers = DeviceController.class,
+        excludeAutoConfiguration = {SecurityAutoConfiguration.class, UserDetailsServiceAutoConfiguration.class}
+)
 class DeviceControllerTest {
 
-    @Mock
-    private DeviceSyncService deviceSyncService;
+    @Autowired
+    private MockMvc mockMvc;
 
-    @Mock
-    private IsapiClientService isapiClientService;
+    @MockBean
+    private IsapiProxyService isapiProxyService;
 
-    @InjectMocks
-    private DeviceController deviceController;
+    @MockBean
+    private JwtUtil jwtUtil;
+
+    @MockBean
+    private UserRepository userRepository;
 
     @Test
-    void resetIsapiCursor_resolvesIsapiIdAndReturnsResponse() {
-        when(deviceSyncService.getDeviceIp(10L)).thenReturn("192.168.0.200");
-        when(isapiClientService.findIsapiDeviceIdByIp("192.168.0.200")).thenReturn(1L);
-        Map<String, Object> resetResult = new HashMap<>();
-        resetResult.put("deviceId", 1L);
-        resetResult.put("lastSerialNo", 0L);
-        resetResult.put("lastEventTime", null);
-        when(isapiClientService.resetIsapiDeviceCursor(1L))
-                .thenReturn(resetResult);
+    void getAll_withEnabledFilter_returns200() throws Exception {
+        when(isapiProxyService.forward(eq(HttpMethod.GET), eq("/api/devices"), any(HttpServletRequest.class), isNull()))
+                .thenReturn(ResponseEntity.ok("[{\"id\":1}]"));
 
-        ApiResponse<Map<String, Object>> body = deviceController.resetIsapiCursor(10L).getBody();
+        mockMvc.perform(get("/api/devices").param("enabled", "true"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[{\"id\":1}]"));
 
-        assertThat(body).isNotNull();
-        assertThat(body.getData()).containsEntry("deviceId", 1L);
-        assertThat(body.getData()).containsEntry("lastSerialNo", 0L);
-        verify(isapiClientService).resetIsapiDeviceCursor(1L);
+        verify(isapiProxyService).forward(eq(HttpMethod.GET), eq("/api/devices"), any(HttpServletRequest.class), isNull());
     }
 
     @Test
-    void resetIsapiCursor_whenIsapiResetFails_returnsBadGateway() {
-        when(deviceSyncService.getDeviceIp(10L)).thenReturn("192.168.0.200");
-        when(isapiClientService.findIsapiDeviceIdByIp("192.168.0.200")).thenReturn(1L);
-        when(isapiClientService.resetIsapiDeviceCursor(1L)).thenReturn(null);
+    void patchEnabled_returns200() throws Exception {
+        when(isapiProxyService.forward(eq(HttpMethod.PATCH), eq("/api/devices/1/enabled"), any(HttpServletRequest.class), eq("{\"enabled\":true}")))
+                .thenReturn(ResponseEntity.ok("{\"enabled\":true}"));
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> deviceController.resetIsapiCursor(10L));
+        mockMvc.perform(patch("/api/devices/1/enabled")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"enabled\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("{\"enabled\":true}"));
 
-        assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY);
+        verify(isapiProxyService).forward(eq(HttpMethod.PATCH), eq("/api/devices/1/enabled"), any(HttpServletRequest.class), eq("{\"enabled\":true}"));
+    }
+
+    @Test
+    void start_returns200() throws Exception {
+        when(isapiProxyService.forward(eq(HttpMethod.POST), eq("/api/devices/1/start"), any(HttpServletRequest.class), isNull()))
+                .thenReturn(ResponseEntity.ok("{\"running\":true}"));
+
+        mockMvc.perform(post("/api/devices/1/start"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.running").value(true));
+
+        verify(isapiProxyService).forward(eq(HttpMethod.POST), eq("/api/devices/1/start"), any(HttpServletRequest.class), isNull());
+    }
+
+    @Test
+    void status_returns200() throws Exception {
+        when(isapiProxyService.forward(eq(HttpMethod.GET), eq("/api/devices/1/status"), any(HttpServletRequest.class), isNull()))
+                .thenReturn(ResponseEntity.ok("{\"online\":true}"));
+
+        mockMvc.perform(get("/api/devices/1/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.online").value(true));
+
+        verify(isapiProxyService).forward(eq(HttpMethod.GET), eq("/api/devices/1/status"), any(HttpServletRequest.class), isNull());
+    }
+
+    @Test
+    void sync_returns200() throws Exception {
+        when(isapiProxyService.forward(eq(HttpMethod.POST), eq("/api/devices/1/sync"), any(HttpServletRequest.class), isNull()))
+                .thenReturn(ResponseEntity.ok("{\"running\":true}"));
+
+        mockMvc.perform(post("/api/devices/1/sync"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.running").value(true));
+
+        verify(isapiProxyService).forward(eq(HttpMethod.POST), eq("/api/devices/1/sync"), any(HttpServletRequest.class), isNull());
     }
 }

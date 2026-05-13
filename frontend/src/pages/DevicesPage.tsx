@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import Layout from '../components/Layout'
-import { useDeviceStore } from '../store/deviceStore'
+import Layout from '../components/Layout.tsx'
+import { useDeviceStore } from '../store/deviceStore.ts'
 import { DeviceConfig, Branch } from '../types'
-import { branchApi } from '../api/branchApi'
+import { branchApi } from '../api/branchApi.ts'
 
 interface DeviceFormData {
   deviceId: string

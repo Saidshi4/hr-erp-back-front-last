@@ -31,12 +31,6 @@ hikvision:
   connection-timeout: 5000
   read-timeout: 10000
 
-isapi:
-  base-url: ${ISAPI_BASE_URL:http://localhost:8081}
-  connect-timeout-ms: ${ISAPI_CONNECT_TIMEOUT_MS:5000}
-  read-timeout-ms: ${ISAPI_READ_TIMEOUT_MS:10000}
-  device-enabled-default: ${ISAPI_DEVICE_ENABLED_DEFAULT:false}
-
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
 
@@ -51,3 +45,6 @@ logging:
   level:
     root: INFO
     com.hic: INFO
+
+isapi:
+  base-url: http://192.168.0.198:8081

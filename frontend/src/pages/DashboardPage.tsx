@@ -20,10 +20,12 @@ interface DeviceStatus {
 
 interface AccessLog {
   id: number
-  employeeId: number
+  employeeId?: number
+  employeeNo?: string
   checkInTime?: string
+  punchTime?: string
   checkOutTime?: string
-  deviceId?: string
+  deviceId?: string | number
   eventType?: string
   status?: string
 }
@@ -212,15 +214,17 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800">
-                      Əməkdaş #{log.employeeId}
+                      Əməkdaş #{log.employeeNo ?? log.employeeId ?? '—'}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {log.deviceId ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
+                      {log.deviceId !== undefined ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">
-                      {log.checkInTime ? new Date(log.checkInTime).toLocaleString('az-AZ') : '—'}
+                      {log.checkInTime || log.punchTime
+                        ? new Date(log.checkInTime ?? log.punchTime ?? '').toLocaleString('az-AZ')
+                        : '—'}
                     </p>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"

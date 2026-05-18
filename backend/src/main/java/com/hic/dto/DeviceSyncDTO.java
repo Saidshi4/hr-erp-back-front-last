@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 public class DeviceSyncDTO {
 
@@ -84,6 +85,7 @@ public class DeviceSyncDTO {
         private String name;
         private boolean enabled;
         private boolean running;
+        private OffsetDateTime lastSyncTime;
     }
 
     @Data

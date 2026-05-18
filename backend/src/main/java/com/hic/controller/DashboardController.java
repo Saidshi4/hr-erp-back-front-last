@@ -28,6 +28,8 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashboardController {
 
+    private static final String DEFAULT_LOG_STATUS = "RECORDED";
+
     private final EmployeeRepository employeeRepository;
     private final DeviceConfigRepository deviceConfigRepository;
     private final AttendanceLogRepository attendanceLogRepository;
@@ -131,7 +133,7 @@ public class DashboardController {
                         log.getPunchTime(),
                         log.getDeviceId(),
                         log.getRawEventId(),
-                        "RECORDED"
+                        DEFAULT_LOG_STATUS
                 ))
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(latest));

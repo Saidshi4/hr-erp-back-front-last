@@ -2,6 +2,7 @@ package com.abv.hrerpisapi.controller;
 
 import com.abv.hrerpisapi.dao.entity.DeviceCursorEntity;
 import com.abv.hrerpisapi.dao.entity.DeviceEntity;
+import com.abv.hrerpisapi.dao.repository.DeviceCursorRepository;
 import com.abv.hrerpisapi.dao.repository.DeviceRepository;
 import com.abv.hrerpisapi.device.client.IsapiClient;
 import com.abv.hrerpisapi.service.DeviceCursorService;
@@ -12,6 +13,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -23,6 +26,8 @@ class DeviceControllerTest {
 
     @Mock
     private DeviceRepository deviceRepository;
+    @Mock
+    private DeviceCursorRepository deviceCursorRepository;
     @Mock
     private DeviceCursorService deviceCursorService;
     @Mock
@@ -52,5 +57,29 @@ class DeviceControllerTest {
         assertThat(response.deviceId()).isEqualTo(1L);
         assertThat(response.lastSerialNo()).isEqualTo(0L);
         assertThat(response.lastEventTime()).isNull();
+    }
+
+    @Test
+    void list_includesLastSyncTimeFromCursor() {
+        DeviceEntity device = new DeviceEntity();
+        device.setId(1L);
+        device.setIp("192.168.1.10");
+        device.setUsername("admin");
+        device.setName("Front Door");
+        device.setEnabled(true);
+
+        DeviceCursorEntity cursor = new DeviceCursorEntity();
+        cursor.setDeviceId(1L);
+        OffsetDateTime lastEventTime = OffsetDateTime.parse("2026-05-18T10:15:30Z");
+        cursor.setLastEventTime(lastEventTime);
+
+        when(deviceRepository.findAll()).thenReturn(List.of(device));
+        when(deviceCursorRepository.findAllById(List.of(1L))).thenReturn(List.of(cursor));
+        when(deviceWorkerService.isRunning(1L)).thenReturn(true);
+
+        List<DeviceController.DeviceResponse> response = controller.list(null);
+
+        assertThat(response).hasSize(1);
+        assertThat(response.get(0).lastSyncTime()).isEqualTo(lastEventTime);
     }
 }

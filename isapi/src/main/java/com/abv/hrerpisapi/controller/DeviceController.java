@@ -2,6 +2,7 @@ package com.abv.hrerpisapi.controller;
 
 import com.abv.hrerpisapi.dao.entity.DeviceCursorEntity;
 import com.abv.hrerpisapi.dao.entity.DeviceEntity;
+import com.abv.hrerpisapi.dao.repository.DeviceCursorRepository;
 import com.abv.hrerpisapi.dao.repository.DeviceRepository;
 import com.abv.hrerpisapi.device.client.IsapiClient;
 import com.abv.hrerpisapi.service.DeviceCursorService;
@@ -14,6 +15,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @Slf4j
@@ -22,6 +25,7 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceRepository deviceRepository;
+    private final DeviceCursorRepository deviceCursorRepository;
     private final DeviceCursorService deviceCursorService;
     private final DeviceWorkerService deviceWorkerService;
     private final IsapiClient isapiClient;
@@ -31,12 +35,19 @@ public class DeviceController {
         List<DeviceEntity> devices = enabled == null
                 ? deviceRepository.findAll()
                 : deviceRepository.findByEnabled(enabled);
-        return devices.stream().map(this::toResponse).toList();
+        Map<Long, OffsetDateTime> lastSyncByDeviceId = deviceCursorRepository
+                .findAllById(devices.stream().map(DeviceEntity::getId).toList())
+                .stream()
+                .collect(Collectors.toMap(DeviceCursorEntity::getDeviceId, DeviceCursorEntity::getLastEventTime));
+        return devices.stream()
+                .map(device -> toResponse(device, lastSyncByDeviceId.get(device.getId())))
+                .toList();
     }
 
     @GetMapping("/{id}")
     public DeviceResponse get(@PathVariable Long id) {
-        return toResponse(requireDevice(id));
+        DeviceEntity device = requireDevice(id);
+        return toResponse(device, findLastSyncTime(device.getId()));
     }
 
     @PostMapping
@@ -50,7 +61,7 @@ public class DeviceController {
             deviceWorkerService.startDevice(saved);
         }
         log.info("ActionLog.device.create.ended deviceId={} ip={} enabled={}", saved.getId(), saved.getIp(), saved.isEnabled());
-        return toResponse(saved);
+        return toResponse(saved, findLastSyncTime(saved.getId()));
     }
 
     @PutMapping("/{id}")
@@ -65,7 +76,7 @@ public class DeviceController {
             deviceWorkerService.stopDevice(saved.getId());
         }
         log.info("ActionLog.device.update.ended deviceId={} ip={} enabled={}", saved.getId(), saved.getIp(), saved.isEnabled());
-        return toResponse(saved);
+        return toResponse(saved, findLastSyncTime(saved.getId()));
     }
 
     @PatchMapping("/{id}/enabled")
@@ -80,7 +91,7 @@ public class DeviceController {
             deviceWorkerService.stopDevice(saved.getId());
         }
         log.info("ActionLog.device.enabled.update.ended deviceId={} enabled={}", saved.getId(), saved.isEnabled());
-        return toResponse(saved);
+        return toResponse(saved, findLastSyncTime(saved.getId()));
     }
 
     @DeleteMapping("/{id}")
@@ -179,14 +190,21 @@ public class DeviceController {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
-    private DeviceResponse toResponse(DeviceEntity device) {
+    private OffsetDateTime findLastSyncTime(Long deviceId) {
+        return deviceCursorRepository.findById(deviceId)
+                .map(DeviceCursorEntity::getLastEventTime)
+                .orElse(null);
+    }
+
+    private DeviceResponse toResponse(DeviceEntity device, OffsetDateTime lastSyncTime) {
         return new DeviceResponse(
                 device.getId(),
                 device.getIp(),
                 device.getUsername(),
                 device.getName(),
                 device.isEnabled(),
-                deviceWorkerService.isRunning(device.getId()));
+                deviceWorkerService.isRunning(device.getId()),
+                lastSyncTime);
     }
 
     public record DeviceResponse(
@@ -195,7 +213,8 @@ public class DeviceController {
             String username,
             String name,
             boolean enabled,
-            boolean running
+            boolean running,
+            OffsetDateTime lastSyncTime
     ) {
     }
 

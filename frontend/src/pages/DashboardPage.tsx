@@ -20,10 +20,12 @@ interface DeviceStatus {
 
 interface AccessLog {
   id: number
-  employeeId: number
+  employeeId?: number
+  employeeNo?: string
   checkInTime?: string
+  punchTime?: string
   checkOutTime?: string
-  deviceId?: string
+  deviceId?: string | number
   eventType?: string
   status?: string
 }
@@ -203,8 +205,10 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {accessLogs.map((log) => (
-                <div key={log.id} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
+              {accessLogs.map((log) => {
+                const eventTime = log.checkInTime ?? log.punchTime
+                return (
+                  <div key={log.id} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe' }}>
                     <svg className="w-4 h-4" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
@@ -212,15 +216,15 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800">
-                      Əməkdaş #{log.employeeId}
+                      Əməkdaş #{log.employeeNo ?? log.employeeId ?? '—'}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {log.deviceId ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
+                      {log.deviceId !== undefined ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">
-                      {log.checkInTime ? new Date(log.checkInTime).toLocaleString('az-AZ') : '—'}
+                      {eventTime ? new Date(eventTime).toLocaleString('az-AZ') : '—'}
                     </p>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"
@@ -231,8 +235,9 @@ export default function DashboardPage() {
                       {log.status || log.eventType || 'GİRİŞ'}
                     </span>
                   </div>
-                </div>
-              ))}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

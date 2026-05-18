@@ -2,16 +2,17 @@ package com.hic.controller;
 
 import com.hic.dto.ApiResponse;
 import com.hic.dto.DashboardStatsDTO;
-import com.hic.model.AttendanceLog;
+import com.hic.dto.DeviceSyncDTO;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.LeaveRequest.LeaveStatus;
 import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
+import com.hic.service.AttendanceLogSyncService;
+import com.hic.service.DeviceSyncService;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,10 +28,14 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DashboardController {
 
+    private static final String DEFAULT_LOG_STATUS = "RECORDED";
+
     private final EmployeeRepository employeeRepository;
     private final DeviceConfigRepository deviceConfigRepository;
     private final AttendanceLogRepository attendanceLogRepository;
     private final LeaveRequestRepository leaveRequestRepository;
+    private final AttendanceLogSyncService attendanceLogSyncService;
+    private final DeviceSyncService deviceSyncService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<DashboardStatsDTO>> getStats() {
@@ -105,13 +110,11 @@ public class DashboardController {
 
     @GetMapping("/device-status")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getDeviceStatus() {
-        Long tenantId = TenantContext.getTenantId();
-        long totalDevices = tenantId != null
-                ? deviceConfigRepository.countByTenantId(tenantId)
-                : deviceConfigRepository.count();
-        long onlineDevices = tenantId != null
-                ? deviceConfigRepository.countByTenantIdAndStatus(tenantId, "ACTIVE")
-                : deviceConfigRepository.countByStatus("ACTIVE");
+        List<DeviceSyncDTO.DeviceConfigDTO> devices = deviceSyncService.getAllDevices(null);
+        long totalDevices = devices.size();
+        long onlineDevices = devices.stream()
+                .filter(device -> "ACTIVE".equalsIgnoreCase(device.getStatus()))
+                .count();
         long offlineDevices = totalDevices - onlineDevices;
 
         return ResponseEntity.ok(ApiResponse.success(Map.of(
@@ -122,11 +125,17 @@ public class DashboardController {
     }
 
     @GetMapping("/access-logs/latest")
-    public ResponseEntity<ApiResponse<List<AttendanceLog>>> getLatestAccessLogs() {
-        Long tenantId = TenantContext.getTenantId();
-        List<AttendanceLog> latest = tenantId != null
-                ? attendanceLogRepository.findByTenantIdOrderByCheckInTimeDesc(tenantId, PageRequest.of(0, 10))
-                : attendanceLogRepository.findAllByOrderByCheckInTimeDesc(PageRequest.of(0, 10));
+    public ResponseEntity<ApiResponse<List<DashboardAccessLogDTO>>> getLatestAccessLogs() {
+        List<DashboardAccessLogDTO> latest = attendanceLogSyncService.getAttendanceLogs(null, null, 10).stream()
+                .map(log -> new DashboardAccessLogDTO(
+                        log.getId(),
+                        log.getEmployeeNo(),
+                        log.getPunchTime(),
+                        log.getDeviceId(),
+                        log.getRawEventId(),
+                        DEFAULT_LOG_STATUS
+                ))
+                .toList();
         return ResponseEntity.ok(ApiResponse.success(latest));
     }
 
@@ -138,5 +147,14 @@ public class DashboardController {
                 "formatted", now.format(DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss"))
         )));
     }
-}
 
+    public record DashboardAccessLogDTO(
+            Long id,
+            String employeeNo,
+            java.time.OffsetDateTime punchTime,
+            Long deviceId,
+            Long rawEventId,
+            String status
+    ) {
+    }
+}

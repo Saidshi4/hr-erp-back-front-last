@@ -5,10 +5,12 @@ import com.hic.exception.DeviceSyncException;
 import com.hic.exception.UpstreamApiException;
 import com.hic.model.Employee;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -26,13 +28,16 @@ import java.util.Base64;
 import java.util.List;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class IsapiEmployeeUserSyncService {
 
+    private static final String DEFAULT_DEVICE_BASE_URL = "http://192.168.0.200";
+
     private final RestTemplate restTemplate;
 
-    @Value("${isapi.base-url}")
-    private String isapiBaseUrl;
+    @Value("${isapi.user-info-record.base-url:" + DEFAULT_DEVICE_BASE_URL + "}")
+    private String userInfoRecordBaseUrl;
 
     @Value("${isapi.user-info-record.path:/ISAPI/AccessControl/UserInfo/Record}")
     private String userInfoRecordPath;
@@ -62,17 +67,19 @@ public class IsapiEmployeeUserSyncService {
         IsapiUserInfoCreateRequestDTO request = buildRequest(employee);
         HttpHeaders headers = buildHeaders();
         String url = buildUserInfoRecordUrl();
+        log.info("Syncing employee {} to ISAPI device endpoint {}", employee.getEmployeeId(), url);
 
         try {
             HttpEntity<IsapiUserInfoCreateRequestDTO> entity = new HttpEntity<>(request, headers);
             ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
             if (!response.getStatusCode().is2xxSuccessful()) {
-                throw new UpstreamApiException(response.getStatusCode(), response.getBody());
+                throw buildUpstreamApiException(url, response.getStatusCode(), response.getBody());
             }
         } catch (HttpStatusCodeException ex) {
-            throw new UpstreamApiException(ex.getStatusCode(), ex.getResponseBodyAsString());
+            throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
         } catch (ResourceAccessException ex) {
-            throw new DeviceSyncException("ISAPI user sync is unavailable");
+            log.error("ISAPI user sync is unavailable for employee {} via {}", employee.getEmployeeId(), url, ex);
+            throw new DeviceSyncException("ISAPI user sync is unavailable for " + url, ex);
         }
     }
 
@@ -105,7 +112,7 @@ public class IsapiEmployeeUserSyncService {
 
     private String buildUserInfoRecordUrl() {
         UriComponentsBuilder builder = UriComponentsBuilder
-                .fromHttpUrl(trimTrailingSlash(isapiBaseUrl) + userInfoRecordPath)
+                .fromHttpUrl(trimTrailingSlash(resolveUserInfoRecordBaseUrl()) + ensureLeadingSlash(userInfoRecordPath))
                 .queryParam("format", "json")
                 .queryParam("security", security);
         if (StringUtils.hasText(iv)) {
@@ -127,6 +134,32 @@ public class IsapiEmployeeUserSyncService {
     }
 
     private String trimTrailingSlash(String value) {
+        if (!StringUtils.hasText(value)) {
+            return value;
+        }
         return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
+    }
+
+    private String ensureLeadingSlash(String value) {
+        return value.startsWith("/") ? value : "/" + value;
+    }
+
+    private String resolveUserInfoRecordBaseUrl() {
+        return StringUtils.hasText(userInfoRecordBaseUrl) ? userInfoRecordBaseUrl : DEFAULT_DEVICE_BASE_URL;
+    }
+
+    private UpstreamApiException buildUpstreamApiException(String url, HttpStatusCode statusCode, String responseBody) {
+        StringBuilder message = new StringBuilder("ISAPI user sync failed with HTTP ")
+                .append(statusCode.value())
+                .append(" for ")
+                .append(url);
+        if (statusCode.value() == 404) {
+            message.append(". Verify isapi.user-info-record.base-url points to the device host and not the backend host.");
+        }
+        if (StringUtils.hasText(responseBody)) {
+            message.append(" Response: ").append(responseBody);
+        }
+        log.warn("{}", message);
+        return new UpstreamApiException(statusCode, message.toString());
     }
 }

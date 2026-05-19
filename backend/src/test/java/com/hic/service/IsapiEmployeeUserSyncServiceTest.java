@@ -1,9 +1,12 @@
 package com.hic.service;
 
+import com.hic.exception.UpstreamApiException;
 import com.hic.model.Employee;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -18,6 +21,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class IsapiEmployeeUserSyncServiceTest {
@@ -31,8 +35,8 @@ class IsapiEmployeeUserSyncServiceTest {
         server = MockRestServiceServer.bindTo(restTemplate).build();
         service = new IsapiEmployeeUserSyncService(restTemplate);
 
-        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.200");
-        ReflectionTestUtils.setField(service, "userInfoRecordPath", "/ISAPI/AccessControl/UserInfo/Record");
+        ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
+        ReflectionTestUtils.setField(service, "userInfoRecordPath", "ISAPI/AccessControl/UserInfo/Record");
         ReflectionTestUtils.setField(service, "security", "1");
         ReflectionTestUtils.setField(service, "iv", "iv-token");
         ReflectionTestUtils.setField(service, "doorRight", "1");
@@ -82,5 +86,47 @@ class IsapiEmployeeUserSyncServiceTest {
 
         service.syncEmployee(employee);
         server.verify();
+    }
+
+    @Test
+    void syncEmployee_withoutConfiguredBaseUrl_defaultsToDeviceHost() {
+        ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "");
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401002");
+        employee.setFirstName("John");
+        employee.setLastName("Doe");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        service.syncEmployee(employee);
+        server.verify();
+    }
+
+    @Test
+    void syncEmployee_http404IncludesTargetUrlAndHostHint() {
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"status\":404,\"error\":\"Not Found\"}"));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401003");
+        employee.setFirstName("Ayla");
+        employee.setLastName("Aliyeva");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        UpstreamApiException exception = Assertions.assertThrows(
+                UpstreamApiException.class,
+                () -> service.syncEmployee(employee)
+        );
+
+        org.assertj.core.api.Assertions.assertThat(exception.getMessage())
+                .contains("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token")
+                .contains("isapi.user-info-record.base-url")
+                .contains("HTTP 404");
     }
 }

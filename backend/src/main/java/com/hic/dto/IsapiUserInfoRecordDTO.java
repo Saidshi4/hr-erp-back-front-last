@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -34,8 +35,8 @@ public class IsapiUserInfoRecordDTO {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class ValidityDTO {
         private Boolean enable;
-        private String beginTime;
-        private String endTime;
+        private LocalDateTime beginTime;
+        private LocalDateTime endTime;
     }
 
     @Data

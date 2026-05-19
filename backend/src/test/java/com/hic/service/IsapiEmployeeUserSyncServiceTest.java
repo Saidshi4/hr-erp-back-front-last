@@ -36,7 +36,7 @@ class IsapiEmployeeUserSyncServiceTest {
         service = new IsapiEmployeeUserSyncService(restTemplate);
 
         ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
-        ReflectionTestUtils.setField(service, "userInfoRecordPath", "ISAPI/AccessControl/UserInfo/Record");
+        ReflectionTestUtils.setField(service, "userInfoRecordPath", "/ISAPI/AccessControl/UserInfo/Record");
         ReflectionTestUtils.setField(service, "security", "1");
         ReflectionTestUtils.setField(service, "iv", "iv-token");
         ReflectionTestUtils.setField(service, "doorRight", "1");
@@ -91,6 +91,7 @@ class IsapiEmployeeUserSyncServiceTest {
     @Test
     void syncEmployee_withoutConfiguredBaseUrl_defaultsToDeviceHost() {
         ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "");
+        ReflectionTestUtils.setField(service, "userInfoRecordPath", "ISAPI/AccessControl/UserInfo/Record");
         server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));

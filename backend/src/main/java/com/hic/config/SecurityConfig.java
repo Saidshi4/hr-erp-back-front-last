@@ -24,12 +24,14 @@ public class SecurityConfig {
             .csrf(AbstractHttpConfigurer::disable)
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/api/health").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .anyRequest().authenticated()
-            )
+             .authorizeHttpRequests(auth -> auth
+                 .requestMatchers("/api/auth/**").permitAll()
+                 .requestMatchers("/api/health").permitAll()
+                 .requestMatchers("/api/isapi/access-control/user-info/record").permitAll()
+                 .requestMatchers("/ISAPI/AccessControl/UserInfo/Record").permitAll()
+                 .requestMatchers("/actuator/health").permitAll()
+                 .anyRequest().authenticated()
+             )
             .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

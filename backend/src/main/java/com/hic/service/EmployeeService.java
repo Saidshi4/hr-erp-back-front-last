@@ -35,6 +35,7 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
+    private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy != null ? sortBy : "id"));
@@ -116,6 +117,7 @@ public class EmployeeService {
         }
 
         Employee saved = employeeRepository.save(employee);
+        isapiEmployeeUserSyncService.syncEmployee(saved);
         return toResponseDTO(saved);
     }
 

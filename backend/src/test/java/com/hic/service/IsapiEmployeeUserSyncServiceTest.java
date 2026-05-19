@@ -1,0 +1,86 @@
+package com.hic.service;
+
+import com.hic.model.Employee;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.RestTemplate;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.Base64;
+
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+
+class IsapiEmployeeUserSyncServiceTest {
+
+    private IsapiEmployeeUserSyncService service;
+    private MockRestServiceServer server;
+
+    @BeforeEach
+    void setUp() {
+        RestTemplate restTemplate = new RestTemplate();
+        server = MockRestServiceServer.bindTo(restTemplate).build();
+        service = new IsapiEmployeeUserSyncService(restTemplate);
+
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.200");
+        ReflectionTestUtils.setField(service, "userInfoRecordPath", "/ISAPI/AccessControl/UserInfo/Record");
+        ReflectionTestUtils.setField(service, "security", "1");
+        ReflectionTestUtils.setField(service, "iv", "iv-token");
+        ReflectionTestUtils.setField(service, "doorRight", "1");
+        ReflectionTestUtils.setField(service, "doorNo", 1);
+        ReflectionTestUtils.setField(service, "planTemplateNo", "1");
+        ReflectionTestUtils.setField(service, "username", "admin");
+        ReflectionTestUtils.setField(service, "password", "pass123");
+    }
+
+    @Test
+    void syncEmployee_postsExpectedPayloadToIsapi() {
+        String expectedAuth = "Basic " + Base64.getEncoder()
+                .encodeToString("admin:pass123".getBytes(StandardCharsets.UTF_8));
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header(HttpHeaders.AUTHORIZATION, expectedAuth))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("""
+                        {
+                          "UserInfo": {
+                            "employeeNo": "EMP202401001",
+                            "name": "Jane Smith",
+                            "userType": "normal",
+                            "gender": "female",
+                            "localUIRight": false,
+                            "maxOpenDoorTime": 0,
+                            "Valid": {
+                              "enable": true,
+                              "beginTime": "2026-05-18T00:00:00",
+                              "endTime": "2036-05-17T23:59:59",
+                              "timeType": "local"
+                            },
+                            "doorRight": "1",
+                            "RightPlan": [{"doorNo":1,"planTemplateNo":"1"}],
+                            "userVerifyMode": ""
+                          }
+                        }
+                        """))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401001");
+        employee.setFirstName("Jane");
+        employee.setLastName("Smith");
+        employee.setGender("female");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        service.syncEmployee(employee);
+        server.verify();
+    }
+}

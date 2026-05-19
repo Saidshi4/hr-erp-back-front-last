@@ -3,6 +3,7 @@ package com.hic.service;
 import com.hic.dto.EmployeeDTO;
 import com.hic.dto.EmployeeResponseDTO;
 import com.hic.exception.BadRequestException;
+import com.hic.exception.DeviceSyncException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Department;
 import com.hic.model.Employee;
@@ -40,6 +41,9 @@ class EmployeeServiceTest {
 
     @Mock
     private PositionRepository positionRepository;
+
+    @Mock
+    private IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     @InjectMocks
     private EmployeeService employeeService;
@@ -108,6 +112,24 @@ class EmployeeServiceTest {
         assertThat(result.getFirstName()).isEqualTo("John");
         assertThat(result.getEmploymentStatus()).isEqualTo(EmploymentStatus.ACTIVE);
         verify(employeeRepository).save(any(Employee.class));
+        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class));
+    }
+
+    @Test
+    void create_isapiSyncFails_throwsException() {
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.count()).thenReturn(0L);
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
+            Employee e = inv.getArgument(0);
+            e.setId(1L);
+            return e;
+        });
+        doThrow(new DeviceSyncException("ISAPI user sync is unavailable"))
+                .when(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class));
+
+        assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
+                .isInstanceOf(DeviceSyncException.class)
+                .hasMessageContaining("ISAPI user sync is unavailable");
     }
 
     @Test

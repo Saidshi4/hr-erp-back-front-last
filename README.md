@@ -50,6 +50,22 @@ When history polling gets stuck because of a stale `lastSerialNo` / `lastEventTi
 - ISAPI service (direct): `POST /api/devices/{id}/cursor/reset`
 - Backend proxy (backend device id): `POST /api/devices/{id}/isapi-cursor/reset`
 
+### Device User Proxy Flow (Frontend → Backend → ISAPI)
+
+- Backend exposes ISAPI-compatible user endpoints under:
+  - `POST /api/devices/{deviceId}/users`
+  - `GET /api/devices/{deviceId}/users`
+  - `GET /api/devices/{deviceId}/users/{userId}`
+  - `PUT /api/devices/{deviceId}/users/{userId}`
+  - `DELETE /api/devices/{deviceId}/users/{userId}`
+  - `POST /api/devices/{deviceId}/users/{userId}/sync`
+  - `POST /api/devices/{deviceId}/users/{userId}/face` (multipart `file`)
+- Frontend must call only backend API; backend proxies requests to `isapi` using `DeviceUserIsapiProxyService`.
+- Face image upload flow:
+  1. Frontend sends multipart `file` to backend `/face` endpoint
+  2. Backend forwards multipart payload to `isapi` without changing endpoint contract
+  3. `isapi` processes upload and returns result via backend proxy
+
 ## Multi-Tenant Support
 
 The system is designed to serve multiple companies (tenants) from a single deployment. Each company's data is isolated by `company_id` / `tenant_id` fields across tables. Device-to-tenant mapping is configured through the ISAPI service.

@@ -10,6 +10,11 @@ const client = axios.create({
 })
 
 client.interceptors.request.use((config) => {
+  if (config.data instanceof FormData) {
+    config.headers = config.headers ?? {}
+    delete config.headers['Content-Type']
+  }
+
   // Read token from Zustand persisted storage
   const authStorage = localStorage.getItem('auth-storage')
   if (authStorage) {

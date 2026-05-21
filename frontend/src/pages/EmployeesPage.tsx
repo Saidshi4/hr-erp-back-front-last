@@ -4,6 +4,7 @@ import { useEmployeeStore } from '../store/employeeStore.ts'
 import { Employee, Department, Position } from '../types'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
+import { deviceUserApi } from '../api/deviceUserApi.ts'
 
 interface EmployeeFormData {
   firstName: string
@@ -46,6 +47,7 @@ function getAvatarColor(name: string) {
 }
 
 export default function EmployeesPage() {
+  const defaultDeviceId = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID || 1)
   const { employees, loading, error, fetchEmployees, createEmployee, updateEmployee, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
   const [search, setSearch] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
@@ -60,6 +62,8 @@ export default function EmployeesPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null)
+  const [uploadingFaceEmployeeId, setUploadingFaceEmployeeId] = useState<number | null>(null)
+  const [uploadFaceError, setUploadFaceError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchEmployees(0, 20)
@@ -149,6 +153,28 @@ export default function EmployeesPage() {
   const handleSearch = () => {
     if (!search.trim()) {
       fetchEmployees(0, 20)
+    }
+  }
+
+  const handleFaceUpload = async (employee: Employee, file: File | undefined, input?: HTMLInputElement) => {
+    if (!file) return
+    setUploadFaceError(null)
+    setUploadingFaceEmployeeId(employee.id)
+    try {
+      const usersRes = await deviceUserApi.getAll(defaultDeviceId)
+      const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
+      if (!deviceUser) {
+        throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
+      }
+      await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file)
+      await fetchEmployees(currentPage, 20)
+    } catch (e: unknown) {
+      setUploadFaceError((e as Error).message || 'Şəkil yüklənmədi')
+    } finally {
+      setUploadingFaceEmployeeId(null)
+      if (input) {
+        input.value = ''
+      }
     }
   }
 
@@ -250,6 +276,9 @@ export default function EmployeesPage() {
         </div>
 
         {/* Table */}
+        {uploadFaceError && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-4 text-sm">{uploadFaceError}</div>
+        )}
         {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
             <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
@@ -295,6 +324,20 @@ export default function EmployeesPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                           </button>
+                          <label className="p-1.5 rounded hover:bg-blue-50 transition-colors cursor-pointer" title="Şəkil yüklə">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              aria-label={`${emp.firstName} ${emp.lastName} üçün şəkil yüklə`}
+                              onChange={(e) => {
+                                handleFaceUpload(emp, e.target.files?.[0], e.currentTarget)
+                              }}
+                            />
+                            <svg className={`w-4 h-4 ${uploadingFaceEmployeeId === emp.id ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#2563eb' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16l4-4a3 3 0 014.243 0L15 15.757m-2-2 1.586-1.586a3 3 0 014.243 0L21 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </label>
                           <button
                             onClick={() => setDeleteConfirm(emp)}
                             className="p-1.5 rounded hover:bg-red-50 transition-colors"

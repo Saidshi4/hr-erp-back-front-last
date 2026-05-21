@@ -156,7 +156,7 @@ export default function EmployeesPage() {
     }
   }
 
-  const handleFaceUpload = async (employee: Employee, file: File | undefined) => {
+  const handleFaceUpload = async (employee: Employee, file: File | undefined, input?: HTMLInputElement) => {
     if (!file) return
     setUploadFaceError(null)
     setUploadingFaceEmployeeId(employee.id)
@@ -172,6 +172,9 @@ export default function EmployeesPage() {
       setUploadFaceError((e as Error).message || 'Şəkil yüklənmədi')
     } finally {
       setUploadingFaceEmployeeId(null)
+      if (input) {
+        input.value = ''
+      }
     }
   }
 
@@ -326,9 +329,9 @@ export default function EmployeesPage() {
                               type="file"
                               accept="image/*"
                               className="hidden"
+                              aria-label={`${emp.firstName} ${emp.lastName} üçün şəkil yüklə`}
                               onChange={(e) => {
-                                handleFaceUpload(emp, e.target.files?.[0])
-                                e.currentTarget.value = ''
+                                handleFaceUpload(emp, e.target.files?.[0], e.currentTarget)
                               }}
                             />
                             <svg className={`w-4 h-4 ${uploadingFaceEmployeeId === emp.id ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#2563eb' }}>

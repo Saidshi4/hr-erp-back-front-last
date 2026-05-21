@@ -32,6 +32,7 @@ public class DeviceController {
 
     @GetMapping
     public List<DeviceResponse> list(@RequestParam(required = false) Boolean enabled) {
+        log.info("ActionLog.device.list.started enabled={}", enabled);
         List<DeviceEntity> devices = enabled == null
                 ? deviceRepository.findAll()
                 : deviceRepository.findByEnabled(enabled);
@@ -39,6 +40,7 @@ public class DeviceController {
                 .findAllById(devices.stream().map(DeviceEntity::getId).toList())
                 .stream()
                 .collect(Collectors.toMap(DeviceCursorEntity::getDeviceId, DeviceCursorEntity::getLastEventTime));
+        log.info("ActionLog.device.list.finished enabled={}", enabled);
         return devices.stream()
                 .map(device -> toResponse(device, lastSyncByDeviceId.get(device.getId())))
                 .toList();

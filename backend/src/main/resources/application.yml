@@ -47,9 +47,9 @@ logging:
     com.hic: INFO
 
 isapi:
-  base-url: http://192.168.0.198:8081
+  base-url: http://192.168.100.51:8081
   user-info-record:
-    base-url: ${ISAPI_USER_INFO_BASE_URL:http://192.168.0.200}
+    base-url: ${ISAPI_USER_INFO_BASE_URL:http://192.168.100.51}
     path: /ISAPI/AccessControl/UserInfo/Record
     security: ${ISAPI_USER_INFO_SECURITY:1}
     iv: ${ISAPI_USER_INFO_IV:}

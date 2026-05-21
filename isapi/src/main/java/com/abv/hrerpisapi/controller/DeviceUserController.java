@@ -81,8 +81,7 @@ public class DeviceUserController {
             String userType,
             String gender,
             String beginTime,
-            String endTime,
-            String faceDataUrl
+            String endTime
     ) {
     }
 

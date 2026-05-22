@@ -47,7 +47,6 @@ public class DeviceUserService {
         entity.setGender(request.gender());
         entity.setBeginTime(parseDateTime(request.beginTime()));
         entity.setEndTime(parseDateTime(request.endTime()));
-        entity.setFaceDataUrl(request.faceDataUrl());
         entity.setSyncedToDevice(false);
         DeviceUserEntity saved = deviceUserRepository.save(entity);
 

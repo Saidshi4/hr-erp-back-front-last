@@ -477,17 +477,20 @@ public class IsapiClient {
         valid.put("endTime", effectiveEnd.format(ISAPI_LOCAL_DT));
         valid.put("timeType", "local");
 
+        String normalizedGender = HikvisionPayloadNormalizer.normalizeGender(gender);
+
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("employeeNo", employeeNo);
         map.put("name", name);
         map.put("userType", userType != null ? userType : "normal");
-        if (gender != null) map.put("gender", gender);
+        if (normalizedGender != null) {
+            map.put("gender", normalizedGender);
+        }
         map.put("localUIRight", false);
         map.put("maxOpenDoorTime", 0);
         map.put("Valid", valid);
         map.put("doorRight", "1");
         map.put("RightPlan", List.of(Map.of("doorNo", 1, "planTemplateNo", "1")));
-        map.put("userVerifyMode", "");
         return map;
     }
 

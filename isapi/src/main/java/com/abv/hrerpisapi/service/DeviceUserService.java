@@ -39,6 +39,7 @@ public class DeviceUserService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists on this device");
         }
 
+        log.info("ActionLog.deviceUser.create.validated deviceId={} employeeNo={}", deviceId, request.employeeNo());
         DeviceUserEntity entity = new DeviceUserEntity();
         entity.setDeviceId(deviceId);
         entity.setEmployeeNo(request.employeeNo());
@@ -49,6 +50,7 @@ public class DeviceUserService {
         entity.setEndTime(parseDateTime(request.endTime()));
         entity.setSyncedToDevice(false);
         DeviceUserEntity saved = deviceUserRepository.save(entity);
+        log.info("ActionLog.deviceUser.create.saved deviceId={} userId={} employeeNo={}", deviceId, saved.getId(), saved.getEmployeeNo());
 
         try {
             UserOperationResult result = isapiClient.addDeviceUser(

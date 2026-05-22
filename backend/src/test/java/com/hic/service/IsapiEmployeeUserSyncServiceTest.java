@@ -36,12 +36,14 @@ class IsapiEmployeeUserSyncServiceTest {
         service = new IsapiEmployeeUserSyncService(restTemplate);
 
         ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.201:8081");
         ReflectionTestUtils.setField(service, "userInfoRecordPath", "/ISAPI/AccessControl/UserInfo/Record");
         ReflectionTestUtils.setField(service, "security", "1");
         ReflectionTestUtils.setField(service, "iv", "iv-token");
         ReflectionTestUtils.setField(service, "doorRight", "1");
         ReflectionTestUtils.setField(service, "doorNo", 1);
         ReflectionTestUtils.setField(service, "planTemplateNo", "1");
+        ReflectionTestUtils.setField(service, "userSyncDeviceId", 1L);
         ReflectionTestUtils.setField(service, "username", "admin");
         ReflectionTestUtils.setField(service, "password", "pass123");
     }
@@ -70,8 +72,7 @@ class IsapiEmployeeUserSyncServiceTest {
                               "timeType": "local"
                             },
                             "doorRight": "1",
-                            "RightPlan": [{"doorNo":1,"planTemplateNo":"1"}],
-                            "userVerifyMode": ""
+                            "RightPlan": [{"doorNo":1,"planTemplateNo":"1"}]
                           }
                         }
                         """))
@@ -89,10 +90,29 @@ class IsapiEmployeeUserSyncServiceTest {
     }
 
     @Test
+    void syncEmployee_withoutConfiguredUserInfoOrIsapiBaseUrl_defaultsToDeviceHost() {
+        ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "");
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "");
+        ReflectionTestUtils.setField(service, "userInfoRecordPath", "ISAPI/AccessControl/UserInfo/Record");
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401010");
+        employee.setFirstName("Samir");
+        employee.setLastName("Mammadov");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        service.syncEmployee(employee);
+        server.verify();
+    }
+
+    @Test
     void syncEmployee_withoutConfiguredBaseUrl_defaultsToDeviceHost() {
         ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "");
         ReflectionTestUtils.setField(service, "userInfoRecordPath", "ISAPI/AccessControl/UserInfo/Record");
-        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+        server.expect(requestTo("http://192.168.0.201:8081/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
 
@@ -129,5 +149,42 @@ class IsapiEmployeeUserSyncServiceTest {
                 .contains("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token")
                 .contains("isapi.user-info-record.base-url")
                 .contains("HTTP 404");
+    }
+
+    @Test
+    void syncEmployee_http404FallsBackToIsapiServiceEndpoint() {
+        ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.201:8081");
+
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"status\":404,\"error\":\"Not Found\"}"));
+
+        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("""
+                        {
+                          "employeeNo": "EMP202401004",
+                          "name": "Nigar Aliyeva",
+                          "userType": "normal",
+                          "gender": "female",
+                          "beginTime": "2026-05-18T00:00:00",
+                          "endTime": "2036-05-17T23:59:59"
+                        }
+                        """))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401004");
+        employee.setFirstName("Nigar");
+        employee.setLastName("Aliyeva");
+        employee.setGender("FEMALE");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        service.syncEmployee(employee);
+        server.verify();
     }
 }

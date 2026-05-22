@@ -33,11 +33,15 @@ import java.util.List;
 public class IsapiEmployeeUserSyncService {
 
     private static final String DEFAULT_DEVICE_BASE_URL = "http://192.168.0.200";
+    private static final String ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE = "/api/devices/%d/users";
 
     private final RestTemplate restTemplate;
 
-    @Value("${isapi.user-info-record.base-url:" + DEFAULT_DEVICE_BASE_URL + "}")
+    @Value("${isapi.user-info-record.base-url:}")
     private String userInfoRecordBaseUrl;
+
+    @Value("${isapi.base-url:}")
+    private String isapiBaseUrl;
 
     @Value("${isapi.user-info-record.path:/ISAPI/AccessControl/UserInfo/Record}")
     private String userInfoRecordPath;
@@ -56,6 +60,9 @@ public class IsapiEmployeeUserSyncService {
 
     @Value("${isapi.user-info-record.plan-template-no:1}")
     private String planTemplateNo;
+
+    @Value("${isapi.user-sync.device-id:1}")
+    private long userSyncDeviceId;
 
     @Value("${isapi.user-info-record.username:}")
     private String username;
@@ -76,6 +83,11 @@ public class IsapiEmployeeUserSyncService {
                 throw buildUpstreamApiException(url, response.getStatusCode(), response.getBody());
             }
         } catch (HttpStatusCodeException ex) {
+            if (ex.getStatusCode().value() == 404 && StringUtils.hasText(isapiBaseUrl)) {
+                log.warn("Direct ISAPI UserInfo endpoint returned 404 for {}. Retrying via isapi service API.", url);
+                syncEmployeeViaIsapiService(employee);
+                return;
+            }
             throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
         } catch (ResourceAccessException ex) {
             log.error("ISAPI user sync is unavailable for employee {} via {}", employee.getEmployeeId(), url, ex);
@@ -88,6 +100,7 @@ public class IsapiEmployeeUserSyncService {
         LocalDateTime beginTime = beginDate.atStartOfDay();
         LocalDateTime endTime = beginTime.plusYears(10).minusSeconds(1);
         String fullName = (employee.getFirstName() + " " + employee.getLastName()).trim();
+        String normalizedGender = HikvisionPayloadNormalizer.normalizeGender(employee.getGender());
         IsapiUserInfoCreateRequestDTO.ValidityDTO validity = new IsapiUserInfoCreateRequestDTO.ValidityDTO(
                 true,
                 beginTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
@@ -99,13 +112,13 @@ public class IsapiEmployeeUserSyncService {
                 employee.getEmployeeId(),
                 fullName,
                 "normal",
-                employee.getGender() == null ? "" : employee.getGender(),
+                normalizedGender,
                 false,
                 0,
                 validity,
                 doorRight,
                 List.of(rightPlan),
-                ""
+                null
         );
         return new IsapiUserInfoCreateRequestDTO(userInfo);
     }
@@ -145,7 +158,54 @@ public class IsapiEmployeeUserSyncService {
     }
 
     private String resolveUserInfoRecordBaseUrl() {
-        return StringUtils.hasText(userInfoRecordBaseUrl) ? userInfoRecordBaseUrl : DEFAULT_DEVICE_BASE_URL;
+        if (StringUtils.hasText(userInfoRecordBaseUrl)) {
+            return userInfoRecordBaseUrl;
+        }
+        if (StringUtils.hasText(isapiBaseUrl)) {
+            return isapiBaseUrl;
+        }
+        return DEFAULT_DEVICE_BASE_URL;
+    }
+
+    private void syncEmployeeViaIsapiService(Employee employee) {
+        String proxyPath = String.format(ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE, userSyncDeviceId);
+        String url = trimTrailingSlash(isapiBaseUrl) + proxyPath;
+        DeviceUserCreateRequest body = buildDeviceUserCreateRequest(employee);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setAccept(List.of(MediaType.APPLICATION_JSON));
+
+        try {
+            HttpEntity<DeviceUserCreateRequest> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw buildUpstreamApiException(url, response.getStatusCode(), response.getBody());
+            }
+            log.info("Employee {} synced via isapi service endpoint {}", employee.getEmployeeId(), url);
+        } catch (HttpStatusCodeException ex) {
+            throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
+        } catch (ResourceAccessException ex) {
+            log.error("ISAPI service sync is unavailable for employee {} via {}", employee.getEmployeeId(), url, ex);
+            throw new DeviceSyncException("ISAPI service sync is unavailable for " + url, ex);
+        }
+    }
+
+    private DeviceUserCreateRequest buildDeviceUserCreateRequest(Employee employee) {
+        LocalDate beginDate = employee.getHireDate() != null ? employee.getHireDate() : LocalDate.now();
+        LocalDateTime beginTime = beginDate.atStartOfDay();
+        LocalDateTime endTime = beginTime.plusYears(10).minusSeconds(1);
+        String fullName = (employee.getFirstName() + " " + employee.getLastName()).trim();
+        String normalizedGender = HikvisionPayloadNormalizer.normalizeGender(employee.getGender());
+
+        return new DeviceUserCreateRequest(
+                employee.getEmployeeId(),
+                fullName,
+                "normal",
+                normalizedGender,
+                beginTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+        );
     }
 
     private UpstreamApiException buildUpstreamApiException(String url, HttpStatusCode statusCode, String responseBody) {
@@ -161,5 +221,15 @@ public class IsapiEmployeeUserSyncService {
         }
         log.warn("{}", message);
         return new UpstreamApiException(statusCode, message.toString());
+    }
+
+    private record DeviceUserCreateRequest(
+            String employeeNo,
+            String name,
+            String userType,
+            String gender,
+            String beginTime,
+            String endTime
+    ) {
     }
 }

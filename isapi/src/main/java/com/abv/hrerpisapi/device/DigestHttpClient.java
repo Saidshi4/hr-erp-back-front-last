@@ -58,6 +58,36 @@ public class DigestHttpClient {
         return client.send(req2, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
     }
 
+    public HttpResponse<byte[]> getBytes(String path) throws IOException, InterruptedException {
+        URI uri = URI.create(baseUrl + path);
+
+        HttpRequest req1 = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "*/*")
+                .GET()
+                .build();
+
+        HttpResponse<byte[]> r1 = client.send(req1, HttpResponse.BodyHandlers.ofByteArray());
+        if (r1.statusCode() != 401) return r1;
+
+        Optional<String> wwwAuthOpt = r1.headers().firstValue("WWW-Authenticate");
+        if (wwwAuthOpt.isEmpty() || !wwwAuthOpt.get().toLowerCase(Locale.ROOT).startsWith("digest")) {
+            throw new IOException("Expected WWW-Authenticate: Digest, got: " + wwwAuthOpt.orElse("<missing>"));
+        }
+
+        DigestChallenge ch = DigestChallenge.parse(wwwAuthOpt.get());
+        String auth = buildDigestAuthorization(ch, "GET", uri.getPath());
+
+        HttpRequest req2 = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(30))
+                .header("Accept", "*/*")
+                .header("Authorization", auth)
+                .GET()
+                .build();
+
+        return client.send(req2, HttpResponse.BodyHandlers.ofByteArray());
+    }
+
     private String buildDigestAuthorization(DigestChallenge ch, String method, String uriPath) throws IOException {
         String realm = ch.params.get("realm");
         String nonce = ch.params.get("nonce");

@@ -11,6 +11,7 @@ import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.Position;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.EmployeeRepository;
+import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,7 @@ public class EmployeeService {
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
+    private final FaceDataRepository faceDataRepository;
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
@@ -180,6 +182,8 @@ public class EmployeeService {
         dto.setEmail(employee.getEmail());
         dto.setFinNumber(employee.getFinNumber());
         dto.setFaceId(employee.getFaceId());
+        faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
+                .ifPresent(faceData -> dto.setFaceImageUrl("/api/faces/employee/" + employee.getId() + "/image"));
         dto.setCardId(employee.getCardId());
         dto.setDepartmentId(employee.getDepartmentId());
         dto.setPositionId(employee.getPositionId());

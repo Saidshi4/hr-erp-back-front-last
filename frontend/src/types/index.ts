@@ -47,6 +47,7 @@ export interface Employee {
   mobilePhone?: string
   email?: string
   finNumber?: string
+  faceImageUrl?: string
   departmentId?: number
   departmentName?: string
   positionId?: number

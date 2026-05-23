@@ -10,5 +10,6 @@ import java.util.Optional;
 @Repository
 public interface FaceDataRepository extends JpaRepository<FaceData, Long> {
     List<FaceData> findByEmployeeId(Long employeeId);
+    Optional<FaceData> findTopByEmployeeIdOrderByCreatedAtDesc(Long employeeId);
     Optional<FaceData> findByFaceId(String faceId);
 }

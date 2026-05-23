@@ -20,7 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -81,7 +83,10 @@ public class DeviceUserService {
 
     public DeviceUserResponse getDeviceUser(Long deviceId, Long userId) {
         requireDevice(deviceId);
-        return toResponse(requireDeviceUser(deviceId, userId));
+        log.info("ActionLog.deviceUser.get.started deviceId={} userId={}", deviceId, userId);
+        DeviceUserResponse response = toResponse(requireDeviceUser(deviceId, userId));
+        log.info("ActionLog.deviceUser.get.validated faceDataUrl={} syncedToDevice={}", response.faceDataUrl(), response.syncedToDevice());
+        return response;
     }
 
     public DeviceUserResponse updateDeviceUser(Long deviceId, Long userId, DeviceUserUpdateRequest request) {
@@ -214,6 +219,62 @@ public class DeviceUserService {
         return toResponse(entity);
     }
 
+    public DeviceUserFaceSyncResponse syncFaceFromDevice(Long deviceId, Long userId) {
+        DeviceEntity device = requireDevice(deviceId);
+        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+
+        try {
+            Optional<String> faceUrlOpt = isapiClient.findFaceUrlByEmployeeNo(device, entity.getEmployeeNo());
+            if (faceUrlOpt.isEmpty()) {
+                return new DeviceUserFaceSyncResponse(
+                        entity.getId(),
+                        entity.getDeviceId(),
+                        entity.getEmployeeNo(),
+                        "NOT_FOUND",
+                        "No face image found in device FDLib",
+                        null,
+                        null
+                );
+            }
+
+            String faceUrl = faceUrlOpt.get();
+            Optional<byte[]> imageOpt = isapiClient.downloadFaceImage(device, faceUrl);
+            if (imageOpt.isEmpty()) {
+                return new DeviceUserFaceSyncResponse(
+                        entity.getId(),
+                        entity.getDeviceId(),
+                        entity.getEmployeeNo(),
+                        "FAILED",
+                        "Face URL found but image could not be downloaded",
+                        faceUrl,
+                        null
+                );
+            }
+
+            String base64Image = Base64.getEncoder().encodeToString(imageOpt.get());
+            return new DeviceUserFaceSyncResponse(
+                    entity.getId(),
+                    entity.getDeviceId(),
+                    entity.getEmployeeNo(),
+                    "SUCCESS",
+                    "Face image downloaded from device",
+                    faceUrl,
+                    base64Image
+            );
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            return new DeviceUserFaceSyncResponse(
+                    entity.getId(),
+                    entity.getDeviceId(),
+                    entity.getEmployeeNo(),
+                    "FAILED",
+                    "Face sync error: " + e.getMessage(),
+                    null,
+                    null
+            );
+        }
+    }
+
     private void uploadFaceByUrl(DeviceEntity device, DeviceUserEntity entity) {
         try {
             UserOperationResult faceResult = isapiClient.uploadFaceByUrl(
@@ -279,5 +340,16 @@ public class DeviceUserService {
                 entity.getLastSyncTime(),
                 status,
                 message);
+    }
+
+    public record DeviceUserFaceSyncResponse(
+            Long id,
+            Long deviceId,
+            String employeeNo,
+            String status,
+            String message,
+            String faceUrl,
+            String imageBase64
+    ) {
     }
 }

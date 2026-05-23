@@ -1,6 +1,7 @@
 package com.abv.hrerpisapi.controller;
 
 import com.abv.hrerpisapi.service.DeviceUserService;
+import com.abv.hrerpisapi.service.DeviceUserService.DeviceUserFaceSyncResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -64,6 +65,12 @@ public class DeviceUserController {
                                          @PathVariable Long userId,
                                          @RequestParam("file") MultipartFile file) {
         return deviceUserService.uploadFaceData(deviceId, userId, file);
+    }
+
+    @PostMapping("/{userId}/face/sync")
+    public DeviceUserFaceSyncResponse syncFace(@PathVariable Long deviceId,
+                                               @PathVariable Long userId) {
+        return deviceUserService.syncFaceFromDevice(deviceId, userId);
     }
 
     private void validateCreateRequest(DeviceUserCreateRequest request) {

@@ -1,19 +1,28 @@
 package com.hic.controller;
 
 import com.hic.service.DeviceUserIsapiProxyService;
+import com.hic.service.EmployeeFaceImageService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.multipart.MultipartHttpServletRequest;
+
+import java.util.Base64;
 
 @RestController
 @RequestMapping(value = "/api/devices/{deviceId}/users", produces = MediaType.APPLICATION_JSON_VALUE)
 @RequiredArgsConstructor
 public class DeviceUserController {
 
+    private static final ObjectMapper OM = new ObjectMapper();
+
     private final DeviceUserIsapiProxyService deviceUserIsapiProxyService;
+    private final EmployeeFaceImageService employeeFaceImageService;
 
     @PostMapping
     public ResponseEntity<String> createUser(@PathVariable Long deviceId,
@@ -59,7 +68,37 @@ public class DeviceUserController {
     @PostMapping(path = "/{userId}/face", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> uploadFace(@PathVariable Long deviceId,
                                              @PathVariable Long userId,
+                                             @RequestParam(required = false) Long employeeId,
                                              MultipartHttpServletRequest request) {
-        return deviceUserIsapiProxyService.uploadFace(deviceId, userId, request);
+        MultipartFile file = request.getFile("file");
+        ResponseEntity<String> response = deviceUserIsapiProxyService.uploadFace(deviceId, userId, request);
+        if (response.getStatusCode().is2xxSuccessful() && employeeId != null) {
+            employeeFaceImageService.saveFaceImage(employeeId, file);
+        }
+        return response;
+    }
+
+    @PostMapping(path = "/{userId}/face/sync")
+    public ResponseEntity<String> syncFace(@PathVariable Long deviceId,
+                                           @PathVariable Long userId,
+                                           @RequestParam(required = false) Long employeeId,
+                                           HttpServletRequest request) {
+        ResponseEntity<String> response = deviceUserIsapiProxyService.syncFace(deviceId, userId, request);
+        if (!response.getStatusCode().is2xxSuccessful() || employeeId == null || response.getBody() == null) {
+            return response;
+        }
+
+        try {
+            JsonNode root = OM.readTree(response.getBody());
+            String status = root.path("status").asText("");
+            String imageBase64 = root.path("imageBase64").asText("");
+            if ("SUCCESS".equalsIgnoreCase(status) && !imageBase64.isBlank()) {
+                byte[] imageBytes = Base64.getDecoder().decode(imageBase64);
+                employeeFaceImageService.saveFaceImageBytes(employeeId, imageBytes, "jpg");
+            }
+        } catch (Exception ignored) {
+        }
+
+        return response;
     }
 }

@@ -18,6 +18,7 @@ public class EmployeeResponseDTO {
     private String email;
     private String finNumber;
     private String faceId;
+    private String faceImageUrl;
     private String cardId;
     private Long departmentId;
     private String departmentName;

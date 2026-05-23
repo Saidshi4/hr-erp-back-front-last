@@ -211,6 +211,46 @@ public class IsapiClient {
         return toUserOperationResult(resp);
     }
 
+    public Optional<String> findFaceUrlByEmployeeNo(DeviceEntity device, String employeeNo)
+            throws IOException, InterruptedException {
+
+        String body = OM.writeValueAsString(Map.of(
+                "searchResultPosition", 0,
+                "maxResults", 1,
+                "FDID", "1",
+                "FPID", employeeNo
+        ));
+
+        HttpResponse<String> resp = clientFor(device)
+                .post("/ISAPI/Intelligent/FDLib/FDSearch?format=json", "application/json", body);
+
+        if (resp.statusCode() != 200) {
+            log.warn("FDSearch returned HTTP {} for device {} employeeNo {}", resp.statusCode(), device.getId(), employeeNo);
+            return Optional.empty();
+        }
+
+        JsonNode root = OM.readTree(resp.body());
+        JsonNode list = root.path("MatchList");
+        if (!list.isArray() || list.isEmpty()) {
+            return Optional.empty();
+        }
+
+        String faceUrl = list.get(0).path("faceURL").asText("");
+        return faceUrl.isBlank() ? Optional.empty() : Optional.of(faceUrl);
+    }
+
+    public Optional<byte[]> downloadFaceImage(DeviceEntity device, String faceUrl)
+            throws IOException, InterruptedException {
+        String path = toDevicePath(faceUrl);
+        HttpResponse<byte[]> resp = clientFor(device).getBytes(path);
+        if (resp.statusCode() != 200 || resp.body() == null || resp.body().length == 0) {
+            log.warn("Face image download failed for device {} url {} status {}",
+                    device.getId(), faceUrl, resp.statusCode());
+            return Optional.empty();
+        }
+        return Optional.of(resp.body());
+    }
+
     /**
      * Updates a user on a DS-K1T series device via UserInfo/Modify endpoint.
      */
@@ -552,6 +592,21 @@ public class IsapiClient {
                 "http://" + device.getIp(),
                 device.getUsername(),
                 device.getPassword());
+    }
+
+    private String toDevicePath(String faceUrl) {
+        if (faceUrl == null || faceUrl.isBlank()) {
+            return faceUrl;
+        }
+        if (faceUrl.startsWith("http://") || faceUrl.startsWith("https://")) {
+            java.net.URI uri = java.net.URI.create(faceUrl);
+            String path = uri.getRawPath();
+            if (uri.getRawQuery() != null && !uri.getRawQuery().isBlank()) {
+                return path + "?" + uri.getRawQuery();
+            }
+            return path;
+        }
+        return faceUrl;
     }
 
     private String snippet(String raw) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
 import { Employee, Department, Position } from '../types'
+import { employeeApi } from '../api/employeeApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
 import { deviceUserApi } from '../api/deviceUserApi.ts'
@@ -64,6 +65,11 @@ export default function EmployeesPage() {
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null)
   const [uploadingFaceEmployeeId, setUploadingFaceEmployeeId] = useState<number | null>(null)
   const [uploadFaceError, setUploadFaceError] = useState<string | null>(null)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState<string | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
+  const [profileImageSrc, setProfileImageSrc] = useState<string | null>(null)
 
   useEffect(() => {
     fetchEmployees(0, 20)
@@ -77,6 +83,76 @@ export default function EmployeesPage() {
     setForm(defaultForm)
     setFormError(null)
     setShowModal(true)
+  }
+
+  const openProfile = async (employee: Employee) => {
+    setShowProfileModal(true)
+    setProfileLoading(true)
+    setProfileError(null)
+    setSelectedEmployee(employee)
+    try {
+      let res = await employeeApi.getById(employee.id)
+      if (res.data?.data) {
+        let details = res.data.data
+        if (!details.faceImageUrl) {
+          const usersRes = await deviceUserApi.getAll(defaultDeviceId)
+          const deviceUser = usersRes.data.find((u) => u.employeeNo === details.employeeId)
+          if (deviceUser) {
+            await deviceUserApi.syncFaceFromDevice(defaultDeviceId, deviceUser.id, details.id)
+            res = await employeeApi.getById(employee.id)
+            details = res.data?.data || details
+          }
+        }
+        if (profileImageSrc) {
+          URL.revokeObjectURL(profileImageSrc)
+          setProfileImageSrc(null)
+        }
+        if (details.faceImageUrl) {
+          const token = localStorage.getItem('token')
+          const imageResponse = await fetch(details.faceImageUrl, {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+          })
+          if (imageResponse.ok) {
+            const blob = await imageResponse.blob()
+            setProfileImageSrc(URL.createObjectURL(blob))
+          }
+        }
+        setSelectedEmployee(details)
+      }
+    } catch (e: unknown) {
+      setProfileError((e as Error).message || 'Əməkdaş məlumatları yüklənmədi')
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+
+  const closeProfile = () => {
+    if (profileImageSrc) {
+      URL.revokeObjectURL(profileImageSrc)
+    }
+    setProfileImageSrc(null)
+    setShowProfileModal(false)
+    setProfileError(null)
+  }
+
+  const formatDate = (value?: string) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('az-AZ')
+  }
+
+  const genderLabel = (gender?: string) => {
+    if (!gender) return '—'
+    if (gender.toUpperCase() === 'MALE') return 'Kişi'
+    if (gender.toUpperCase() === 'FEMALE') return 'Qadın'
+    return gender
+  }
+
+  const statusLabel = (status: Employee['employmentStatus']) => {
+    if (status === 'ACTIVE') return 'Aktiv'
+    if (status === 'ON_LEAVE') return 'Məzuniyyətdə'
+    return 'Deaktiv'
   }
 
   const openEdit = (emp: Employee) => {
@@ -166,7 +242,7 @@ export default function EmployeesPage() {
       if (!deviceUser) {
         throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
       }
-      await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file)
+      await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file, employee.id)
       await fetchEmployees(currentPage, 20)
     } catch (e: unknown) {
       setUploadFaceError((e as Error).message || 'Şəkil yüklənmədi')
@@ -315,6 +391,16 @@ export default function EmployeesPage() {
                     <tr key={emp.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => openProfile(emp)}
+                            className="p-1.5 rounded hover:bg-violet-50 transition-colors"
+                            title="Məlumatlara bax"
+                          >
+                            <svg className="w-4 h-4" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5s8.268 2.943 9.542 7c-1.274 4.057-5.065 7-9.542 7S3.732 16.057 2.458 12z" />
+                            </svg>
+                          </button>
                           <button
                             onClick={() => openEdit(emp)}
                             className="p-1.5 rounded hover:bg-purple-50 transition-colors"
@@ -470,6 +556,126 @@ export default function EmployeesPage() {
                 {saving ? 'Saxlanılır...' : editingEmployee ? 'Yenilə' : 'Yarat'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#f4f5fb] rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6 md:p-8">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-3xl font-bold text-[#1f2d6b]">Employee Profile</h2>
+                <p className="text-sm text-[#98a2c8] mt-1">Complete HR record and account details.</p>
+              </div>
+              <button onClick={closeProfile} className="p-2 rounded-lg hover:bg-white/70 text-[#8b94b8]" title="Bağla">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {profileLoading ? (
+              <div className="bg-white rounded-2xl p-8 text-center text-gray-400">
+                <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
+                Məlumatlar yüklənir...
+              </div>
+            ) : profileError ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{profileError}</div>
+            ) : selectedEmployee ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <div className="bg-white rounded-3xl p-5">
+                  {profileImageSrc ? (
+                    <img
+                      src={profileImageSrc}
+                      alt={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`}
+                      className="h-64 w-full rounded-2xl object-cover mb-5"
+                    />
+                  ) : (
+                    <div className="h-64 rounded-2xl flex items-center justify-center mb-5" style={{ background: '#e8def6' }}>
+                      <span className="text-6xl font-bold" style={{ color: '#9333ea' }}>
+                        {`${selectedEmployee.firstName.charAt(0)}${selectedEmployee.lastName.charAt(0)}`.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold text-[#1f2d6b]">{selectedEmployee.firstName} {selectedEmployee.lastName}</h3>
+                  <p className="text-sm text-[#8b94b8] mt-1">{selectedEmployee.departmentName || 'Departament qeyd edilməyib'}</p>
+
+                  <div className="mt-5 rounded-2xl border border-[#eef0f7] overflow-hidden">
+                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
+                      <span className="text-[#98a2c8]">Employee ID</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.employeeId}</span>
+                    </div>
+                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
+                      <span className="text-[#98a2c8]">Ata adı</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.fatherName || '—'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
+                      <span className="text-[#98a2c8]">Telefon</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.mobilePhone || '—'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 px-4 py-3 text-sm">
+                      <span className="text-[#98a2c8]">Email</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.email || '—'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-5">
+                  <div className="bg-white rounded-3xl p-5">
+                    <h4 className="text-3 font-bold text-[#1f2d6b] mb-3">Employment Information</h4>
+                    <div className="space-y-3 text-sm">
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Departament</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.departmentName || '—'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Vəzifə</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.positionName || '—'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Status</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{statusLabel(selectedEmployee.employmentStatus)}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Növbə</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.shiftType || '—'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Ərazi</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.area || '—'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Cins</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{genderLabel(selectedEmployee.gender)}</span>
+                      </div>
+                      <div className="grid grid-cols-2">
+                        <span className="text-[#98a2c8]">İşə başlama tarixi</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.hireDate)}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-5">
+                    <h4 className="text-3 font-bold text-[#1f2d6b] mb-3">Identification</h4>
+                    <div className="space-y-3 text-sm">
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">FIN</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.finNumber || '—'}</span>
+                      </div>
+                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
+                        <span className="text-[#98a2c8]">Yaranma tarixi</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.createdAt)}</span>
+                      </div>
+                      <div className="grid grid-cols-2">
+                        <span className="text-[#98a2c8]">Son yenilənmə</span>
+                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.updatedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

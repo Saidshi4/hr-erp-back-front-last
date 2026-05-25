@@ -240,6 +240,9 @@ public class DeviceUserService {
             String faceUrl = faceUrlOpt.get();
             Optional<byte[]> imageOpt = isapiClient.downloadFaceImage(device, faceUrl);
             if (imageOpt.isEmpty()) {
+                imageOpt = isapiClient.downloadFaceImageByEmployeeNo(device, entity.getEmployeeNo());
+            }
+            if (imageOpt.isEmpty()) {
                 return new DeviceUserFaceSyncResponse(
                         entity.getId(),
                         entity.getDeviceId(),

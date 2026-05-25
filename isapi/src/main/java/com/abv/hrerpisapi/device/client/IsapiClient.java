@@ -213,42 +213,93 @@ public class IsapiClient {
 
     public Optional<String> findFaceUrlByEmployeeNo(DeviceEntity device, String employeeNo)
             throws IOException, InterruptedException {
+        List<String> requestBodies = List.of(
+                OM.writeValueAsString(Map.of(
+                        "FaceFDLibSearchCond", Map.of(
+                                "searchID", "search_face_" + employeeNo,
+                                "searchResultPosition", 0,
+                                "maxResults", 1,
+                                "faceLibType", "blackFD",
+                                "FDID", "1",
+                                "FPID", employeeNo
+                        ))),
+                OM.writeValueAsString(Map.of(
+                        "searchResultPosition", 0,
+                        "maxResults", 1,
+                        "faceLibType", "blackFD",
+                        "FDID", "1",
+                        "FPID", employeeNo
+                ))
+        );
 
-        String body = OM.writeValueAsString(Map.of(
-                "searchResultPosition", 0,
-                "maxResults", 1,
-                "FDID", "1",
-                "FPID", employeeNo
-        ));
+        for (String body : requestBodies) {
+            HttpResponse<String> resp = clientFor(device)
+                    .post("/ISAPI/Intelligent/FDLib/FDSearch?format=json", "application/json", body);
 
-        HttpResponse<String> resp = clientFor(device)
-                .post("/ISAPI/Intelligent/FDLib/FDSearch?format=json", "application/json", body);
+            if (resp.statusCode() != 200) {
+                log.warn("FDSearch returned HTTP {} for device {} employeeNo {} bodySnippet={}",
+                        resp.statusCode(), device.getId(), employeeNo, snippet(resp.body()));
+                continue;
+            }
 
-        if (resp.statusCode() != 200) {
-            log.warn("FDSearch returned HTTP {} for device {} employeeNo {}", resp.statusCode(), device.getId(), employeeNo);
-            return Optional.empty();
+            JsonNode root = OM.readTree(resp.body());
+            JsonNode list = root.path("MatchList");
+            if (!list.isArray() || list.isEmpty()) {
+                list = root.path("FaceSearchResult").path("MatchList");
+            }
+            if (!list.isArray() || list.isEmpty()) {
+                continue;
+            }
+
+            String faceUrl = list.get(0).path("faceURL").asText("");
+            if (!faceUrl.isBlank()) {
+                return Optional.of(faceUrl);
+            }
         }
 
-        JsonNode root = OM.readTree(resp.body());
-        JsonNode list = root.path("MatchList");
-        if (!list.isArray() || list.isEmpty()) {
-            return Optional.empty();
-        }
-
-        String faceUrl = list.get(0).path("faceURL").asText("");
-        return faceUrl.isBlank() ? Optional.empty() : Optional.of(faceUrl);
+        return Optional.empty();
     }
 
     public Optional<byte[]> downloadFaceImage(DeviceEntity device, String faceUrl)
             throws IOException, InterruptedException {
-        String path = toDevicePath(faceUrl);
+        List<String> candidatePaths = buildFaceImageCandidatePaths(faceUrl);
+        for (String path : candidatePaths) {
+            HttpResponse<byte[]> resp = clientFor(device).getBytes(path);
+            if (isValidImageResponse(resp)) {
+                return Optional.of(resp.body());
+            }
+
+            log.warn("Face image download attempt failed for device {} path {} status {} contentType {}",
+                    device.getId(),
+                    path,
+                    resp.statusCode(),
+                    resp.headers().firstValue("Content-Type").orElse("<missing>"));
+        }
+
+        log.warn("Face image download failed for device {} url {}", device.getId(), faceUrl);
+        return Optional.empty();
+    }
+
+    public Optional<byte[]> downloadFaceImageByEmployeeNo(DeviceEntity device, String employeeNo)
+            throws IOException, InterruptedException {
+        String path = "/ISAPI/Intelligent/FDLib/FDSetUp?format=json&FDID=1&FPID="
+                + URLEncoder.encode(employeeNo, StandardCharsets.UTF_8);
+
         HttpResponse<byte[]> resp = clientFor(device).getBytes(path);
         if (resp.statusCode() != 200 || resp.body() == null || resp.body().length == 0) {
-            log.warn("Face image download failed for device {} url {} status {}",
-                    device.getId(), faceUrl, resp.statusCode());
+            log.warn("FDSetUp image download failed for device {} employeeNo {} status {}",
+                    device.getId(), employeeNo, resp.statusCode());
             return Optional.empty();
         }
-        return Optional.of(resp.body());
+
+        Optional<byte[]> extractedImage = extractImageBytes(resp.body());
+        if (extractedImage.isEmpty()) {
+            log.warn("FDSetUp response did not contain image bytes for device {} employeeNo {} contentType {}",
+                    device.getId(),
+                    employeeNo,
+                    resp.headers().firstValue("Content-Type").orElse("<missing>"));
+        }
+        return extractedImage;
     }
 
     /**
@@ -592,6 +643,94 @@ public class IsapiClient {
                 "http://" + device.getIp(),
                 device.getUsername(),
                 device.getPassword());
+    }
+
+    private List<String> buildFaceImageCandidatePaths(String faceUrl) {
+        String path = toDevicePath(faceUrl);
+        List<String> candidates = new ArrayList<>();
+        if (path == null || path.isBlank()) {
+            return candidates;
+        }
+
+        candidates.add(path);
+
+        int webTokenIndex = path.indexOf("@WEB");
+        if (webTokenIndex > 0) {
+            String strippedPath = path.substring(0, webTokenIndex);
+            if (!strippedPath.isBlank()) {
+                candidates.add(strippedPath);
+            }
+        }
+
+        return candidates;
+    }
+
+    private boolean isValidImageResponse(HttpResponse<byte[]> resp) {
+        if (resp.statusCode() != 200 || resp.body() == null || resp.body().length == 0) {
+            return false;
+        }
+
+        String contentType = resp.headers().firstValue("Content-Type").orElse("").toLowerCase();
+        if (contentType.startsWith("image/")) {
+            return true;
+        }
+
+        return isJpeg(resp.body()) || isPng(resp.body());
+    }
+
+    private Optional<byte[]> extractImageBytes(byte[] source) {
+        if (source == null || source.length == 0) {
+            return Optional.empty();
+        }
+
+        if (isJpeg(source) || isPng(source)) {
+            return Optional.of(source);
+        }
+
+        int jpegStart = findJpegStart(source);
+        if (jpegStart < 0) {
+            return Optional.empty();
+        }
+
+        int jpegEnd = findJpegEnd(source, jpegStart);
+        if (jpegEnd > jpegStart) {
+            return Optional.of(java.util.Arrays.copyOfRange(source, jpegStart, jpegEnd + 1));
+        }
+
+        return Optional.of(java.util.Arrays.copyOfRange(source, jpegStart, source.length));
+    }
+
+    private int findJpegStart(byte[] source) {
+        for (int i = 0; i < source.length - 1; i++) {
+            if ((source[i] & 0xFF) == 0xFF && (source[i + 1] & 0xFF) == 0xD8) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private int findJpegEnd(byte[] source, int startIndex) {
+        for (int i = Math.max(startIndex + 2, 0); i < source.length - 1; i++) {
+            if ((source[i] & 0xFF) == 0xFF && (source[i + 1] & 0xFF) == 0xD9) {
+                return i + 1;
+            }
+        }
+        return -1;
+    }
+
+    private boolean isJpeg(byte[] body) {
+        return body.length > 3
+                && (body[0] & 0xFF) == 0xFF
+                && (body[1] & 0xFF) == 0xD8
+                && (body[2] & 0xFF) == 0xFF;
+    }
+
+    private boolean isPng(byte[] body) {
+        return body.length > 8
+                && (body[0] & 0xFF) == 0x89
+                && body[1] == 0x50
+                && body[2] == 0x4E
+                && body[3] == 0x47;
     }
 
     private String toDevicePath(String faceUrl) {

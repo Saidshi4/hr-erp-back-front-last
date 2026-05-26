@@ -10,6 +10,7 @@ import com.hic.model.Employee;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.EmployeeRepository;
+import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,9 @@ class EmployeeServiceTest {
     private PositionRepository positionRepository;
 
     @Mock
+    private FaceDataRepository faceDataRepository;
+
+    @Mock
     private IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     @InjectMocks
@@ -72,6 +76,8 @@ class EmployeeServiceTest {
         testEmployeeDTO.setLastName("Doe");
         testEmployeeDTO.setDepartmentId(1L);
         testEmployeeDTO.setHireDate(LocalDate.now());
+
+        lenient().when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(anyLong())).thenReturn(Optional.empty());
     }
 
     @Test

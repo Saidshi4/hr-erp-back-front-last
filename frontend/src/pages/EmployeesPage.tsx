@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
-import { Employee, Department, Position } from '../types'
+import { Branch, Department, DeviceConfig, Employee, Position } from '../types'
 import { employeeApi } from '../api/employeeApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
+import { branchApi } from '../api/branchApi.ts'
+import { deviceApi } from '../api/deviceApi.ts'
 import { deviceUserApi } from '../api/deviceUserApi.ts'
 
 interface EmployeeFormData {
@@ -14,13 +16,29 @@ interface EmployeeFormData {
   email: string
   mobilePhone: string
   gender: string
-  departmentId: number | ''
-  positionId: number | ''
   finNumber: string
+  serialNumber: string
+  birthDate: string
+  positionId: number | ''
+  departmentId: number | ''
+  contractNumber: string
+  branchId: number | ''
   hireDate: string
-  area: string
-  shiftType: string
+  contractEndDate: string
+  annualLeaveDuration: number | ''
+  annualLeaveBalance: number | ''
   employmentStatus: string
+  shiftType: string
+  cardId: string
+  faceId: string
+  groupName: string
+  salary: number | ''
+  hourlyRate: number | ''
+  allowance: string
+  emergencyContact: string
+  address: string
+  notes: string
+  area: string
 }
 
 const defaultForm: EmployeeFormData = {
@@ -30,13 +48,29 @@ const defaultForm: EmployeeFormData = {
   email: '',
   mobilePhone: '',
   gender: '',
-  departmentId: '',
-  positionId: '',
   finNumber: '',
+  serialNumber: '',
+  birthDate: '',
+  positionId: '',
+  departmentId: '',
+  contractNumber: '',
+  branchId: '',
   hireDate: new Date().toISOString().split('T')[0],
-  area: '',
-  shiftType: '',
+  contractEndDate: '',
+  annualLeaveDuration: 30,
+  annualLeaveBalance: 30,
   employmentStatus: 'ACTIVE',
+  shiftType: '',
+  cardId: '',
+  faceId: '',
+  groupName: '',
+  salary: '',
+  hourlyRate: '',
+  allowance: '',
+  emergencyContact: '',
+  address: '',
+  notes: '',
+  area: '',
 }
 
 const AVATAR_COLORS = ['#6366f1', '#a855f7', '#10b981', '#f59e0b', '#ef4444', '#3b82f6']
@@ -49,17 +83,24 @@ function getAvatarColor(name: string) {
 
 export default function EmployeesPage() {
   const defaultDeviceId = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID || 1)
-  const { employees, loading, error, fetchEmployees, createEmployee, updateEmployee, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
+  const { employees, loading, error, fetchEmployees, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
   const [search, setSearch] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [positions, setPositions] = useState<Position[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [devices, setDevices] = useState<DeviceConfig[]>([])
+  const [deviceSearch, setDeviceSearch] = useState('')
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
   const [filterDept, setFilterDept] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterShift, setFilterShift] = useState<string>('')
   const [filterArea, setFilterArea] = useState<string>('')
-  const [showModal, setShowModal] = useState(false)
+  const [showWizard, setShowWizard] = useState(false)
+  const [currentStep, setCurrentStep] = useState(1)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [form, setForm] = useState<EmployeeFormData>(defaultForm)
+  const [departmentQuery, setDepartmentQuery] = useState('')
+  const [positionQuery, setPositionQuery] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null)
@@ -70,19 +111,127 @@ export default function EmployeesPage() {
   const [profileError, setProfileError] = useState<string | null>(null)
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null)
   const [profileImageSrc, setProfileImageSrc] = useState<string | null>(null)
+  const [wizardImagePreview, setWizardImagePreview] = useState<string | null>(null)
+  const [wizardImageFile, setWizardImageFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     fetchEmployees(0, 20)
     departmentApi.getAll().then((res) => setDepartments(res.data?.data ?? []))
     positionApi.getAll().then((res) => setPositions(res.data?.data ?? []))
+    branchApi.getAll().then((res) => setBranches(res.data?.data ?? []))
+    deviceApi.getAll().then((res) => setDevices(res.data?.data ?? []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    if (!showWizard && wizardImagePreview) {
+      URL.revokeObjectURL(wizardImagePreview)
+      setWizardImagePreview(null)
+      setWizardImageFile(null)
+    }
+  }, [showWizard, wizardImagePreview])
+
+  const formatDate = (value?: string) => {
+    if (!value) return '—'
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return value
+    return date.toLocaleDateString('az-AZ')
+  }
+
+  const statusLabel = (status: Employee['employmentStatus']) => {
+    if (status === 'ACTIVE') return 'Aktiv'
+    if (status === 'ON_LEAVE') return 'Məzuniyyətdə'
+    return 'Deaktiv'
+  }
+
+  const stepTitles = ['General Identity', 'Work Information', 'Card, Fingerprint & Photo', 'Compensation']
+
+  const employeeIdPreview = useMemo(() => {
+    if (editingEmployee?.employeeId) return editingEmployee.employeeId
+    return `EMP-${String((totalElements || employees.length) + 1).padStart(4, '0')}`
+  }, [editingEmployee, totalElements, employees.length])
+
+  const branchLabelById = (branchId?: number) => {
+    if (!branchId) return '—'
+    return branches.find((b) => b.id === branchId)?.branchName || '—'
+  }
+
+  const filteredDevices = devices.filter((d) => {
+    const label = `${d.deviceName || ''} ${d.deviceId || ''}`.toLowerCase()
+    return label.includes(deviceSearch.toLowerCase())
+  })
+
+  const selectedDeviceLabels = selectedDeviceIds
+    .map((id) => {
+      const device = devices.find((d) => d.id === id)
+      return device ? (device.deviceName || device.deviceId) : ''
+    })
+    .filter(Boolean)
 
   const openCreate = () => {
     setEditingEmployee(null)
     setForm(defaultForm)
+    setDepartmentQuery('')
+    setPositionQuery('')
+    setSelectedDeviceIds([])
+    setCurrentStep(1)
     setFormError(null)
-    setShowModal(true)
+    setShowWizard(true)
+  }
+
+  const openEdit = (emp: Employee) => {
+    setEditingEmployee(emp)
+    setForm({
+      firstName: emp.firstName,
+      lastName: emp.lastName,
+      fatherName: emp.fatherName || '',
+      email: emp.email || '',
+      mobilePhone: emp.mobilePhone || '',
+      gender: emp.gender || '',
+      finNumber: emp.finNumber || '',
+      serialNumber: emp.serialNumber || '',
+      birthDate: emp.birthDate || '',
+      positionId: emp.positionId || '',
+      departmentId: emp.departmentId || '',
+      contractNumber: emp.contractNumber || '',
+      branchId: emp.branchId || '',
+      hireDate: emp.hireDate || defaultForm.hireDate,
+      contractEndDate: emp.contractEndDate || '',
+      annualLeaveDuration: emp.annualLeaveDuration ?? 30,
+      annualLeaveBalance: emp.annualLeaveBalance ?? 30,
+      employmentStatus: emp.employmentStatus || 'ACTIVE',
+      shiftType: emp.shiftType || '',
+      cardId: emp.cardId || '',
+      faceId: emp.faceId || '',
+      groupName: emp.groupName || '',
+      salary: emp.salary ?? '',
+      hourlyRate: emp.hourlyRate ?? '',
+      allowance: emp.allowance || '',
+      emergencyContact: emp.emergencyContact || '',
+      address: emp.address || '',
+      notes: emp.notes || '',
+      area: emp.area || '',
+    })
+    setDepartmentQuery(emp.departmentName || '')
+    setPositionQuery(emp.positionName || '')
+    const areaParts = (emp.area || '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean)
+    const matched = devices
+      .filter((d) => areaParts.includes(d.deviceName || '') || areaParts.includes(d.deviceId || ''))
+      .map((d) => d.id)
+    setSelectedDeviceIds(matched)
+    setCurrentStep(1)
+    setFormError(null)
+    setShowWizard(true)
+  }
+
+  const closeWizard = () => {
+    setShowWizard(false)
+    setCurrentStep(1)
+    setFormError(null)
   }
 
   const openProfile = async (employee: Employee) => {
@@ -110,7 +259,7 @@ export default function EmployeesPage() {
         if (details.faceImageUrl) {
           const token = localStorage.getItem('token')
           const imageResponse = await fetch(details.faceImageUrl, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: token ? { Authorization: 'Bearer ' + token } : {},
           })
           if (imageResponse.ok) {
             const blob = await imageResponse.blob()
@@ -135,45 +284,18 @@ export default function EmployeesPage() {
     setProfileError(null)
   }
 
-  const formatDate = (value?: string) => {
-    if (!value) return '—'
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleDateString('az-AZ')
+  const setFormField = <K extends keyof EmployeeFormData>(key: K, value: EmployeeFormData[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const genderLabel = (gender?: string) => {
-    if (!gender) return '—'
-    if (gender.toUpperCase() === 'MALE') return 'Kişi'
-    if (gender.toUpperCase() === 'FEMALE') return 'Qadın'
-    return gender
-  }
-
-  const statusLabel = (status: Employee['employmentStatus']) => {
-    if (status === 'ACTIVE') return 'Aktiv'
-    if (status === 'ON_LEAVE') return 'Məzuniyyətdə'
-    return 'Deaktiv'
-  }
-
-  const openEdit = (emp: Employee) => {
-    setEditingEmployee(emp)
-    setForm({
-      firstName: emp.firstName,
-      lastName: emp.lastName,
-      fatherName: emp.fatherName || '',
-      email: emp.email || '',
-      mobilePhone: emp.mobilePhone || '',
-      gender: emp.gender || '',
-      departmentId: emp.departmentId || '',
-      positionId: emp.positionId || '',
-      finNumber: emp.finNumber || '',
-      hireDate: emp.hireDate || defaultForm.hireDate,
-      area: emp.area || '',
-      shiftType: emp.shiftType || '',
-      employmentStatus: emp.employmentStatus || 'ACTIVE',
-    })
-    setFormError(null)
-    setShowModal(true)
+  const uploadFaceForEmployee = async (employee: Employee, file: File | null) => {
+    if (!file) return
+    const usersRes = await deviceUserApi.getAll(defaultDeviceId)
+    const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
+    if (!deviceUser) {
+      throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
+    }
+    await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file, employee.id)
   }
 
   const handleSave = async () => {
@@ -195,20 +317,49 @@ export default function EmployeesPage() {
         email: form.email,
         mobilePhone: form.mobilePhone,
         gender: form.gender,
+        finNumber: form.finNumber,
+        serialNumber: form.serialNumber,
+        birthDate: form.birthDate || undefined,
         departmentId: Number(form.departmentId),
         positionId: form.positionId ? Number(form.positionId) : undefined,
-        finNumber: form.finNumber,
+        contractNumber: form.contractNumber,
+        branchId: form.branchId ? Number(form.branchId) : undefined,
         hireDate: form.hireDate,
-        area: form.area,
-        shiftType: form.shiftType,
+        contractEndDate: form.contractEndDate || undefined,
+        annualLeaveDuration: form.annualLeaveDuration === '' ? undefined : Number(form.annualLeaveDuration),
+        annualLeaveBalance: form.annualLeaveBalance === '' ? undefined : Number(form.annualLeaveBalance),
         employmentStatus: form.employmentStatus as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE',
+        shiftType: form.shiftType,
+        cardId: form.cardId,
+        faceId: form.faceId,
+        groupName: form.groupName,
+        salary: form.salary === '' ? undefined : Number(form.salary),
+        hourlyRate: form.hourlyRate === '' ? undefined : Number(form.hourlyRate),
+        allowance: form.allowance,
+        emergencyContact: form.emergencyContact,
+        address: form.address,
+        notes: form.notes,
+        area: selectedDeviceLabels.length ? selectedDeviceLabels.join(', ') : form.area,
       }
+
+      let savedEmployee: Employee | undefined
       if (editingEmployee) {
-        await updateEmployee(editingEmployee.id, payload)
+        const res = await employeeApi.update(editingEmployee.id, payload)
+        savedEmployee = res.data?.data
       } else {
-        await createEmployee(payload)
+        const res = await employeeApi.create(payload)
+        savedEmployee = res.data?.data
       }
-      setShowModal(false)
+
+      if (savedEmployee && wizardImageFile) {
+        await uploadFaceForEmployee(savedEmployee, wizardImageFile)
+      }
+
+      await fetchEmployees(currentPage, 20)
+      closeWizard()
+      if (showProfileModal && selectedEmployee?.id === savedEmployee?.id) {
+        openProfile(savedEmployee)
+      }
     } catch (e: unknown) {
       setFormError((e as Error).message || 'Saxlamaq alınmadı')
     } finally {
@@ -221,6 +372,9 @@ export default function EmployeesPage() {
     try {
       await deleteEmployee(deleteConfirm.id)
       setDeleteConfirm(null)
+      if (selectedEmployee?.id === deleteConfirm.id) {
+        closeProfile()
+      }
     } catch {
       // handled by store
     }
@@ -237,12 +391,7 @@ export default function EmployeesPage() {
     setUploadFaceError(null)
     setUploadingFaceEmployeeId(employee.id)
     try {
-      const usersRes = await deviceUserApi.getAll(defaultDeviceId)
-      const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
-      if (!deviceUser) {
-        throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
-      }
-      await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file, employee.id)
+      await uploadFaceForEmployee(employee, file)
       await fetchEmployees(currentPage, 20)
     } catch (e: unknown) {
       setUploadFaceError((e as Error).message || 'Şəkil yüklənmədi')
@@ -254,6 +403,45 @@ export default function EmployeesPage() {
     }
   }
 
+  const captureFromCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const video = document.createElement('video')
+      video.srcObject = stream
+      await video.play()
+      await new Promise((resolve) => setTimeout(resolve, 700))
+
+      const canvas = document.createElement('canvas')
+      canvas.width = video.videoWidth || 480
+      canvas.height = video.videoHeight || 480
+      const context = canvas.getContext('2d')
+      if (!context) throw new Error('Kamera görüntüsü alınmadı')
+      context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg'))
+      stream.getTracks().forEach((track) => track.stop())
+
+      if (!blob) throw new Error('Şəkil yaradılmadı')
+      const file = new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' })
+      if (wizardImagePreview) {
+        URL.revokeObjectURL(wizardImagePreview)
+      }
+      setWizardImageFile(file)
+      setWizardImagePreview(URL.createObjectURL(file))
+    } catch (e: unknown) {
+      setFormError((e as Error).message || 'Kamera ilə şəkil çəkilmədi')
+    }
+  }
+
+  const onWizardFileSelect = (file?: File) => {
+    if (!file) return
+    if (wizardImagePreview) {
+      URL.revokeObjectURL(wizardImagePreview)
+    }
+    setWizardImageFile(file)
+    setWizardImagePreview(URL.createObjectURL(file))
+  }
+
   const filtered = employees.filter((e: Employee) => {
     const matchSearch = !search || `${e.firstName} ${e.lastName}`.toLowerCase().includes(search.toLowerCase()) || e.employeeId.toLowerCase().includes(search.toLowerCase())
     const matchDept = !filterDept || String(e.departmentId) === filterDept
@@ -263,11 +451,11 @@ export default function EmployeesPage() {
     return matchSearch && matchDept && matchStatus && matchShift && matchArea
   })
 
-  const uniqueAreas = Array.from(new Set(employees.map(e => e.area).filter(Boolean))) as string[]
-  const uniqueShifts = Array.from(new Set(employees.map(e => e.shiftType).filter(Boolean))) as string[]
+  const uniqueAreas = Array.from(new Set(employees.map((e) => e.area).filter(Boolean))) as string[]
+  const uniqueShifts = Array.from(new Set(employees.map((e) => e.shiftType).filter(Boolean))) as string[]
 
-  const activeCount = employees.filter(e => e.employmentStatus === 'ACTIVE').length
-  const onLeaveCount = employees.filter(e => e.employmentStatus === 'ON_LEAVE').length
+  const activeCount = employees.filter((e) => e.employmentStatus === 'ACTIVE').length
+  const onLeaveCount = employees.filter((e) => e.employmentStatus === 'ON_LEAVE').length
 
   return (
     <Layout>
@@ -479,95 +667,330 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      {/* Create/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingEmployee ? 'Əməkdaşı redaktə et' : 'Əməkdaş əlavə et'}
-            </h2>
+      {showWizard && (
+        <div className="fixed inset-0 z-50 bg-black/50 p-4 md:p-6 overflow-y-auto">
+          <div className="min-h-full rounded-2xl bg-white p-6 md:p-8">
+            <div className="flex items-start justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{editingEmployee ? 'Əməkdaşı redaktə et' : 'Yeni əməkdaş əlavə et'}</h2>
+                <p className="text-sm text-gray-500 mt-1">4 addımda əməkdaş məlumatlarını tamamlayın</p>
+              </div>
+              <button onClick={closeWizard} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
+              {stepTitles.map((title, idx) => {
+                const step = idx + 1
+                const isActive = step === currentStep
+                const isCompleted = step < currentStep
+                return (
+                  <div
+                    key={title}
+                    className="border rounded-xl p-3 flex items-center gap-3"
+                    style={
+                      isCompleted
+                        ? { borderColor: '#fecdd3', background: '#fff1f2' }
+                        : isActive
+                        ? { borderColor: '#a855f7', background: '#f5edff' }
+                        : { borderColor: '#e5e7eb', background: '#ffffff' }
+                    }
+                  >
+                    <div
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
+                      style={
+                        isCompleted
+                          ? { background: '#ef4444', color: '#ffffff' }
+                          : isActive
+                          ? { background: '#a855f7', color: '#ffffff' }
+                          : { background: '#e5e7eb', color: '#6b7280' }
+                      }
+                    >
+                      {isCompleted ? 'X' : step}
+                    </div>
+                    <div className="text-xs font-semibold text-gray-700">{title}</div>
+                  </div>
+                )
+              })}
+            </div>
+
             {formError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-4 text-sm">{formError}</div>
             )}
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { label: 'Ad *', key: 'firstName', type: 'text' },
-                { label: 'Soyad *', key: 'lastName', type: 'text' },
-                { label: 'Ata adı', key: 'fatherName', type: 'text' },
-                { label: 'Email', key: 'email', type: 'email' },
-                { label: 'Telefon', key: 'mobilePhone', type: 'text' },
-                { label: 'FIN nömrə', key: 'finNumber', type: 'text' },
-                { label: 'İşə başlama tarixi', key: 'hireDate', type: 'date' },
-                { label: 'Ərazi', key: 'area', type: 'text' },
-              ].map(({ label, key, type }) => (
-                <div key={key}>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-                  <input
-                    type={type}
-                    value={(form as unknown as Record<string, string>)[key]}
-                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                  />
+
+            {currentStep === 1 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">INTERNAL EMPLOYEE ID</label>
+                  <input value={employeeIdPreview} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-sm" />
                 </div>
-              ))}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cins</label>
-                <select value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                  <option value="">Seçin...</option>
-                  <option value="MALE">Kişi</option>
-                  <option value="FEMALE">Qadın</option>
-                </select>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">FIN</label>
+                  <input value={form.finNumber} onChange={(e) => setFormField('finNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">FIRST NAME*</label>
+                  <input value={form.firstName} onChange={(e) => setFormField('firstName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">LAST NAME*</label>
+                  <input value={form.lastName} onChange={(e) => setFormField('lastName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMAIL</label>
+                  <input type="email" value={form.email} onChange={(e) => setFormField('email', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">FATHER'S NAME</label>
+                  <input value={form.fatherName} onChange={(e) => setFormField('fatherName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SERIAL NUMBER</label>
+                  <input value={form.serialNumber} onChange={(e) => setFormField('serialNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DATE OF BIRTH</label>
+                  <input type="date" value={form.birthDate} onChange={(e) => setFormField('birthDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Departament *</label>
-                <select value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value ? Number(e.target.value) : '' })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                  <option value="">Seçin...</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
-                </select>
+            )}
+
+            {currentStep === 2 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">POSITION</label>
+                  <input
+                    list="positions-list"
+                    value={positionQuery}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setPositionQuery(value)
+                      const found = positions.find((p) => p.positionName === value)
+                      setFormField('positionId', found?.id ?? '')
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <datalist id="positions-list">
+                    {positions
+                      .filter((p) => !form.departmentId || p.departmentId === Number(form.departmentId))
+                      .map((p) => (
+                        <option key={p.id} value={p.positionName} />
+                      ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DEPARTMENT*</label>
+                  <input
+                    list="departments-list"
+                    value={departmentQuery}
+                    onChange={(e) => {
+                      const value = e.target.value
+                      setDepartmentQuery(value)
+                      const found = departments.find((d) => d.departmentName === value)
+                      setFormField('departmentId', found?.id ?? '')
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <datalist id="departments-list">
+                    {departments.map((d) => (
+                      <option key={d.id} value={d.departmentName} />
+                    ))}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT NUMBER</label>
+                  <input value={form.contractNumber} onChange={(e) => setFormField('contractNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">BRANCH / OFFICE LOCATION</label>
+                  <select value={form.branchId} onChange={(e) => setFormField('branchId', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">Seçin...</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>{b.branchName}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT START DATE</label>
+                  <input type="date" value={form.hireDate} onChange={(e) => setFormField('hireDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT END DATE</label>
+                  <input type="date" value={form.contractEndDate} onChange={(e) => setFormField('contractEndDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ANNUAL LEAVE DURATION</label>
+                  <input type="number" value={form.annualLeaveDuration} onChange={(e) => setFormField('annualLeaveDuration', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ANNUAL LEAVE BALANCE</label>
+                  <input type="number" value={form.annualLeaveBalance} onChange={(e) => setFormField('annualLeaveBalance', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT STATUS</label>
+                  <select value={form.employmentStatus} onChange={(e) => setFormField('employmentStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="ACTIVE">Aktiv</option>
+                    <option value="INACTIVE">Deaktiv</option>
+                    <option value="ON_LEAVE">Məzuniyyətdə</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
+                  <input value={form.shiftType} onChange={(e) => setFormField('shiftType', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Vəzifə</label>
-                <select value={form.positionId} onChange={(e) => setForm({ ...form, positionId: e.target.value ? Number(e.target.value) : '' })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                  <option value="">Seçin...</option>
-                  {positions.filter(p => !form.departmentId || p.departmentId === Number(form.departmentId)).map(p => <option key={p.id} value={p.id}>{p.positionName}</option>)}
-                </select>
+            )}
+
+            {currentStep === 3 && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex gap-2 mb-4">
+                    <button type="button" onClick={() => setFormField('cardId', `CARD-${Date.now()}`)} className="px-3 py-2 text-sm text-white rounded-lg" style={{ background: '#a855f7' }}>Add Card</button>
+                    <button type="button" onClick={() => setFormField('faceId', `FP-${Date.now()}`)} className="px-3 py-2 text-sm text-gray-700 rounded-lg border border-gray-300 bg-gray-100">Add Fingerprint</button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">CARD ASSIGNMENT</label>
+                      <input value={form.cardId} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">FINGERPRINT ASSIGNMENT</label>
+                      <input value={form.faceId} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT STATUS</label>
+                      <select value={form.employmentStatus} onChange={(e) => setFormField('employmentStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        <option value="ACTIVE">Aktiv</option>
+                        <option value="INACTIVE">Deaktiv</option>
+                        <option value="ON_LEAVE">Məzuniyyətdə</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
+                      <input value={form.shiftType} onChange={(e) => setFormField('shiftType', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-500 mb-1">GROUP</label>
+                      <input value={form.groupName} onChange={(e) => setFormField('groupName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                    </div>
+                  </div>
+
+                  <div className="mt-5">
+                    <h4 className="text-sm font-bold text-gray-700 mb-2">Area / Device Assignment</h4>
+                    <input
+                      value={deviceSearch}
+                      onChange={(e) => setDeviceSearch(e.target.value)}
+                      placeholder="Device axtar..."
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-2"
+                    />
+                    <div className="h-44 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                      {filteredDevices.map((d) => (
+                        <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={selectedDeviceIds.includes(d.id)}
+                            onChange={(e) => {
+                              setSelectedDeviceIds((prev) =>
+                                e.target.checked ? [...prev, d.id] : prev.filter((id) => id !== d.id),
+                              )
+                            }}
+                          />
+                          <span>{d.deviceName || d.deviceId}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">{selectedDeviceIds.length} devices selected</p>
+                  </div>
+                </div>
+
+                <div>
+                  <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
+                    {wizardImagePreview ? (
+                      <img src={wizardImagePreview} alt="Employee" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="text-center text-gray-400">
+                        <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>
+                        <p>Şəkil seçilməyib</p>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+                    <button type="button" onClick={captureFromCamera} className="px-3 py-2 text-sm text-white rounded-lg flex items-center justify-center gap-2" style={{ background: '#a855f7' }}>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" /></svg>
+                      Cihazdan şəkil çək
+                    </button>
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm text-gray-700 rounded-lg flex items-center justify-center gap-2 border border-gray-300 bg-gray-100">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                      Kompüterdən yüklə
+                    </button>
+                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => onWizardFileSelect(e.target.files?.[0])} />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Növbə</label>
-                <select value={form.shiftType} onChange={(e) => setForm({ ...form, shiftType: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                  <option value="">Seçin...</option>
-                  <option value="Day">Gündüz</option>
-                  <option value="Night">Gecə</option>
-                  <option value="Flexible">Çevik</option>
-                </select>
+            )}
+
+            {currentStep === 4 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SALARY</label>
+                  <input type="number" value={form.salary} onChange={(e) => setFormField('salary', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">HOURLY RATE</label>
+                  <input type="number" value={form.hourlyRate} onChange={(e) => setFormField('hourlyRate', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">OPTIONAL ALLOWANCE</label>
+                  <input value={form.allowance} onChange={(e) => setFormField('allowance', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMERGENCY CONTACT</label>
+                  <input value={form.emergencyContact} onChange={(e) => setFormField('emergencyContact', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">PHONE NUMBER</label>
+                  <input value={form.mobilePhone} onChange={(e) => setFormField('mobilePhone', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ADDRESS</label>
+                  <input value={form.address} onChange={(e) => setFormField('address', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">OPTIONAL NOTES</label>
+                  <textarea value={form.notes} onChange={(e) => setFormField('notes', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm h-24 resize-none" />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                <select value={form.employmentStatus} onChange={(e) => setForm({ ...form, employmentStatus: e.target.value })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
-                  <option value="ACTIVE">Aktiv</option>
-                  <option value="INACTIVE">Deaktiv</option>
-                  <option value="ON_LEAVE">Məzuniyyətdə</option>
-                </select>
+            )}
+
+            <div className="flex items-center justify-between mt-8">
+              <button onClick={closeWizard} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Ləğv et</button>
+              <div className="flex gap-2">
+                {currentStep > 1 && (
+                  <button onClick={() => setCurrentStep((s) => s - 1)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Əvvəlki</button>
+                )}
+                {currentStep < 4 ? (
+                  <button onClick={() => setCurrentStep((s) => s + 1)} className="px-4 py-2 text-sm text-white rounded-lg" style={{ background: '#a855f7' }}>Növbəti</button>
+                ) : (
+                  <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50" style={{ background: '#a855f7' }}>
+                    {saving ? 'Saxlanılır...' : 'Yadda saxla'}
+                  </button>
+                )}
               </div>
-            </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Ləğv et</button>
-              <button onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50" style={{ background: '#a855f7' }}>
-                {saving ? 'Saxlanılır...' : editingEmployee ? 'Yenilə' : 'Yarat'}
-              </button>
             </div>
           </div>
         </div>
       )}
 
       {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-[#f4f5fb] rounded-3xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto p-6 md:p-8">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4 md:p-6 overflow-y-auto">
+          <div className="min-h-full bg-[#f4f5fb] rounded-3xl p-6 md:p-8">
             <div className="flex items-start justify-between mb-4">
-              <div>
-                <h2 className="text-3xl font-bold text-[#1f2d6b]">Employee Profile</h2>
-                <p className="text-sm text-[#98a2c8] mt-1">Complete HR record and account details.</p>
-              </div>
+              <h2 className="text-2xl font-bold text-[#1f2d6b]">Employee Profile</h2>
               <button onClick={closeProfile} className="p-2 rounded-lg hover:bg-white/70 text-[#8b94b8]" title="Bağla">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -583,94 +1006,120 @@ export default function EmployeesPage() {
             ) : profileError ? (
               <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{profileError}</div>
             ) : selectedEmployee ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
                 <div className="bg-white rounded-3xl p-5">
                   {profileImageSrc ? (
-                    <img
-                      src={profileImageSrc}
-                      alt={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`}
-                      className="h-64 w-full rounded-2xl object-cover mb-5"
-                    />
+                    <img src={profileImageSrc} alt={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`} className="w-full aspect-square rounded-2xl object-cover" />
                   ) : (
-                    <div className="h-64 rounded-2xl flex items-center justify-center mb-5" style={{ background: '#e8def6' }}>
+                    <div className="w-full aspect-square rounded-2xl flex items-center justify-center" style={{ background: '#e8def6' }}>
                       <span className="text-6xl font-bold" style={{ color: '#9333ea' }}>
                         {`${selectedEmployee.firstName.charAt(0)}${selectedEmployee.lastName.charAt(0)}`.toUpperCase()}
                       </span>
                     </div>
                   )}
-                  <h3 className="text-2xl font-bold text-[#1f2d6b]">{selectedEmployee.firstName} {selectedEmployee.lastName}</h3>
-                  <p className="text-sm text-[#8b94b8] mt-1">{selectedEmployee.departmentName || 'Departament qeyd edilməyib'}</p>
 
-                  <div className="mt-5 rounded-2xl border border-[#eef0f7] overflow-hidden">
-                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
-                      <span className="text-[#98a2c8]">Employee ID</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.employeeId}</span>
+                  <div className="flex items-center justify-between mt-4 text-sm text-[#8b94b8]">
+                    <span className="font-semibold">Mənim profilim</span>
+                    <span>{selectedEmployee.branchName || branchLabelById(selectedEmployee.branchId)}</span>
+                  </div>
+
+                  <div className="mt-4 space-y-3 text-sm">
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-[#98a2c8]">FULL NAME</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
                     </div>
-                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
-                      <span className="text-[#98a2c8]">Ata adı</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-[#98a2c8]">FATHER'S NAME</span>
                       <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.fatherName || '—'}</span>
                     </div>
-                    <div className="grid grid-cols-2 px-4 py-3 border-b border-[#eef0f7] text-sm">
-                      <span className="text-[#98a2c8]">Telefon</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-[#98a2c8]">PHONE</span>
                       <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.mobilePhone || '—'}</span>
                     </div>
-                    <div className="grid grid-cols-2 px-4 py-3 text-sm">
-                      <span className="text-[#98a2c8]">Email</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-[#98a2c8]">EMAIL</span>
                       <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.email || '—'}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <span className="text-[#98a2c8]">FIN / SERIAL</span>
+                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.finNumber || '—'} / {selectedEmployee.serialNumber || '—'}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-2xl bg-[#f3f4f6] p-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: selectedEmployee.employmentStatus === 'ACTIVE' ? '#22c55e' : selectedEmployee.employmentStatus === 'ON_LEAVE' ? '#eab308' : '#ef4444' }} />
+                      <span className="text-sm font-semibold text-[#1f2d6b]">{statusLabel(selectedEmployee.employmentStatus)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => {
+                          closeProfile()
+                          openEdit(selectedEmployee)
+                        }}
+                        className="p-1.5 rounded hover:bg-white"
+                        title="Redaktə et"
+                      >
+                        <svg className="w-4 h-4" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setDeleteConfirm(selectedEmployee)}
+                        className="p-1.5 rounded hover:bg-white"
+                        title="Sil"
+                      >
+                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                <div className="space-y-5">
+                <div className="space-y-4">
                   <div className="bg-white rounded-3xl p-5">
-                    <h4 className="text-3 font-bold text-[#1f2d6b] mb-3">Employment Information</h4>
-                    <div className="space-y-3 text-sm">
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Departament</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.departmentName || '—'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Vəzifə</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.positionName || '—'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Status</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{statusLabel(selectedEmployee.employmentStatus)}</span>
-                      </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Növbə</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.shiftType || '—'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Ərazi</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.area || '—'}</span>
-                      </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Cins</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{genderLabel(selectedEmployee.gender)}</span>
-                      </div>
-                      <div className="grid grid-cols-2">
-                        <span className="text-[#98a2c8]">İşə başlama tarixi</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.hireDate)}</span>
-                      </div>
+                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Employment Information</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">DEPARTMENT</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.departmentName || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">POSITION</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.positionName || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMPLOYMENT STATUS</span><span className="text-right font-semibold text-[#1f2d6b]">{statusLabel(selectedEmployee.employmentStatus)}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">SHIFT TYPE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.shiftType || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">GROUP</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.groupName || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">CONTRACT NUMBER</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.contractNumber || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMPLOYMENT START DATE</span><span className="text-right font-semibold text-[#1f2d6b]">{formatDate(selectedEmployee.hireDate)}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">CONTRACT END DATE</span><span className="text-right font-semibold text-[#1f2d6b]">{formatDate(selectedEmployee.contractEndDate)}</span></div>
                     </div>
                   </div>
 
                   <div className="bg-white rounded-3xl p-5">
-                    <h4 className="text-3 font-bold text-[#1f2d6b] mb-3">Identification</h4>
-                    <div className="space-y-3 text-sm">
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">FIN</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.finNumber || '—'}</span>
+                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Access & Security</h4>
+                    <div className="flex gap-3 mb-3">
+                      <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
+                        <p className="text-xs text-[#9f1239] mb-1">Card</p>
+                        <p className="font-semibold text-[#9f1239]">{selectedEmployee.cardId || 'X'}</p>
                       </div>
-                      <div className="grid grid-cols-2 border-b border-[#eef0f7] pb-2">
-                        <span className="text-[#98a2c8]">Yaranma tarixi</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.createdAt)}</span>
+                      <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
+                        <p className="text-xs text-[#9f1239] mb-1">Fingerprint</p>
+                        <p className="font-semibold text-[#9f1239]">{selectedEmployee.faceId || 'X'}</p>
                       </div>
-                      <div className="grid grid-cols-2">
-                        <span className="text-[#98a2c8]">Son yenilənmə</span>
-                        <span className="text-right text-[#1f2d6b] font-semibold">{formatDate(selectedEmployee.updatedAt)}</span>
-                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 text-sm">
+                      <span className="text-[#98a2c8]">AREA DEVICES</span>
+                      <span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.area || '—'}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-5">
+                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Compensation & Additional Details</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">SALARY</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.salary ?? '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">HOURLY RATE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.hourlyRate ?? '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">ALLOWANCE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.allowance || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMERGENCY CONTACT</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.emergencyContact || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">BRANCH/OFFICE LOCATION</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.branchName || branchLabelById(selectedEmployee.branchId)}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">ADDRESS</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.address || '—'}</span></div>
+                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">NOTES</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.notes || '—'}</span></div>
                     </div>
                   </div>
                 </div>

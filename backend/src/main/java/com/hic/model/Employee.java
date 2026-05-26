@@ -3,6 +3,7 @@ package com.hic.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -52,6 +53,15 @@ public class Employee {
     @Column(name = "card_id")
     private String cardId;
 
+    @Column(name = "serial_number")
+    private String serialNumber;
+
+    @Column(name = "contract_number")
+    private String contractNumber;
+
+    @Column(name = "branch_id")
+    private Long branchId;
+
     @Column(name = "department_id")
     private Long departmentId;
 
@@ -61,8 +71,38 @@ public class Employee {
     @Column(name = "hire_date")
     private LocalDate hireDate;
 
+    @Column(name = "contract_end_date")
+    private LocalDate contractEndDate;
+
+    @Column(name = "annual_leave_duration")
+    private Integer annualLeaveDuration;
+
+    @Column(name = "annual_leave_balance")
+    private Integer annualLeaveBalance;
+
     @Column(name = "father_name")
     private String fatherName;
+
+    @Column(name = "group_name")
+    private String groupName;
+
+    @Column(name = "salary", precision = 12, scale = 2)
+    private BigDecimal salary;
+
+    @Column(name = "hourly_rate", precision = 10, scale = 2)
+    private BigDecimal hourlyRate;
+
+    @Column(name = "allowance")
+    private String allowance;
+
+    @Column(name = "emergency_contact")
+    private String emergencyContact;
+
+    @Column(name = "address")
+    private String address;
+
+    @Column(name = "notes", columnDefinition = "TEXT")
+    private String notes;
 
     @Column(name = "area")
     private String area;

@@ -47,6 +47,22 @@ export interface Employee {
   mobilePhone?: string
   email?: string
   finNumber?: string
+  faceId?: string
+  cardId?: string
+  serialNumber?: string
+  contractNumber?: string
+  branchId?: number
+  branchName?: string
+  contractEndDate?: string
+  annualLeaveDuration?: number
+  annualLeaveBalance?: number
+  groupName?: string
+  salary?: number
+  hourlyRate?: number
+  allowance?: string
+  emergencyContact?: string
+  address?: string
+  notes?: string
   faceImageUrl?: string
   departmentId?: number
   departmentName?: string

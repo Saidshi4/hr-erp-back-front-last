@@ -23,7 +23,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -153,9 +152,22 @@ public class EmployeeService {
         employee.setFinNumber(dto.getFinNumber());
         employee.setFaceId(dto.getFaceId());
         employee.setCardId(dto.getCardId());
+        employee.setSerialNumber(dto.getSerialNumber());
+        employee.setContractNumber(dto.getContractNumber());
+        employee.setBranchId(dto.getBranchId());
         employee.setDepartmentId(dto.getDepartmentId());
         employee.setPositionId(dto.getPositionId());
         employee.setHireDate(dto.getHireDate() != null ? dto.getHireDate() : LocalDate.now());
+        employee.setContractEndDate(dto.getContractEndDate());
+        employee.setAnnualLeaveDuration(dto.getAnnualLeaveDuration());
+        employee.setAnnualLeaveBalance(dto.getAnnualLeaveBalance());
+        employee.setGroupName(dto.getGroupName());
+        employee.setSalary(dto.getSalary());
+        employee.setHourlyRate(dto.getHourlyRate());
+        employee.setAllowance(dto.getAllowance());
+        employee.setEmergencyContact(dto.getEmergencyContact());
+        employee.setAddress(dto.getAddress());
+        employee.setNotes(dto.getNotes());
         if (dto.getEmploymentStatus() != null) {
             employee.setEmploymentStatus(dto.getEmploymentStatus());
         }
@@ -185,10 +197,23 @@ public class EmployeeService {
         faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
                 .ifPresent(faceData -> dto.setFaceImageUrl("/api/faces/employee/" + employee.getId() + "/image"));
         dto.setCardId(employee.getCardId());
+        dto.setSerialNumber(employee.getSerialNumber());
+        dto.setContractNumber(employee.getContractNumber());
+        dto.setBranchId(employee.getBranchId());
         dto.setDepartmentId(employee.getDepartmentId());
         dto.setPositionId(employee.getPositionId());
         dto.setHireDate(employee.getHireDate());
+        dto.setContractEndDate(employee.getContractEndDate());
+        dto.setAnnualLeaveDuration(employee.getAnnualLeaveDuration());
+        dto.setAnnualLeaveBalance(employee.getAnnualLeaveBalance());
         dto.setFatherName(employee.getFatherName());
+        dto.setGroupName(employee.getGroupName());
+        dto.setSalary(employee.getSalary());
+        dto.setHourlyRate(employee.getHourlyRate());
+        dto.setAllowance(employee.getAllowance());
+        dto.setEmergencyContact(employee.getEmergencyContact());
+        dto.setAddress(employee.getAddress());
+        dto.setNotes(employee.getNotes());
         dto.setArea(employee.getArea());
         dto.setShiftType(employee.getShiftType());
         dto.setEmploymentStatus(employee.getEmploymentStatus());
@@ -247,8 +272,7 @@ public class EmployeeService {
     }
 
     private String generateEmployeeId(Long tenantId) {
-        String datePart = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         long count = tenantId != null ? employeeRepository.countByTenantId(tenantId) + 1 : employeeRepository.count() + 1;
-        return String.format("EMP%s%04d", datePart, count);
+        return String.format("EMP-%04d", count);
     }
 }

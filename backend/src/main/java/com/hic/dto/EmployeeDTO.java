@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Data
@@ -27,14 +28,27 @@ public class EmployeeDTO {
     private String finNumber;
     private String faceId;
     private String cardId;
+    private String serialNumber;
+    private String contractNumber;
+    private Long branchId;
 
     @NotNull(message = "Department is required")
     private Long departmentId;
 
     private Long positionId;
     private LocalDate hireDate;
+    private LocalDate contractEndDate;
+    private Integer annualLeaveDuration;
+    private Integer annualLeaveBalance;
     private EmploymentStatus employmentStatus;
     private String fatherName;
+    private String groupName;
+    private BigDecimal salary;
+    private BigDecimal hourlyRate;
+    private String allowance;
+    private String emergencyContact;
+    private String address;
+    private String notes;
     private String area;
     private String shiftType;
 }

@@ -3,6 +3,7 @@ package com.hic.dto;
 import com.hic.model.Employee.EmploymentStatus;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -20,12 +21,25 @@ public class EmployeeResponseDTO {
     private String faceId;
     private String faceImageUrl;
     private String cardId;
+    private String serialNumber;
+    private String contractNumber;
+    private Long branchId;
     private Long departmentId;
     private String departmentName;
     private Long positionId;
     private String positionName;
     private LocalDate hireDate;
+    private LocalDate contractEndDate;
+    private Integer annualLeaveDuration;
+    private Integer annualLeaveBalance;
     private String fatherName;
+    private String groupName;
+    private BigDecimal salary;
+    private BigDecimal hourlyRate;
+    private String allowance;
+    private String emergencyContact;
+    private String address;
+    private String notes;
     private String area;
     private String shiftType;
     private EmploymentStatus employmentStatus;

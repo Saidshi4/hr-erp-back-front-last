@@ -1,7 +1,7 @@
 package com.hic.controller;
 
 import com.hic.dto.ApiResponse;
-import com.hic.model.Holiday;
+import com.hic.dto.HolidayDTO;
 import com.hic.service.HolidayService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -16,23 +16,23 @@ public class HolidayController {
     private final HolidayService holidayService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Holiday>>> getAll() {
+    public ResponseEntity<ApiResponse<List<HolidayDTO>>> getAll() {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getAll()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<Holiday>> getById(@PathVariable Long id) {
+    public ResponseEntity<ApiResponse<HolidayDTO>> getById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(holidayService.getById(id)));
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Holiday>> create(@RequestBody Holiday holiday) {
-        return ResponseEntity.ok(ApiResponse.success(holidayService.create(holiday)));
+    public ResponseEntity<ApiResponse<HolidayDTO>> create(@RequestBody HolidayDTO dto) {
+        return ResponseEntity.ok(ApiResponse.success(holidayService.create(dto)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<Holiday>> update(@PathVariable Long id, @RequestBody Holiday holiday) {
-        return ResponseEntity.ok(ApiResponse.success(holidayService.update(id, holiday)));
+    public ResponseEntity<ApiResponse<HolidayDTO>> update(@PathVariable Long id, @RequestBody HolidayDTO dto) {
+        return ResponseEntity.ok(ApiResponse.success(holidayService.update(id, dto)));
     }
 
     @DeleteMapping("/{id}")

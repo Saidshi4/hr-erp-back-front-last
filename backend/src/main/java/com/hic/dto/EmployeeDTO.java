@@ -51,4 +51,5 @@ public class EmployeeDTO {
     private String notes;
     private String area;
     private String shiftType;
+    private Long timetableId;
 }

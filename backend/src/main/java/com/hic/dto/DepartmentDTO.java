@@ -30,4 +30,6 @@ public class DepartmentDTO {
     private Boolean flexShift;
 
     private String timetable;
+
+    private Long timetableId;
 }

@@ -20,6 +20,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Page<Employee> findByTenantId(Long tenantId, Pageable pageable);
 
     List<Employee> findByTenantIdAndDepartmentId(Long tenantId, Long departmentId);
+    List<Employee> findByTenantIdAndShiftType(Long tenantId, String shiftType);
 
     List<Employee> findByTenantIdAndEmploymentStatus(Long tenantId, EmploymentStatus status);
 
@@ -46,6 +47,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     // Legacy non-tenant methods (backward compatibility)
     List<Employee> findByDepartmentId(Long departmentId);
+    List<Employee> findByShiftType(String shiftType);
     List<Employee> findByEmploymentStatus(EmploymentStatus status);
     Optional<Employee> findByFinNumber(String finNumber);
     Optional<Employee> findByEmployeeId(String employeeId);

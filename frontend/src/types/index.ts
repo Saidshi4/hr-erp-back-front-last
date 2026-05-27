@@ -27,6 +27,7 @@ export interface Department {
   calculateOvertime?: boolean
   flexShift?: boolean
   timetable?: string
+  timetableId?: number
 }
 
 export interface Position {
@@ -74,6 +75,7 @@ export interface Employee {
   hireDate?: string
   area?: string
   shiftType?: string
+  timetableId?: number
   employmentStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE'
   createdAt?: string
   updatedAt?: string
@@ -126,6 +128,54 @@ export interface LeaveType {
   leaveName: string
   annualEntitlement?: number
   isPaid?: boolean
+}
+
+export interface Timetable {
+  id: number
+  tenantId?: number
+  name: string
+  description?: string
+  startTime: string
+  endTime: string
+  crossesMidnight?: boolean
+  allowedLateMinutes?: number
+  allowedEarlyLeaveMinutes?: number
+  shiftType?: string
+}
+
+export interface Holiday {
+  id: number
+  tenantId?: number
+  name: string
+  description?: string
+  holidayDate: string
+  applyScope?: string
+}
+
+export interface AttendanceReportRow {
+  employeePk: number
+  employeeId: string
+  photoUrl?: string
+  fullName: string
+  fin?: string
+  department?: string
+  position?: string
+  area?: string
+  date: string
+  checkInTime?: string
+  shiftType?: string
+}
+
+export interface AttendanceReportFilters {
+  start: string
+  end: string
+  shiftType?: string
+  employeeId?: string
+  name?: string
+  fin?: string
+  position?: string
+  department?: string
+  area?: string
 }
 
 export interface DeviceConfig {

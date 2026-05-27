@@ -150,6 +150,29 @@ export interface Holiday {
   description?: string
   holidayDate: string
   applyScope?: string
+  targetIds?: number[]
+  scopeType?: string
+}
+
+export interface Permission {
+  id: number
+  tenantId?: number
+  name: string
+  description?: string
+  leaveType: string
+  applyType: string
+  targetId?: number
+  startDate: string
+  endDate: string
+  status: string
+}
+
+export interface PermissionType {
+  id: number
+  tenantId?: number
+  code: string
+  name: string
+  isCustom?: boolean
 }
 
 export interface AttendanceReportRow {

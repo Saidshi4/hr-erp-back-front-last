@@ -8,3 +8,4 @@ export const holidayApi = {
   update: (id: number, data: Partial<Holiday>) => client.put(`/holidays/${id}`, data),
   delete: (id: number) => client.delete(`/holidays/${id}`),
 }
+

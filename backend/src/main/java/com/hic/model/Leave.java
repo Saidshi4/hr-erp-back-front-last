@@ -39,6 +39,9 @@ public class Leave {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
+    @Column(name = "status", nullable = false)
+    private String status = "ACTIVE";
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

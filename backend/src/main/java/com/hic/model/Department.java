@@ -35,6 +35,15 @@ public class Department {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    @Column(name = "calculate_overtime")
+    private Boolean calculateOvertime = false;
+
+    @Column(name = "flex_shift")
+    private Boolean flexShift = false;
+
+    @Column(name = "timetable")
+    private String timetable;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

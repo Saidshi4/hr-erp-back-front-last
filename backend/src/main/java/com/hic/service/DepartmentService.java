@@ -49,6 +49,9 @@ public class DepartmentService {
         dept.setDepartmentName(dto.getDepartmentName());
         dept.setDescription(dto.getDescription());
         dept.setParentDepartmentId(dto.getParentDepartmentId());
+        dept.setCalculateOvertime(dto.getCalculateOvertime() != null ? dto.getCalculateOvertime() : false);
+        dept.setFlexShift(dto.getFlexShift() != null ? dto.getFlexShift() : false);
+        dept.setTimetable(dto.getTimetable());
         if (dto.getBranchId() != null) {
             dept.setBranchId(dto.getBranchId());
         } else {
@@ -69,6 +72,9 @@ public class DepartmentService {
         dept.setDepartmentName(dto.getDepartmentName());
         dept.setDescription(dto.getDescription());
         dept.setParentDepartmentId(dto.getParentDepartmentId());
+        dept.setCalculateOvertime(dto.getCalculateOvertime() != null ? dto.getCalculateOvertime() : false);
+        dept.setFlexShift(dto.getFlexShift() != null ? dto.getFlexShift() : false);
+        dept.setTimetable(dto.getTimetable());
         if (dto.getBranchId() != null) dept.setBranchId(dto.getBranchId());
         return toDTO(departmentRepository.save(dept));
     }
@@ -89,6 +95,9 @@ public class DepartmentService {
         dto.setBranchId(dept.getBranchId());
         dto.setParentDepartmentId(dept.getParentDepartmentId());
         dto.setCreatedAt(dept.getCreatedAt());
+        dto.setCalculateOvertime(dept.getCalculateOvertime());
+        dto.setFlexShift(dept.getFlexShift());
+        dto.setTimetable(dept.getTimetable());
 
         // Resolve parent name
         if (dept.getParentDepartmentId() != null) {

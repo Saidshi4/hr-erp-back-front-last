@@ -24,4 +24,10 @@ public class DepartmentDTO {
     private long employeeCount;
 
     private LocalDateTime createdAt;
+
+    private Boolean calculateOvertime;
+
+    private Boolean flexShift;
+
+    private String timetable;
 }

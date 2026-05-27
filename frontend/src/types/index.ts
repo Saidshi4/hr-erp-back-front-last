@@ -24,6 +24,9 @@ export interface Department {
   parentDepartmentName?: string
   employeeCount?: number
   createdAt?: string
+  calculateOvertime?: boolean
+  flexShift?: boolean
+  timetable?: string
 }
 
 export interface Position {

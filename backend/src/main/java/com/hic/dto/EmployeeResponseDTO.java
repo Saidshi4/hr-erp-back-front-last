@@ -42,6 +42,7 @@ public class EmployeeResponseDTO {
     private String notes;
     private String area;
     private String shiftType;
+    private Long timetableId;
     private EmploymentStatus employmentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

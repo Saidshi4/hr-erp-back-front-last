@@ -110,6 +110,9 @@ public class Employee {
     @Column(name = "shift_type")
     private String shiftType;
 
+    @Column(name = "timetable_id")
+    private Long timetableId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "employment_status", nullable = false)
     private EmploymentStatus employmentStatus = EmploymentStatus.ACTIVE;

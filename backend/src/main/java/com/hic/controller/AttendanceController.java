@@ -1,13 +1,19 @@
 package com.hic.controller;
 
+import com.hic.dto.ApiResponse;
 import com.hic.dto.AttendanceDTO;
 import com.hic.dto.AttendanceLogDTO;
+import com.hic.dto.AttendanceReportRowDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
-import com.hic.dto.ApiResponse;
+import com.hic.dto.PaginatedResponse;
+import com.hic.service.AttendanceCalculationService;
+import com.hic.service.AttendanceReportService;
 import com.hic.service.AttendanceService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,6 +26,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class AttendanceController {
     private final AttendanceService attendanceService;
+    private final AttendanceCalculationService attendanceCalculationService;
+    private final AttendanceReportService attendanceReportService;
 
     @PostMapping("/log")
     public ResponseEntity<ApiResponse<AttendanceLogDTO>> logAttendance(@Valid @RequestBody AttendanceDTO dto) {
@@ -54,5 +62,50 @@ public class AttendanceController {
             @PathVariable Long employeeId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(ApiResponse.success(attendanceService.generateDailySummary(employeeId, date)));
+    }
+
+    @GetMapping("/report")
+    public ResponseEntity<ApiResponse<PaginatedResponse<AttendanceReportRowDTO>>> getReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
+            @RequestParam(required = false) String shiftType,
+            @RequestParam(required = false) String employeeId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String fin,
+            @RequestParam(required = false) String position,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String area,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(attendanceReportService.getReport(
+                start, end, shiftType, employeeId, name, fin, position, department, area, page, size
+        )));
+    }
+
+    @GetMapping("/report/export")
+    public ResponseEntity<byte[]> exportReport(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
+            @RequestParam(required = false) String shiftType,
+            @RequestParam(required = false) String employeeId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String fin,
+            @RequestParam(required = false) String position,
+            @RequestParam(required = false) String department,
+            @RequestParam(required = false) String area) {
+        byte[] file = attendanceReportService.exportExcel(start, end, shiftType, employeeId, name, fin, position, department, area);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=attendance_reports.xlsx")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(file);
+    }
+
+    @PostMapping("/recalculate")
+    public ResponseEntity<ApiResponse<Void>> recalculate(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end,
+            @RequestParam(required = false) Long employeeId) {
+        attendanceCalculationService.recalculate(start, end, employeeId);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

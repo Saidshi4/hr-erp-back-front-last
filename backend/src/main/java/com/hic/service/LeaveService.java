@@ -54,6 +54,12 @@ public class LeaveService {
                 .orElseThrow(() -> new ResourceNotFoundException("LeaveRequest", id)));
     }
 
+    public boolean hasActiveLeave(Long employeeId, LocalDate date) {
+        List<LeaveRequest> requests = leaveRequestRepository.findByEmployeeIdAndStatus(employeeId, LeaveStatus.APPROVED);
+        return requests.stream().anyMatch(request ->
+                !date.isBefore(request.getStartDate()) && !date.isAfter(request.getEndDate()));
+    }
+
     @Transactional
     public LeaveRequestDTO create(LeaveRequestDTO dto) {
         if (!employeeRepository.existsById(dto.getEmployeeId())) {

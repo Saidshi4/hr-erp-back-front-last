@@ -174,6 +174,7 @@ public class EmployeeService {
         if (dto.getFatherName() != null) employee.setFatherName(dto.getFatherName());
         if (dto.getArea() != null) employee.setArea(dto.getArea());
         if (dto.getShiftType() != null) employee.setShiftType(dto.getShiftType());
+        employee.setTimetableId(dto.getTimetableId());
     }
 
     private EmployeeResponseDTO toResponseDTO(Employee employee) {
@@ -216,6 +217,7 @@ public class EmployeeService {
         dto.setNotes(employee.getNotes());
         dto.setArea(employee.getArea());
         dto.setShiftType(employee.getShiftType());
+        dto.setTimetableId(employee.getTimetableId());
         dto.setEmploymentStatus(employee.getEmploymentStatus());
         dto.setCreatedAt(employee.getCreatedAt());
         dto.setUpdatedAt(employee.getUpdatedAt());

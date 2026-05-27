@@ -44,6 +44,9 @@ public class Department {
     @Column(name = "timetable")
     private String timetable;
 
+    @Column(name = "timetable_id")
+    private Long timetableId;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

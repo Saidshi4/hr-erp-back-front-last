@@ -52,6 +52,8 @@ public class EmployeeDTO {
     private String notes;
     private String area;
     private String shiftType;
+
+    @NotNull(message = "Timetable is required")
     private Long timetableId;
     private List<Long> deviceIds;
 }

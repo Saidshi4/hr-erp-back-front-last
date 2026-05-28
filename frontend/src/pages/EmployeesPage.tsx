@@ -359,6 +359,10 @@ export default function EmployeesPage() {
       setFormError('Departament mütləqdir.')
       return
     }
+    if (!form.timetableId) {
+      setFormError('İş qrafiki seçilməsi mütləqdir.')
+      return
+    }
     setSaving(true)
     setFormError(null)
     try {
@@ -381,7 +385,7 @@ export default function EmployeesPage() {
         annualLeaveDuration: form.annualLeaveDuration === '' ? undefined : Number(form.annualLeaveDuration),
         annualLeaveBalance: form.annualLeaveBalance === '' ? undefined : Number(form.annualLeaveBalance),
         employmentStatus: form.employmentStatus as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE',
-        timetableId: form.timetableId === '' ? undefined : Number(form.timetableId),
+        timetableId: Number(form.timetableId),
         shiftType: form.shiftType,
         cardId: form.cardId,
         faceId: form.faceId,
@@ -917,7 +921,7 @@ export default function EmployeesPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
-                  <input value={form.shiftType} onChange={(e) => setFormField('shiftType', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <input value={form.shiftType} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
                 </div>
               </div>
             )}
@@ -948,7 +952,7 @@ export default function EmployeesPage() {
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
-                      <input value={form.shiftType} onChange={(e) => setFormField('shiftType', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                      <input value={form.shiftType} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-gray-500 mb-1">GROUP</label>

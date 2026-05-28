@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useScheduleStore } from '../store/scheduleStore.ts'
 import { Timetable, Holiday, Permission, PermissionType } from '../types'
+import ShiftAssignmentPage from './ShiftAssignmentPage.tsx'
+import PermissionAssignmentPage from './PermissionAssignmentPage.tsx'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const SHIFT_TYPES = ['MORNING', 'STANDARD', 'NIGHT', 'FLEXIBLE']
@@ -629,6 +631,24 @@ const TABS = [
       </svg>
     ),
   },
+  {
+    key: 'shift-assignment',
+    label: 'Növbə təyin',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    key: 'permission-assignment',
+    label: 'İcazə təyin',
+    icon: (
+      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
 ]
 
 export default function WorkSchedulePage() {
@@ -639,7 +659,7 @@ export default function WorkSchedulePage() {
       <div className="p-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">İş Qrafiki</h1>
-          <p className="text-sm text-gray-500 mt-1">İş qrafikləri, bayram günləri və icazələri idarə edin</p>
+          <p className="text-sm text-gray-500 mt-1">İş qrafikləri, bayram günləri, növbə və icazə təyinatlarını idarə edin</p>
         </div>
 
         {/* Tabs */}
@@ -667,9 +687,10 @@ export default function WorkSchedulePage() {
           {activeTab === 'timetables' && <TimetableTab />}
           {activeTab === 'holidays' && <HolidayTab />}
           {activeTab === 'permissions' && <PermissionTab />}
+          {activeTab === 'shift-assignment' && <ShiftAssignmentPage />}
+          {activeTab === 'permission-assignment' && <PermissionAssignmentPage />}
         </div>
       </div>
     </Layout>
   )
 }
-

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.tsx'
+import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
 import { Branch, Department, DeviceConfig, Employee, Position, Timetable } from '../types'
 import { employeeApi } from '../api/employeeApi.ts'
@@ -1069,147 +1070,17 @@ export default function EmployeesPage() {
         </div>
       )}
 
-      {showProfileModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4 md:p-6 overflow-y-auto">
-          <div className="min-h-full bg-[#f4f5fb] rounded-3xl p-6 md:p-8">
-            <div className="flex items-start justify-between mb-4">
-              <h2 className="text-2xl font-bold text-[#1f2d6b]">Employee Profile</h2>
-              <button onClick={closeProfile} className="p-2 rounded-lg hover:bg-white/70 text-[#8b94b8]" title="Bağla">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {profileLoading ? (
-              <div className="bg-white rounded-2xl p-8 text-center text-gray-400">
-                <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
-                Məlumatlar yüklənir...
-              </div>
-            ) : profileError ? (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{profileError}</div>
-            ) : selectedEmployee ? (
-              <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
-                <div className="bg-white rounded-3xl p-5">
-                  {profileImageSrc ? (
-                    <img src={profileImageSrc} alt={`${selectedEmployee.firstName} ${selectedEmployee.lastName}`} className="w-full aspect-square rounded-2xl object-cover" />
-                  ) : (
-                    <div className="w-full aspect-square rounded-2xl flex items-center justify-center" style={{ background: '#e8def6' }}>
-                      <span className="text-6xl font-bold" style={{ color: '#9333ea' }}>
-                        {`${selectedEmployee.firstName.charAt(0)}${selectedEmployee.lastName.charAt(0)}`.toUpperCase()}
-                      </span>
-                    </div>
-                  )}
-
-                  <div className="flex items-center justify-between mt-4 text-sm text-[#8b94b8]">
-                    <span className="font-semibold">Mənim profilim</span>
-                    <span>{selectedEmployee.branchName || branchLabelById(selectedEmployee.branchId)}</span>
-                  </div>
-
-                  <div className="mt-4 space-y-3 text-sm">
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="text-[#98a2c8]">FULL NAME</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="text-[#98a2c8]">FATHER'S NAME</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.fatherName || '—'}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="text-[#98a2c8]">PHONE</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.mobilePhone || '—'}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="text-[#98a2c8]">EMAIL</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.email || '—'}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <span className="text-[#98a2c8]">FIN / SERIAL</span>
-                      <span className="text-right text-[#1f2d6b] font-semibold">{selectedEmployee.finNumber || '—'} / {selectedEmployee.serialNumber || '—'}</span>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-2xl bg-[#f3f4f6] p-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: selectedEmployee.employmentStatus === 'ACTIVE' ? '#22c55e' : selectedEmployee.employmentStatus === 'ON_LEAVE' ? '#eab308' : '#ef4444' }} />
-                      <span className="text-sm font-semibold text-[#1f2d6b]">{statusLabel(selectedEmployee.employmentStatus)}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => {
-                          closeProfile()
-                          openEdit(selectedEmployee)
-                        }}
-                        className="p-1.5 rounded hover:bg-white"
-                        title="Redaktə et"
-                      >
-                        <svg className="w-4 h-4" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => setDeleteConfirm(selectedEmployee)}
-                        className="p-1.5 rounded hover:bg-white"
-                        title="Sil"
-                      >
-                        <svg className="w-4 h-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="bg-white rounded-3xl p-5">
-                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Employment Information</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">DEPARTMENT</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.departmentName || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">POSITION</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.positionName || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMPLOYMENT STATUS</span><span className="text-right font-semibold text-[#1f2d6b]">{statusLabel(selectedEmployee.employmentStatus)}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">SHIFT TYPE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.shiftType || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">GROUP</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.groupName || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">CONTRACT NUMBER</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.contractNumber || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMPLOYMENT START DATE</span><span className="text-right font-semibold text-[#1f2d6b]">{formatDate(selectedEmployee.hireDate)}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">CONTRACT END DATE</span><span className="text-right font-semibold text-[#1f2d6b]">{formatDate(selectedEmployee.contractEndDate)}</span></div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-3xl p-5">
-                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Access & Security</h4>
-                    <div className="flex gap-3 mb-3">
-                      <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
-                        <p className="text-xs text-[#9f1239] mb-1">Card</p>
-                        <p className="font-semibold text-[#9f1239]">{selectedEmployee.cardId || 'X'}</p>
-                      </div>
-                      <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
-                        <p className="text-xs text-[#9f1239] mb-1">Fingerprint</p>
-                        <p className="font-semibold text-[#9f1239]">{selectedEmployee.faceId || 'X'}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 text-sm">
-                      <span className="text-[#98a2c8]">AREA DEVICES</span>
-                      <span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.area || '—'}</span>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-3xl p-5">
-                    <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Compensation & Additional Details</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">SALARY</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.salary ?? '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">HOURLY RATE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.hourlyRate ?? '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">ALLOWANCE</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.allowance || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">EMERGENCY CONTACT</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.emergencyContact || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">BRANCH/OFFICE LOCATION</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.branchName || branchLabelById(selectedEmployee.branchId)}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">ADDRESS</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.address || '—'}</span></div>
-                      <div className="grid grid-cols-2"><span className="text-[#98a2c8]">NOTES</span><span className="text-right font-semibold text-[#1f2d6b]">{selectedEmployee.notes || '—'}</span></div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-          </div>
-        </div>
+      {showProfileModal && selectedEmployee && (
+        <EmployeeDetailModal
+          employee={selectedEmployee}
+          profileImageSrc={profileImageSrc}
+          loading={profileLoading}
+          error={profileError}
+          branchLabel={branchLabelById(selectedEmployee.branchId)}
+          onClose={closeProfile}
+          onEdit={(emp) => { closeProfile(); openEdit(emp) }}
+          onDelete={(emp) => setDeleteConfirm(emp)}
+        />
       )}
 
       {/* Delete Confirmation */}

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
 import { AttendanceLog, DoorAttendanceSyncResult } from '../types'
+import { useDebounce } from '../hooks/useSearch.ts'
 
 export default function AttendancePage() {
   const today = new Date().toISOString().split('T')[0]
@@ -10,6 +11,8 @@ export default function AttendancePage() {
   const [startDate, setStartDate] = useState(weekAgo)
   const [endDate, setEndDate] = useState(today)
   const [logs, setLogs] = useState<AttendanceLog[]>([])
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [entryDeviceId, setEntryDeviceId] = useState<string>('')
   const [exitDeviceId, setExitDeviceId] = useState<string>('')
   const [syncResult, setSyncResult] = useState<DoorAttendanceSyncResult | null>(null)
@@ -79,6 +82,10 @@ export default function AttendancePage() {
 
   const presentCount = logs.filter(l => l.checkInTime && !l.checkOutTime).length
   const completedCount = logs.filter(l => l.checkInTime && l.checkOutTime).length
+
+  const filteredLogs = debouncedSearch
+    ? logs.filter(l => String(l.employeeId).includes(debouncedSearch))
+    : logs
 
   return (
     <Layout>
@@ -171,11 +178,22 @@ export default function AttendancePage() {
 
         {fetched && (
           <>
+            {/* Search */}
+            <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
+              <input
+                type="text"
+                placeholder="Search by employee ID..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
+              />
+            </div>
+
             {/* Summary */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl p-4 shadow-sm">
                 <p className="text-xs text-gray-400">Total Records</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{logs.length}</p>
+                <p className="text-xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm">
                 <p className="text-xs text-gray-400">Currently In</p>
@@ -188,13 +206,13 @@ export default function AttendancePage() {
             </div>
 
             {/* Logs */}
-            {logs.length === 0 ? (
+            {filteredLogs.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
-                No attendance records found for the selected period.
+                {debouncedSearch ? `No records found matching "${debouncedSearch}".` : 'No attendance records found for the selected period.'}
               </div>
             ) : (
               <div className="space-y-3">
-                {logs.map((log) => (
+                {filteredLogs.map((log) => (
                   <div key={log.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
                     <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#faf5ff' }}>
                       <svg className="w-5 h-5" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">

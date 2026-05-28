@@ -184,6 +184,33 @@ export interface PermissionType {
   isCustom?: boolean
 }
 
+export interface EmployeeShiftAssignment {
+  id: number
+  tenantId?: number
+  employeeId: number
+  timetableId: number
+  effectiveStartDate: string
+  effectiveEndDate?: string
+  assignedBy?: number
+  assignedAt?: string
+  status: 'ACTIVE' | 'INACTIVE'
+}
+
+export interface EmployeePermission {
+  id: number
+  tenantId?: number
+  employeeId: number
+  permissionTypeId: number
+  startDate: string
+  endDate: string
+  reason?: string
+  status: 'ACTIVE' | 'INACTIVE' | 'APPROVED' | 'PENDING' | 'REJECTED'
+  approvedBy?: number
+  approvalDate?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface AttendanceReportRow {
   employeePk: number
   employeeId: string

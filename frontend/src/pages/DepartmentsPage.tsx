@@ -4,6 +4,7 @@ import { Department, Employee, DeviceConfig } from '../types'
 import { departmentApi } from '../api/departmentApi.ts'
 import { employeeApi } from '../api/employeeApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
+import { useDebounce } from '../hooks/useSearch.ts'
 
 interface DepartmentFormData {
   departmentName: string
@@ -35,6 +36,8 @@ export default function DepartmentsPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Department | null>(null)
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
   const [parentSearch, setParentSearch] = useState('')
   const [deviceSearch, setDeviceSearch] = useState('')
   const [devices, setDevices] = useState<DeviceConfig[]>([])
@@ -191,6 +194,10 @@ export default function DepartmentsPage() {
     (e.positionName || '').toLowerCase().includes(assignSearch.toLowerCase())
   )
 
+  const filteredDepartments = debouncedSearch
+    ? departments.filter(d => d.departmentName.toLowerCase().includes(debouncedSearch.toLowerCase()))
+    : departments
+
   return (
     <Layout>
       <div className="p-8" style={{ background: '#f4f5fb', minHeight: '100vh' }}>
@@ -225,8 +232,21 @@ export default function DepartmentsPage() {
           </div>
         </div>
 
+        {/* Search */}
+        {!loading && !error && (
+          <div className="mb-4">
+            <input
+              type="text"
+              placeholder="Departament axtar..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+            />
+          </div>
+        )}
+
         {/* Column headers */}
-        {!loading && !error && departments.length > 0 && (
+        {!loading && !error && filteredDepartments.length > 0 && (
           <div className="flex items-center px-5 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
             <div className="flex-1 min-w-0">Departament</div>
             <div className="w-32 text-center">Parent</div>
@@ -246,16 +266,16 @@ export default function DepartmentsPage() {
           </div>
         ) : error ? (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
-        ) : departments.length === 0 ? (
+        ) : filteredDepartments.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
             <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
             </svg>
-            Hələ heç bir departament yoxdur.
+            {debouncedSearch ? `"${debouncedSearch}" üçün nəticə tapılmadı.` : 'Hələ heç bir departament yoxdur.'}
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            {departments.map((dept) => (
+            {filteredDepartments.map((dept) => (
               <div key={dept.id} className="bg-white rounded-xl shadow-sm flex items-center px-5 py-4 gap-4">
                 {/* Icon + Name + Description */}
                 <div className="flex items-center gap-3 flex-1 min-w-0">

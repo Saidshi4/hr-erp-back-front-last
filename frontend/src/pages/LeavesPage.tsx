@@ -4,6 +4,7 @@ import { useLeaveStore } from '../store/leaveStore.ts'
 import { useEmployeeStore } from '../store/employeeStore.ts'
 import { LeaveRequest, LeaveType, Employee } from '../types'
 import client from '../api/client.ts'
+import { useDebounce } from '../hooks/useSearch.ts'
 
 interface LeaveFormData {
   employeeId: number | ''
@@ -34,6 +35,8 @@ export default function LeavesPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('ALL')
+  const [search, setSearch] = useState('')
+  const debouncedSearch = useDebounce(search, 300)
 
   useEffect(() => {
     fetchLeaves()
@@ -82,9 +85,9 @@ export default function LeavesPage() {
     return lt ? lt.leaveName : `Type #${id}`
   }
 
-  const filteredLeaves = statusFilter === 'ALL'
-    ? leaves
-    : leaves.filter((l: LeaveRequest) => l.status === statusFilter)
+  const filteredLeaves = leaves
+    .filter((l: LeaveRequest) => statusFilter === 'ALL' || l.status === statusFilter)
+    .filter((l: LeaveRequest) => !debouncedSearch || getEmployeeName(l.employeeId).toLowerCase().includes(debouncedSearch.toLowerCase()))
 
   const pendingCount = leaves.filter((l: LeaveRequest) => l.status === 'PENDING').length
   const approvedCount = leaves.filter((l: LeaveRequest) => l.status === 'APPROVED').length
@@ -139,6 +142,17 @@ export default function LeavesPage() {
           ))}
         </div>
 
+        {/* Search */}
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search by employee name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+          />
+        </div>
+
         {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
             <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
@@ -148,7 +162,7 @@ export default function LeavesPage() {
           <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
         ) : filteredLeaves.length === 0 ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
-            No leave requests found.
+            {debouncedSearch ? `No leave requests found matching "${debouncedSearch}".` : 'No leave requests found.'}
           </div>
         ) : (
           <div className="space-y-3">

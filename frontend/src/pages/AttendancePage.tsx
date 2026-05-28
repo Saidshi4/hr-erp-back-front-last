@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
-import { AttendanceLog } from '../types'
+import { AttendanceLog, DoorAttendanceSyncResult } from '../types'
 
 export default function AttendancePage() {
   const today = new Date().toISOString().split('T')[0]
@@ -10,6 +10,9 @@ export default function AttendancePage() {
   const [startDate, setStartDate] = useState(weekAgo)
   const [endDate, setEndDate] = useState(today)
   const [logs, setLogs] = useState<AttendanceLog[]>([])
+  const [entryDeviceId, setEntryDeviceId] = useState<string>('')
+  const [exitDeviceId, setExitDeviceId] = useState<string>('')
+  const [syncResult, setSyncResult] = useState<DoorAttendanceSyncResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetched, setFetched] = useState(false)
@@ -18,6 +21,7 @@ export default function AttendancePage() {
     if (!startDate || !endDate) return
     setLoading(true)
     setError(null)
+    setSyncResult(null)
     try {
       const start = `${startDate}T00:00:00`
       const end = `${endDate}T23:59:59`
@@ -30,6 +34,43 @@ export default function AttendancePage() {
       setLoading(false)
     }
   }, [startDate, endDate])
+
+  const syncDoorAndFetchLogs = useCallback(async () => {
+    if (!startDate || !endDate) return
+    if (!entryDeviceId || !exitDeviceId) {
+      setError('Please enter both Entry Device ID and Exit Device ID.')
+      return
+    }
+
+    const entryId = Number(entryDeviceId)
+    const exitId = Number(exitDeviceId)
+    if (Number.isNaN(entryId) || Number.isNaN(exitId)) {
+      setError('Device IDs must be numeric values.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    try {
+      const start = `${startDate}T00:00:00`
+      const end = `${endDate}T23:59:59`
+      const syncRes = await attendanceApi.syncDoor({
+        entryDeviceId: entryId,
+        exitDeviceId: exitId,
+        start,
+        end,
+      })
+      setSyncResult(syncRes.data?.data ?? null)
+
+      const logsRes = await attendanceApi.getRange(start, end)
+      setLogs(logsRes.data?.data ?? [])
+      setFetched(true)
+    } catch (e: unknown) {
+      setError((e as Error).message || 'Failed to sync door attendance')
+    } finally {
+      setLoading(false)
+    }
+  }, [startDate, endDate, entryDeviceId, exitDeviceId])
 
   const formatTime = (dt?: string) => {
     if (!dt) return '—'
@@ -69,6 +110,34 @@ export default function AttendancePage() {
                 className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Entry Device ID</label>
+              <input
+                type="number"
+                value={entryDeviceId}
+                onChange={(e) => setEntryDeviceId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="e.g. 1"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">Exit Device ID</label>
+              <input
+                type="number"
+                value={exitDeviceId}
+                onChange={(e) => setExitDeviceId(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="e.g. 2"
+              />
+            </div>
+            <button
+              onClick={syncDoorAndFetchLogs}
+              disabled={loading}
+              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+              style={{ background: '#2563eb' }}
+            >
+              {loading ? 'Syncing...' : 'Sync Door & Search'}
+            </button>
             <button
               onClick={fetchLogs}
               disabled={loading}
@@ -86,6 +155,13 @@ export default function AttendancePage() {
             </button>
           </div>
         </div>
+
+        {syncResult && (
+          <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-lg mb-4 text-sm">
+            Synced punches: {syncResult.totalPunches} · Matched sessions: {syncResult.matchedSessions} · New logs: {syncResult.createdLogs} · Recalculated days: {syncResult.recalculatedDays}
+            {syncResult.skippedEmployees > 0 ? ` · Skipped employees: ${syncResult.skippedEmployees}` : ''}
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">

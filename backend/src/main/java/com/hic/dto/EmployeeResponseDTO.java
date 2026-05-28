@@ -6,6 +6,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 public class EmployeeResponseDTO {
@@ -43,6 +44,7 @@ public class EmployeeResponseDTO {
     private String area;
     private String shiftType;
     private Long timetableId;
+    private List<Long> deviceIds;
     private EmploymentStatus employmentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

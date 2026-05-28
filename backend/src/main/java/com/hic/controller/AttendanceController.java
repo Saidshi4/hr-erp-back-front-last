@@ -5,10 +5,12 @@ import com.hic.dto.AttendanceDTO;
 import com.hic.dto.AttendanceLogDTO;
 import com.hic.dto.AttendanceReportRowDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
+import com.hic.dto.DoorAttendanceSyncResultDTO;
 import com.hic.dto.PaginatedResponse;
 import com.hic.service.AttendanceCalculationService;
 import com.hic.service.AttendanceReportService;
 import com.hic.service.AttendanceService;
+import com.hic.service.DoorAttendanceSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -28,6 +30,7 @@ public class AttendanceController {
     private final AttendanceService attendanceService;
     private final AttendanceCalculationService attendanceCalculationService;
     private final AttendanceReportService attendanceReportService;
+    private final DoorAttendanceSyncService doorAttendanceSyncService;
 
     @PostMapping("/log")
     public ResponseEntity<ApiResponse<AttendanceLogDTO>> logAttendance(@Valid @RequestBody AttendanceDTO dto) {
@@ -107,5 +110,18 @@ public class AttendanceController {
             @RequestParam(required = false) Long employeeId) {
         attendanceCalculationService.recalculate(start, end, employeeId);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping("/sync-door")
+    public ResponseEntity<ApiResponse<DoorAttendanceSyncResultDTO>> syncDoorAttendance(
+            @RequestParam Long entryDeviceId,
+            @RequestParam Long exitDeviceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                doorAttendanceSyncService.syncDoorAttendance(entryDeviceId, exitDeviceId, start, end, limit)
+        ));
     }
 }

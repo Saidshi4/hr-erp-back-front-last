@@ -25,6 +25,15 @@ public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Lo
     List<AttendanceLog> findByEmployeeIdAndCheckInTimeBetween(Long employeeId,
                                                                LocalDateTime start,
                                                                LocalDateTime end);
+    boolean existsByTenantIdAndEmployeeIdAndCheckInTimeAndCheckOutTimeAndDoorId(Long tenantId,
+                                                                                  Long employeeId,
+                                                                                  LocalDateTime checkInTime,
+                                                                                  LocalDateTime checkOutTime,
+                                                                                  String doorId);
+    boolean existsByEmployeeIdAndCheckInTimeAndCheckOutTimeAndDoorId(Long employeeId,
+                                                                      LocalDateTime checkInTime,
+                                                                      LocalDateTime checkOutTime,
+                                                                      String doorId);
     List<AttendanceLog> findByDeviceId(String deviceId);
     List<AttendanceLog> findByCheckInTimeBetween(LocalDateTime start, LocalDateTime end);
     long countByCheckInTimeBetween(LocalDateTime start, LocalDateTime end);

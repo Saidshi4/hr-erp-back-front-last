@@ -76,6 +76,7 @@ export interface Employee {
   area?: string
   shiftType?: string
   timetableId?: number
+  deviceIds?: number[]
   employmentStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE'
   createdAt?: string
   updatedAt?: string
@@ -90,6 +91,14 @@ export interface AttendanceLog {
   eventType?: string
   status?: string
   createdAt?: string
+}
+
+export interface DoorAttendanceSyncResult {
+  totalPunches: number
+  matchedSessions: number
+  createdLogs: number
+  skippedEmployees: number
+  recalculatedDays: number
 }
 
 export interface AccessLog {

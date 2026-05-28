@@ -5,7 +5,6 @@ import { DeviceConfig, Branch } from '../types'
 import { branchApi } from '../api/branchApi.ts'
 
 interface DeviceFormData {
-  deviceId: string
   deviceName: string
   deviceIp: string
   devicePort: number | ''
@@ -16,7 +15,6 @@ interface DeviceFormData {
 }
 
 const defaultForm: DeviceFormData = {
-  deviceId: '',
   deviceName: '',
   deviceIp: '',
   devicePort: 80,
@@ -53,7 +51,6 @@ export default function DevicesPage() {
   const openEdit = (device: DeviceConfig) => {
     setEditingDevice(device)
     setForm({
-      deviceId: device.deviceId,
       deviceName: device.deviceName || '',
       deviceIp: device.deviceIp,
       devicePort: device.devicePort || 80,
@@ -67,8 +64,9 @@ export default function DevicesPage() {
   }
 
   const handleSave = async () => {
-    if (!form.deviceId.trim()) { setFormError('Device ID is required.'); return }
     if (!form.deviceIp.trim()) { setFormError('Device IP is required.'); return }
+    if (!form.username.trim()) { setFormError('Username is required.'); return }
+    if (!editingDevice && !form.password.trim()) { setFormError('Password is required.'); return }
     setSaving(true)
     setFormError(null)
     try {
@@ -295,16 +293,6 @@ export default function DevicesPage() {
               </div>
             )}
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Device ID *</label>
-                <input
-                  type="text"
-                  value={form.deviceId}
-                  onChange={(e) => setForm({ ...form, deviceId: e.target.value })}
-                  placeholder="e.g., HIK-001"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
                 <input

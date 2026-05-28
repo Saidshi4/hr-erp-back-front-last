@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
-import { Branch, Department, DeviceConfig, Employee, Position } from '../types'
+import { Branch, Department, DeviceConfig, Employee, Position, Timetable } from '../types'
 import { employeeApi } from '../api/employeeApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
 import { branchApi } from '../api/branchApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
 import { deviceUserApi } from '../api/deviceUserApi.ts'
+import { timetableApi } from '../api/timetableApi.ts'
 
 interface EmployeeFormData {
   firstName: string
@@ -28,6 +29,7 @@ interface EmployeeFormData {
   annualLeaveDuration: number | ''
   annualLeaveBalance: number | ''
   employmentStatus: string
+  timetableId: number | ''
   shiftType: string
   cardId: string
   faceId: string
@@ -39,6 +41,50 @@ interface EmployeeFormData {
   address: string
   notes: string
   area: string
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+
+const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
+  const parsedId = typeof item.id === 'number' ? item.id : Number(item.id)
+  const id = Number.isFinite(parsedId) ? parsedId : 0
+  const fallbackDeviceId = id > 0 ? String(id) : 'unknown'
+  const deviceId = typeof item.deviceId === 'string' && item.deviceId.trim() !== '' ? item.deviceId : fallbackDeviceId
+  const deviceName = typeof item.deviceName === 'string' ? item.deviceName : typeof item.name === 'string' ? item.name : undefined
+  const deviceIp = typeof item.deviceIp === 'string' ? item.deviceIp : typeof item.ip === 'string' ? item.ip : ''
+  const devicePort = typeof item.devicePort === 'number' ? item.devicePort : undefined
+  const username = typeof item.username === 'string' ? item.username : undefined
+  const branchId = typeof item.branchId === 'number' ? item.branchId : undefined
+  const status = typeof item.status === 'string'
+    ? item.status
+    : typeof item.running === 'boolean'
+      ? (item.running ? 'ACTIVE' : 'INACTIVE')
+      : typeof item.enabled === 'boolean'
+        ? (item.enabled ? 'ACTIVE' : 'INACTIVE')
+        : undefined
+  const lastSyncTime = typeof item.lastSyncTime === 'string' ? item.lastSyncTime : undefined
+
+  return {
+    id,
+    deviceId,
+    deviceName,
+    deviceIp,
+    devicePort,
+    username,
+    branchId,
+    status,
+    lastSyncTime,
+  }
+}
+
+const extractDevices = (payload: unknown): DeviceConfig[] => {
+  const list = Array.isArray(payload)
+    ? payload
+    : isRecord(payload)
+      ? payload.data
+      : undefined
+
+  return Array.isArray(list) ? list.filter(isRecord).map(normalizeDevice).filter((d) => d.id > 0) : []
 }
 
 const defaultForm: EmployeeFormData = {
@@ -60,6 +106,7 @@ const defaultForm: EmployeeFormData = {
   annualLeaveDuration: 30,
   annualLeaveBalance: 30,
   employmentStatus: 'ACTIVE',
+  timetableId: '',
   shiftType: '',
   cardId: '',
   faceId: '',
@@ -88,6 +135,7 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [positions, setPositions] = useState<Position[]>([])
   const [branches, setBranches] = useState<Branch[]>([])
+  const [timetables, setTimetables] = useState<Timetable[]>([])
   const [devices, setDevices] = useState<DeviceConfig[]>([])
   const [deviceSearch, setDeviceSearch] = useState('')
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
@@ -120,7 +168,8 @@ export default function EmployeesPage() {
     departmentApi.getAll().then((res) => setDepartments(res.data?.data ?? []))
     positionApi.getAll().then((res) => setPositions(res.data?.data ?? []))
     branchApi.getAll().then((res) => setBranches(res.data?.data ?? []))
-    deviceApi.getAll().then((res) => setDevices(res.data?.data ?? []))
+    timetableApi.getAll().then((res) => setTimetables(res.data?.data ?? []))
+    deviceApi.getAll().then((res) => setDevices(extractDevices(res.data)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -149,7 +198,7 @@ export default function EmployeesPage() {
 
   const employeeIdPreview = useMemo(() => {
     if (editingEmployee?.employeeId) return editingEmployee.employeeId
-    return `EMP-${String((totalElements || employees.length) + 1).padStart(4, '0')}`
+    return `EMP${String((totalElements || employees.length) + 1).padStart(4, '0')}`
   }, [editingEmployee, totalElements, employees.length])
 
   const branchLabelById = (branchId?: number) => {
@@ -201,6 +250,7 @@ export default function EmployeesPage() {
       annualLeaveDuration: emp.annualLeaveDuration ?? 30,
       annualLeaveBalance: emp.annualLeaveBalance ?? 30,
       employmentStatus: emp.employmentStatus || 'ACTIVE',
+      timetableId: emp.timetableId || '',
       shiftType: emp.shiftType || '',
       cardId: emp.cardId || '',
       faceId: emp.faceId || '',
@@ -219,9 +269,11 @@ export default function EmployeesPage() {
       .split(',')
       .map((x) => x.trim())
       .filter(Boolean)
-    const matched = devices
-      .filter((d) => areaParts.includes(d.deviceName || '') || areaParts.includes(d.deviceId || ''))
-      .map((d) => d.id)
+    const matched = emp.deviceIds?.length
+      ? emp.deviceIds
+      : devices
+          .filter((d) => areaParts.includes(d.deviceName || '') || areaParts.includes(d.deviceId || ''))
+          .map((d) => d.id)
     setSelectedDeviceIds(matched)
     setCurrentStep(1)
     setFormError(null)
@@ -329,6 +381,7 @@ export default function EmployeesPage() {
         annualLeaveDuration: form.annualLeaveDuration === '' ? undefined : Number(form.annualLeaveDuration),
         annualLeaveBalance: form.annualLeaveBalance === '' ? undefined : Number(form.annualLeaveBalance),
         employmentStatus: form.employmentStatus as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE',
+        timetableId: form.timetableId === '' ? undefined : Number(form.timetableId),
         shiftType: form.shiftType,
         cardId: form.cardId,
         faceId: form.faceId,
@@ -340,6 +393,7 @@ export default function EmployeesPage() {
         address: form.address,
         notes: form.notes,
         area: selectedDeviceLabels.length ? selectedDeviceLabels.join(', ') : form.area,
+        deviceIds: selectedDeviceIds,
       }
 
       let savedEmployee: Employee | undefined
@@ -688,12 +742,14 @@ export default function EmployeesPage() {
                 const isActive = step === currentStep
                 const isCompleted = step < currentStep
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={title}
-                    className="border rounded-xl p-3 flex items-center gap-3"
+                    onClick={() => setCurrentStep(step)}
+                    className="border rounded-xl p-3 flex items-center gap-3 text-left cursor-pointer"
                     style={
                       isCompleted
-                        ? { borderColor: '#fecdd3', background: '#fff1f2' }
+                        ? { borderColor: '#86efac', background: '#f0fdf4' }
                         : isActive
                         ? { borderColor: '#a855f7', background: '#f5edff' }
                         : { borderColor: '#e5e7eb', background: '#ffffff' }
@@ -703,16 +759,16 @@ export default function EmployeesPage() {
                       className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold"
                       style={
                         isCompleted
-                          ? { background: '#ef4444', color: '#ffffff' }
+                          ? { background: '#16a34a', color: '#ffffff' }
                           : isActive
                           ? { background: '#a855f7', color: '#ffffff' }
                           : { background: '#e5e7eb', color: '#6b7280' }
                       }
                     >
-                      {isCompleted ? 'X' : step}
+                      {isCompleted ? '✓' : step}
                     </div>
                     <div className="text-xs font-semibold text-gray-700">{title}</div>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -838,6 +894,28 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">TIMETABLE</label>
+                  <select
+                    value={form.timetableId}
+                    onChange={(e) => {
+                      const value = e.target.value ? Number(e.target.value) : ''
+                      setFormField('timetableId', value)
+                      if (value !== '') {
+                        const selectedTimetable = timetables.find((t) => t.id === value)
+                        if (selectedTimetable?.shiftType) {
+                          setFormField('shiftType', selectedTimetable.shiftType)
+                        }
+                      }
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Seçin...</option>
+                    {timetables.map((t) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
                   <input value={form.shiftType} onChange={(e) => setFormField('shiftType', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
@@ -901,6 +979,7 @@ export default function EmployeesPage() {
                           <span>{d.deviceName || d.deviceId}</span>
                         </label>
                       ))}
+                      {!filteredDevices.length && <p className="text-xs text-gray-500 px-1 py-2">No devices found.</p>}
                     </div>
                     <p className="text-xs text-gray-500 mt-2">{selectedDeviceIds.length} devices selected</p>
                   </div>

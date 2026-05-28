@@ -9,6 +9,8 @@ import com.hic.model.Department;
 import com.hic.model.Employee;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.repository.DepartmentRepository;
+import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
@@ -45,6 +47,12 @@ class EmployeeServiceTest {
 
     @Mock
     private FaceDataRepository faceDataRepository;
+
+    @Mock
+    private DeviceConfigRepository deviceConfigRepository;
+
+    @Mock
+    private EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
 
     @Mock
     private IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
@@ -118,7 +126,7 @@ class EmployeeServiceTest {
         assertThat(result.getFirstName()).isEqualTo("John");
         assertThat(result.getEmploymentStatus()).isEqualTo(EmploymentStatus.ACTIVE);
         verify(employeeRepository).save(any(Employee.class));
-        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class));
+        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
     }
 
     @Test
@@ -131,7 +139,7 @@ class EmployeeServiceTest {
             return e;
         });
         doThrow(new DeviceSyncException("ISAPI user sync is unavailable"))
-                .when(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class));
+                .when(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
 
         assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
                 .isInstanceOf(DeviceSyncException.class)

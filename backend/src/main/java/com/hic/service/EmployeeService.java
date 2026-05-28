@@ -6,10 +6,14 @@ import com.hic.dto.PaginatedResponse;
 import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Department;
+import com.hic.model.DeviceConfig;
 import com.hic.model.Employee;
 import com.hic.model.Employee.EmploymentStatus;
+import com.hic.model.EmployeeDeviceAccess;
 import com.hic.model.Position;
 import com.hic.repository.DepartmentRepository;
+import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
@@ -23,6 +27,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -36,6 +43,8 @@ public class EmployeeService {
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
+    private final DeviceConfigRepository deviceConfigRepository;
+    private final EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
@@ -118,7 +127,8 @@ public class EmployeeService {
         }
 
         Employee saved = employeeRepository.save(employee);
-        isapiEmployeeUserSyncService.syncEmployee(saved);
+        List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId);
+        isapiEmployeeUserSyncService.syncEmployee(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
 
@@ -128,9 +138,14 @@ public class EmployeeService {
                 .orElseThrow(() -> new ResourceNotFoundException("Employee", id));
 
         validateDepartmentExists(dto.getDepartmentId());
+        Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : TenantContext.getTenantId();
         mapDtoToEmployee(dto, employee);
 
         Employee saved = employeeRepository.save(employee);
+        List<Long> assignedDeviceIds = dto.getDeviceIds() != null
+                ? replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId)
+                : getEmployeeDeviceIds(saved.getId());
+        isapiEmployeeUserSyncService.syncEmployee(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
 
@@ -178,12 +193,13 @@ public class EmployeeService {
     }
 
     private EmployeeResponseDTO toResponseDTO(Employee employee) {
-        return toResponseDTO(employee, null, null);
+        return toResponseDTO(employee, null, null, null);
     }
 
     private EmployeeResponseDTO toResponseDTO(Employee employee,
                                                Map<Long, String> departmentNames,
-                                               Map<Long, String> positionNames) {
+                                               Map<Long, String> positionNames,
+                                               Map<Long, List<Long>> employeeDeviceIds) {
         EmployeeResponseDTO dto = new EmployeeResponseDTO();
         dto.setId(employee.getId());
         dto.setEmployeeId(employee.getEmployeeId());
@@ -218,6 +234,9 @@ public class EmployeeService {
         dto.setArea(employee.getArea());
         dto.setShiftType(employee.getShiftType());
         dto.setTimetableId(employee.getTimetableId());
+        dto.setDeviceIds(employeeDeviceIds != null
+                ? employeeDeviceIds.getOrDefault(employee.getId(), List.of())
+                : getEmployeeDeviceIds(employee.getId()));
         dto.setEmploymentStatus(employee.getEmploymentStatus());
         dto.setCreatedAt(employee.getCreatedAt());
         dto.setUpdatedAt(employee.getUpdatedAt());
@@ -244,6 +263,7 @@ public class EmployeeService {
 
     private List<EmployeeResponseDTO> mapEmployeeListToDTOs(List<Employee> employees) {
         if (employees.isEmpty()) return List.of();
+        List<Long> employeeIds = employees.stream().map(Employee::getId).toList();
         Set<Long> deptIds = employees.stream()
                 .filter(e -> e.getDepartmentId() != null)
                 .map(Employee::getDepartmentId)
@@ -256,9 +276,76 @@ public class EmployeeService {
                 .collect(Collectors.toMap(Department::getId, Department::getDepartmentName));
         Map<Long, String> posNames = positionRepository.findAllById(posIds).stream()
                 .collect(Collectors.toMap(Position::getId, Position::getPositionName));
+        Map<Long, List<Long>> employeeDeviceIds = employeeDeviceAccessRepository.findByEmployeeIdIn(employeeIds).stream()
+                .collect(Collectors.groupingBy(
+                        EmployeeDeviceAccess::getEmployeeId,
+                        Collectors.mapping(EmployeeDeviceAccess::getDeviceConfigId,
+                                Collectors.collectingAndThen(Collectors.toList(), list -> list.stream()
+                                        .distinct()
+                                        .sorted(Comparator.naturalOrder())
+                                        .toList()))
+                ));
         return employees.stream()
-                .map(e -> toResponseDTO(e, deptNames, posNames))
+                .map(e -> toResponseDTO(e, deptNames, posNames, employeeDeviceIds))
                 .collect(Collectors.toList());
+    }
+
+    private List<Long> replaceEmployeeDeviceAccess(Employee employee, List<Long> requestedDeviceIds, Long tenantId) {
+        List<Long> validDeviceIds = validateDeviceIds(requestedDeviceIds, tenantId);
+        employeeDeviceAccessRepository.deleteByEmployeeId(employee.getId());
+        if (validDeviceIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<EmployeeDeviceAccess> accessRows = validDeviceIds.stream()
+                .map(deviceId -> {
+                    EmployeeDeviceAccess access = new EmployeeDeviceAccess();
+                    access.setTenantId(employee.getTenantId());
+                    access.setEmployeeId(employee.getId());
+                    access.setDeviceConfigId(deviceId);
+                    return access;
+                })
+                .toList();
+        employeeDeviceAccessRepository.saveAll(accessRows);
+        return validDeviceIds;
+    }
+
+    private List<Long> validateDeviceIds(List<Long> requestedDeviceIds, Long tenantId) {
+        if (requestedDeviceIds == null || requestedDeviceIds.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> normalized = requestedDeviceIds.stream()
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.collectingAndThen(Collectors.toCollection(LinkedHashSet::new), List::copyOf));
+        if (normalized.isEmpty()) {
+            return List.of();
+        }
+
+        List<DeviceConfig> deviceConfigs = deviceConfigRepository.findAllById(normalized);
+        Set<Long> allowedIds = deviceConfigs.stream()
+                .filter(device -> tenantId == null || device.getTenantId() == null || tenantId.equals(device.getTenantId()))
+                .map(DeviceConfig::getId)
+                .collect(Collectors.toSet());
+
+        List<Long> invalidIds = normalized.stream()
+                .filter(id -> !allowedIds.contains(id))
+                .toList();
+        if (!invalidIds.isEmpty()) {
+            throw new BadRequestException("Invalid or unauthorized device ids: " + invalidIds);
+        }
+        return normalized;
+    }
+
+    private List<Long> getEmployeeDeviceIds(Long employeeId) {
+        if (employeeId == null) {
+            return Collections.emptyList();
+        }
+        return employeeDeviceAccessRepository.findByEmployeeId(employeeId).stream()
+                .map(EmployeeDeviceAccess::getDeviceConfigId)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private PaginatedResponse<EmployeeResponseDTO> buildPaginatedResponse(Page<Employee> page) {
@@ -275,6 +362,6 @@ public class EmployeeService {
 
     private String generateEmployeeId(Long tenantId) {
         long count = tenantId != null ? employeeRepository.countByTenantId(tenantId) + 1 : employeeRepository.count() + 1;
-        return String.format("EMP-%04d", count);
+        return String.format("EMP%04d", count);
     }
 }

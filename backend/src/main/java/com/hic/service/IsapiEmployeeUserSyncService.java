@@ -71,6 +71,23 @@ public class IsapiEmployeeUserSyncService {
     private String password;
 
     public void syncEmployee(Employee employee) {
+        syncEmployee(employee, List.of());
+    }
+
+    public void syncEmployee(Employee employee, List<Long> deviceConfigIds) {
+        List<Long> assignedDeviceIds = deviceConfigIds == null
+                ? List.of()
+                : deviceConfigIds.stream().filter(id -> id != null && id > 0).distinct().toList();
+
+        if (!assignedDeviceIds.isEmpty()) {
+            if (!StringUtils.hasText(isapiBaseUrl)) {
+                log.warn("Skipping device-scoped sync for employee {} because isapi.base-url is not configured", employee.getEmployeeId());
+                return;
+            }
+            assignedDeviceIds.forEach(deviceId -> syncEmployeeViaIsapiService(employee, deviceId));
+            return;
+        }
+
         IsapiUserInfoCreateRequestDTO request = buildRequest(employee);
         HttpHeaders headers = buildHeaders();
         String url = buildUserInfoRecordUrl();
@@ -85,7 +102,7 @@ public class IsapiEmployeeUserSyncService {
         } catch (HttpStatusCodeException ex) {
             if (ex.getStatusCode().value() == 404 && StringUtils.hasText(isapiBaseUrl)) {
                 log.warn("Direct ISAPI UserInfo endpoint returned 404 for {}. Retrying via isapi service API.", url);
-                syncEmployeeViaIsapiService(employee);
+                syncEmployeeViaIsapiService(employee, userSyncDeviceId);
                 return;
             }
             throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
@@ -167,8 +184,8 @@ public class IsapiEmployeeUserSyncService {
         return DEFAULT_DEVICE_BASE_URL;
     }
 
-    private void syncEmployeeViaIsapiService(Employee employee) {
-        String proxyPath = String.format(ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE, userSyncDeviceId);
+    private void syncEmployeeViaIsapiService(Employee employee, long deviceId) {
+        String proxyPath = String.format(ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE, deviceId);
         String url = trimTrailingSlash(isapiBaseUrl) + proxyPath;
         DeviceUserCreateRequest body = buildDeviceUserCreateRequest(employee);
 
@@ -182,7 +199,7 @@ public class IsapiEmployeeUserSyncService {
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw buildUpstreamApiException(url, response.getStatusCode(), response.getBody());
             }
-            log.info("Employee {} synced via isapi service endpoint {}", employee.getEmployeeId(), url);
+            log.info("Employee {} synced via isapi service endpoint {} (deviceConfigId={})", employee.getEmployeeId(), url, deviceId);
         } catch (HttpStatusCodeException ex) {
             throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
         } catch (ResourceAccessException ex) {

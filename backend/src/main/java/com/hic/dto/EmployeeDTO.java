@@ -8,6 +8,7 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 
 @Data
 public class EmployeeDTO {
@@ -52,4 +53,5 @@ public class EmployeeDTO {
     private String area;
     private String shiftType;
     private Long timetableId;
+    private List<Long> deviceIds;
 }

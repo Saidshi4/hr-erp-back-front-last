@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.BranchDTO;
 import com.hic.dto.ApiResponse;
 import com.hic.service.BranchService;
+import com.hic.util.TenantContext;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -18,27 +19,27 @@ public class BranchController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<BranchDTO>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(branchService.getAll()));
+        return ResponseEntity.ok(ApiResponse.success(branchService.getAll(TenantContext.getTenantId())));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<BranchDTO>> getById(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(branchService.getById(id)));
+        return ResponseEntity.ok(ApiResponse.success(branchService.getById(TenantContext.getTenantId(), id)));
     }
 
     @PostMapping
     public ResponseEntity<ApiResponse<BranchDTO>> create(@Valid @RequestBody BranchDTO dto) {
-        return ResponseEntity.ok(ApiResponse.success(branchService.create(dto)));
+        return ResponseEntity.ok(ApiResponse.success(branchService.create(TenantContext.getTenantId(), dto)));
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<BranchDTO>> update(@PathVariable Long id, @Valid @RequestBody BranchDTO dto) {
-        return ResponseEntity.ok(ApiResponse.success(branchService.update(id, dto)));
+        return ResponseEntity.ok(ApiResponse.success(branchService.update(TenantContext.getTenantId(), id, dto)));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
-        branchService.delete(id);
+        branchService.delete(TenantContext.getTenantId(), id);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

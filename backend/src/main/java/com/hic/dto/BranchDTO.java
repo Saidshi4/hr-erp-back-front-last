@@ -8,12 +8,13 @@ public class BranchDTO {
 
     private Long id;
 
-    @NotBlank(message = "Branch name is required")
-    private String branchName;
+    @NotBlank(message = "Name is required")
+    private String name;
 
-    @NotBlank(message = "Branch code is required")
-    private String branchCode;
+    private String code;
 
-    private String location;
+    private String city;
+    private String address;
+    private String status;
     private Boolean isHeadOffice;
 }

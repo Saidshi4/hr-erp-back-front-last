@@ -18,6 +18,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     // Tenant-aware methods
     Page<Employee> findByTenantId(Long tenantId, Pageable pageable);
+    Page<Employee> findByTenantIdAndBranchId(Long tenantId, Long branchId, Pageable pageable);
 
     List<Employee> findByTenantIdAndDepartmentId(Long tenantId, Long departmentId);
     List<Employee> findByTenantIdAndShiftType(Long tenantId, String shiftType);
@@ -31,6 +32,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Page<Employee> findByTenantIdAndDepartmentIdIn(Long tenantId, Collection<Long> departmentIds, Pageable pageable);
 
     long countByTenantId(Long tenantId);
+    long countByTenantIdAndBranchId(Long tenantId, Long branchId);
 
     long countByTenantIdAndEmploymentStatus(Long tenantId, EmploymentStatus status);
 

@@ -9,12 +9,7 @@ import java.util.Optional;
 
 @Repository
 public interface BranchRepository extends JpaRepository<Branch, Long> {
-    // Tenant-aware methods
     List<Branch> findByTenantId(Long tenantId);
-    Optional<Branch> findByTenantIdAndBranchCode(Long tenantId, String branchCode);
-    long countByTenantId(Long tenantId);
-
-    // Legacy methods
-    Optional<Branch> findByBranchCode(String branchCode);
-    boolean existsByBranchCode(String branchCode);
+    Optional<Branch> findByIdAndTenantId(Long id, Long tenantId);
+    boolean existsByTenantIdAndNameIgnoreCase(Long tenantId, String name);
 }

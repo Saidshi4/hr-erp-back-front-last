@@ -17,8 +17,8 @@ public class DepartmentController {
     private final DepartmentService departmentService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<DepartmentDTO>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(departmentService.getAll()));
+    public ResponseEntity<ApiResponse<List<DepartmentDTO>>> getAll(@RequestParam(required = false) Long branchId) {
+        return ResponseEntity.ok(ApiResponse.success(departmentService.getAll(branchId)));
     }
 
     @GetMapping("/branch/{branchId}")

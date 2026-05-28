@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
-import { Branch, Department, DeviceConfig, Employee, Position, Timetable } from '../types'
+import { useBranchStore } from '../store/branchStore.ts'
+import { Department, DeviceConfig, Employee, Position, Timetable } from '../types'
 import { employeeApi } from '../api/employeeApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
-import { branchApi } from '../api/branchApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
 import { deviceUserApi } from '../api/deviceUserApi.ts'
 import { timetableApi } from '../api/timetableApi.ts'
@@ -132,10 +132,10 @@ function getAvatarColor(name: string) {
 export default function EmployeesPage() {
   const defaultDeviceId = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID || 1)
   const { employees, loading, error, fetchEmployees, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
+  const { branches, fetchBranches } = useBranchStore()
   const [search, setSearch] = useState('')
   const [departments, setDepartments] = useState<Department[]>([])
   const [positions, setPositions] = useState<Position[]>([])
-  const [branches, setBranches] = useState<Branch[]>([])
   const [timetables, setTimetables] = useState<Timetable[]>([])
   const [devices, setDevices] = useState<DeviceConfig[]>([])
   const [deviceSearch, setDeviceSearch] = useState('')
@@ -168,7 +168,7 @@ export default function EmployeesPage() {
     fetchEmployees(0, 20)
     departmentApi.getAll().then((res) => setDepartments(res.data?.data ?? []))
     positionApi.getAll().then((res) => setPositions(res.data?.data ?? []))
-    branchApi.getAll().then((res) => setBranches(res.data?.data ?? []))
+    fetchBranches()
     timetableApi.getAll().then((res) => setTimetables(res.data?.data ?? []))
     deviceApi.getAll().then((res) => setDevices(extractDevices(res.data)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -204,7 +204,7 @@ export default function EmployeesPage() {
 
   const branchLabelById = (branchId?: number) => {
     if (!branchId) return '—'
-    return branches.find((b) => b.id === branchId)?.branchName || '—'
+    return branches.find((b) => b.id === branchId)?.name || '—'
   }
 
   const filteredDevices = devices.filter((d) => {
@@ -870,7 +870,7 @@ export default function EmployeesPage() {
                   <select value={form.branchId} onChange={(e) => setFormField('branchId', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     <option value="">Seçin...</option>
                     {branches.map((b) => (
-                      <option key={b.id} value={b.id}>{b.branchName}</option>
+                      <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
                 </div>

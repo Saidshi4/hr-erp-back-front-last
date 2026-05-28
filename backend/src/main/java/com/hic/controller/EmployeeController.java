@@ -23,8 +23,9 @@ public class EmployeeController {
     public ResponseEntity<PaginatedResponse<EmployeeResponseDTO>> getAll(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(required = false) String sortBy) {
-        return ResponseEntity.ok(employeeService.getAll(page, size, sortBy));
+            @RequestParam(required = false) String sortBy,
+            @RequestParam(required = false) Long branchId) {
+        return ResponseEntity.ok(employeeService.getAll(page, size, sortBy, branchId));
     }
 
     @GetMapping("/{id}")

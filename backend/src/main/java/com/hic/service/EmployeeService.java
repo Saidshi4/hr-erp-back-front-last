@@ -46,13 +46,24 @@ public class EmployeeService {
     private final DeviceConfigRepository deviceConfigRepository;
     private final EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
+    private final UserScopeService userScopeService;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
+        return getAll(page, size, sortBy, null);
+    }
+
+    public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy, Long requestedBranchId) {
         Pageable pageable = PageRequest.of(page, size, Sort.by(sortBy != null ? sortBy : "id"));
         Long tenantId = TenantContext.getTenantId();
-        Page<Employee> employeePage = tenantId != null
-                ? employeeRepository.findByTenantId(tenantId, pageable)
-                : employeeRepository.findAll(pageable);
+        Long effectiveBranchId = userScopeService.resolveBranchScope(requestedBranchId);
+        Page<Employee> employeePage;
+        if (tenantId != null && effectiveBranchId != null) {
+            employeePage = employeeRepository.findByTenantIdAndBranchId(tenantId, effectiveBranchId, pageable);
+        } else if (tenantId != null) {
+            employeePage = employeeRepository.findByTenantId(tenantId, pageable);
+        } else {
+            employeePage = employeeRepository.findAll(pageable);
+        }
         return buildPaginatedResponse(employeePage);
     }
 
@@ -63,13 +74,16 @@ public class EmployeeService {
     }
 
     public PaginatedResponse<EmployeeResponseDTO> getByBranch(Long branchId, int page, int size) {
-        List<Department> departments = departmentRepository.findByBranchId(branchId);
-        List<Long> deptIds = departments.stream().map(Department::getId).collect(Collectors.toList());
         Pageable pageable = PageRequest.of(page, size);
         Long tenantId = TenantContext.getTenantId();
         Page<Employee> employeePage = tenantId != null
-                ? employeeRepository.findByTenantIdAndDepartmentIdIn(tenantId, deptIds, pageable)
-                : employeeRepository.findByDepartmentIdIn(deptIds, pageable);
+                ? employeeRepository.findByTenantIdAndBranchId(tenantId, branchId, pageable)
+                : employeeRepository.findByDepartmentIdIn(
+                        departmentRepository.findByBranchId(branchId).stream()
+                                .map(Department::getId)
+                                .toList(),
+                        pageable
+                );
         return buildPaginatedResponse(employeePage);
     }
 

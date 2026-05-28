@@ -5,6 +5,7 @@ import { departmentApi } from '../api/departmentApi.ts'
 import { employeeApi } from '../api/employeeApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
 import { useDebounce } from '../hooks/useSearch.ts'
+import { useBranchStore } from '../store/branchStore.ts'
 
 interface DepartmentFormData {
   departmentName: string
@@ -41,6 +42,8 @@ export default function DepartmentsPage() {
   const [parentSearch, setParentSearch] = useState('')
   const [deviceSearch, setDeviceSearch] = useState('')
   const [devices, setDevices] = useState<DeviceConfig[]>([])
+  const [selectedBranchId, setSelectedBranchId] = useState<number | ''>('')
+  const { branches, fetchBranches } = useBranchStore()
 
   // Assign employees modal
   const [assignDept, setAssignDept] = useState<Department | null>(null)
@@ -50,11 +53,11 @@ export default function DepartmentsPage() {
   const [loadingEmployees, setLoadingEmployees] = useState(false)
   const [assignSaving, setAssignSaving] = useState(false)
 
-  const fetchDepartments = async () => {
+  const fetchDepartments = async (branchId?: number) => {
     setLoading(true)
     setError(null)
     try {
-      const res = await departmentApi.getAll()
+      const res = await departmentApi.getAll(branchId)
       setDepartments(res.data?.data ?? [])
     } catch {
       setError('Departamentlər yüklənərkən xəta baş verdi.')
@@ -65,8 +68,13 @@ export default function DepartmentsPage() {
 
   useEffect(() => {
     fetchDepartments()
+    fetchBranches()
     deviceApi.getAll().then(res => setDevices(res.data?.data ?? [])).catch(() => {})
-  }, [])
+  }, [fetchBranches])
+
+  useEffect(() => {
+    fetchDepartments(selectedBranchId === '' ? undefined : selectedBranchId)
+  }, [selectedBranchId])
 
   const openCreate = () => {
     setEditingDept(null)
@@ -211,7 +219,7 @@ export default function DepartmentsPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={fetchDepartments}
+              onClick={() => fetchDepartments(selectedBranchId === '' ? undefined : selectedBranchId)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,7 +242,7 @@ export default function DepartmentsPage() {
 
         {/* Search */}
         {!loading && !error && (
-          <div className="mb-4">
+          <div className="mb-4 flex flex-col md:flex-row gap-2">
             <input
               type="text"
               placeholder="Departament axtar..."
@@ -242,6 +250,16 @@ export default function DepartmentsPage() {
               onChange={(e) => setSearch(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
             />
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : '')}
+              className="w-full md:w-64 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-purple-300"
+            >
+              <option value="">Bütün filiallar</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
           </div>
         )}
 

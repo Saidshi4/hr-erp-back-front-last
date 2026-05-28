@@ -5,6 +5,7 @@ import { useAuthStore } from './store/authStore.ts'
 const LoginPage = lazy(() => import('./pages/LoginPage.tsx'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage.tsx'))
+const BranchesPage = lazy(() => import('./pages/BranchesPage.tsx'))
 const DepartmentsPage = lazy(() => import('./pages/DepartmentsPage.tsx'))
 const PositionsPage = lazy(() => import('./pages/PositionsPage.tsx'))
 const AttendancePage = lazy(() => import('./pages/AttendancePage.tsx'))
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/branches" element={<ProtectedRoute><AppLayout><BranchesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/departments" element={<ProtectedRoute><AppLayout><DepartmentsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/positions" element={<ProtectedRoute><AppLayout><PositionsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/attendance" element={<ProtectedRoute><AppLayout><AttendancePage /></AppLayout></ProtectedRoute>} />

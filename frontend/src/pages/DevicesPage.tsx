@@ -352,7 +352,7 @@ export default function DevicesPage() {
                 >
                   <option value="">Select branch...</option>
                   {branches.map((b) => (
-                    <option key={b.id} value={b.id}>{b.branchName}</option>
+                    <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
               </div>

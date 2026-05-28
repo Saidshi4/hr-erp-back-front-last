@@ -17,17 +17,23 @@ public class Branch {
     @Column(name = "tenant_id", nullable = false)
     private Long tenantId;
 
-    @Column(name = "branch_name", nullable = false)
-    private String branchName;
+    @Column(name = "name", nullable = false)
+    private String name;
 
-    @Column(name = "branch_code", nullable = false)
-    private String branchCode;
+    @Column(name = "code")
+    private String code;
 
-    @Column(name = "location")
-    private String location;
+    @Column(name = "city")
+    private String city;
+
+    @Column(name = "address")
+    private String address;
 
     @Column(name = "is_head_office")
     private Boolean isHeadOffice = false;
+
+    @Column(name = "status", nullable = false)
+    private String status = "ACTIVE";
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

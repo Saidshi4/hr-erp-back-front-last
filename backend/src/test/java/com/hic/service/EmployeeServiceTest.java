@@ -57,6 +57,9 @@ class EmployeeServiceTest {
     @Mock
     private IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
+    @Mock
+    private UserScopeService userScopeService;
+
     @InjectMocks
     private EmployeeService employeeService;
 
@@ -86,6 +89,7 @@ class EmployeeServiceTest {
         testEmployeeDTO.setHireDate(LocalDate.now());
 
         lenient().when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(anyLong())).thenReturn(Optional.empty());
+        lenient().when(userScopeService.resolveBranchScope(any())).thenReturn(null);
     }
 
     @Test

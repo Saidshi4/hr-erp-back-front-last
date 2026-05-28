@@ -9,9 +9,11 @@ export interface User {
 
 export interface Branch {
   id: number
-  branchName: string
-  branchCode: string
-  location?: string
+  name: string
+  code?: string
+  city?: string
+  address?: string
+  status?: 'ACTIVE' | 'INACTIVE' | string
   isHeadOffice?: boolean
 }
 

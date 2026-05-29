@@ -2,6 +2,7 @@ package com.hic.service;
 
 import com.hic.dto.EmployeeDTO;
 import com.hic.dto.EmployeeResponseDTO;
+import com.hic.dto.EmployeeSearchResultDTO;
 import com.hic.exception.BadRequestException;
 import com.hic.exception.DeviceSyncException;
 import com.hic.exception.ResourceNotFoundException;
@@ -227,5 +228,20 @@ class EmployeeServiceTest {
         // Verify no extra findById calls (N+1 prevention)
         verify(departmentRepository, never()).findById(anyLong());
         verify(positionRepository, never()).findById(anyLong());
+    }
+
+    @Test
+    void searchEmployees_matchesFinAndReturnsMinimalResults() {
+        testEmployee.setFinNumber("FIN12345");
+        when(employeeRepository.searchMinimal(isNull(), eq("FIN12345"), any(Pageable.class)))
+                .thenReturn(List.of(testEmployee));
+        when(departmentRepository.findAllById(anyCollection())).thenReturn(List.of(testDepartment));
+
+        List<EmployeeSearchResultDTO> result = employeeService.searchEmployees("FIN12345");
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getEmployeePk()).isEqualTo(1L);
+        assertThat(result.get(0).getFinNumber()).isEqualTo("FIN12345");
+        assertThat(result.get(0).getDepartmentName()).isEqualTo("Engineering");
     }
 }

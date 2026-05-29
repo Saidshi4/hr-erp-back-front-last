@@ -3,6 +3,8 @@ package com.hic.controller;
 import com.hic.dto.ApiResponse;
 import com.hic.dto.AttendanceDTO;
 import com.hic.dto.AttendanceLogDTO;
+import com.hic.dto.EmployeeAttendanceRowDTO;
+import com.hic.dto.EmployeeAttendanceSummaryDTO;
 import com.hic.dto.AttendanceReportRowDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
 import com.hic.dto.DoorAttendanceSyncResultDTO;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 
 @RestController
@@ -38,11 +41,21 @@ public class AttendanceController {
     }
 
     @GetMapping("/employee/{employeeId}")
-    public ResponseEntity<ApiResponse<List<AttendanceLogDTO>>> getLogsForEmployee(
+    public ResponseEntity<ApiResponse<?>> getLogsForEmployee(
             @PathVariable Long employeeId,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        return ResponseEntity.ok(ApiResponse.success(attendanceService.getLogsForEmployee(employeeId, start, end)));
+            @RequestParam String start,
+            @RequestParam String end) {
+        try {
+            LocalDate parsedStart = LocalDate.parse(start);
+            LocalDate parsedEnd = LocalDate.parse(end);
+            List<EmployeeAttendanceRowDTO> rows = attendanceService.getEmployeeAttendance(employeeId, parsedStart, parsedEnd);
+            return ResponseEntity.ok(ApiResponse.success(rows));
+        } catch (DateTimeParseException ignored) {
+            LocalDateTime parsedStart = LocalDateTime.parse(start);
+            LocalDateTime parsedEnd = LocalDateTime.parse(end);
+            List<AttendanceLogDTO> logs = attendanceService.getLogsForEmployee(employeeId, parsedStart, parsedEnd);
+            return ResponseEntity.ok(ApiResponse.success(logs));
+        }
     }
 
     @GetMapping("/range")
@@ -58,6 +71,14 @@ public class AttendanceController {
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
         return ResponseEntity.ok(ApiResponse.success(attendanceService.getDailySummary(employeeId, start, end)));
+    }
+
+    @GetMapping("/employee/{employeeId}/summary")
+    public ResponseEntity<ApiResponse<EmployeeAttendanceSummaryDTO>> getEmployeeAttendanceSummary(
+            @PathVariable Long employeeId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        return ResponseEntity.ok(ApiResponse.success(attendanceService.getEmployeeAttendanceSummary(employeeId, start, end)));
     }
 
     @PostMapping("/summary/generate/{employeeId}")

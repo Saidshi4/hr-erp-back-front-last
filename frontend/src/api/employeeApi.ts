@@ -1,5 +1,5 @@
 import client from './client.ts'
-import { Employee, PaginatedResponse } from '../types'
+import { ApiResponse, Employee, EmployeeSearchResult, PaginatedResponse } from '../types'
 
 export const employeeApi = {
   getAll: (page = 0, size = 20, branchId?: number) =>
@@ -12,6 +12,8 @@ export const employeeApi = {
   delete: (id: number) => client.delete(`/employees/${id}`),
   search: (q: string, page = 0, size = 20) =>
     client.get<PaginatedResponse<Employee>>(`/employees/search?q=${q}&page=${page}&size=${size}`),
+  searchEmployees: (q: string) =>
+    client.get<ApiResponse<EmployeeSearchResult[]>>(`/employees/search?q=${encodeURIComponent(q)}`),
   getByBranch: (branchId: number, page = 0, size = 20) =>
     client.get<PaginatedResponse<Employee>>(`/employees/branch/${branchId}?page=${page}&size=${size}`),
   getByDepartment: (departmentId: number) =>

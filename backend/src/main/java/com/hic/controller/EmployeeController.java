@@ -52,11 +52,14 @@ public class EmployeeController {
     }
 
     @GetMapping("/search")
-    public ResponseEntity<PaginatedResponse<EmployeeResponseDTO>> search(
+    public ResponseEntity<?> search(
             @RequestParam String q,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(employeeService.search(q, page, size));
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size) {
+        if (page != null || size != null) {
+            return ResponseEntity.ok(employeeService.search(q, page != null ? page : 0, size != null ? size : 20));
+        }
+        return ResponseEntity.ok(ApiResponse.success(employeeService.searchEmployees(q)));
     }
 
     @PostMapping

@@ -29,6 +29,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     Optional<Employee> findByTenantIdAndEmployeeId(Long tenantId, String employeeId);
 
+    Optional<Employee> findByTenantIdAndId(Long tenantId, Long id);
+
     Page<Employee> findByTenantIdAndDepartmentIdIn(Long tenantId, Collection<Long> departmentIds, Pageable pageable);
 
     long countByTenantId(Long tenantId);
@@ -41,11 +43,25 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     @Query("SELECT e FROM Employee e WHERE e.tenantId = :tenantId AND (" +
            "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(CONCAT(e.firstName, ' ', e.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.employeeId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.finNumber) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.email) LIKE LOWER(CONCAT('%', :query, '%')))")
     Page<Employee> searchByTenant(@Param("tenantId") Long tenantId,
                                    @Param("query") String query,
                                    Pageable pageable);
+
+    @Query("SELECT e FROM Employee e WHERE e.tenantId = :tenantId " +
+           "AND (:branchId IS NULL OR e.branchId = :branchId) AND (" +
+           "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(CONCAT(e.firstName, ' ', e.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.employeeId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.finNumber) LIKE LOWER(CONCAT('%', :query, '%')))")
+    List<Employee> searchMinimalByTenant(@Param("tenantId") Long tenantId,
+                                         @Param("branchId") Long branchId,
+                                         @Param("query") String query,
+                                         Pageable pageable);
 
     // Legacy non-tenant methods (backward compatibility)
     List<Employee> findByDepartmentId(Long departmentId);
@@ -66,9 +82,21 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     @Query("SELECT e FROM Employee e WHERE " +
            "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(CONCAT(e.firstName, ' ', e.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.employeeId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.finNumber) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
            "LOWER(e.email) LIKE LOWER(CONCAT('%', :query, '%'))")
     Page<Employee> search(@Param("query") String query, Pageable pageable);
+
+    @Query("SELECT e FROM Employee e WHERE (:branchId IS NULL OR e.branchId = :branchId) AND (" +
+           "LOWER(e.firstName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.lastName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(CONCAT(e.firstName, ' ', e.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.employeeId) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+           "LOWER(e.finNumber) LIKE LOWER(CONCAT('%', :query, '%')))")
+    List<Employee> searchMinimal(@Param("branchId") Long branchId,
+                                 @Param("query") String query,
+                                 Pageable pageable);
 
     long countByDepartmentId(Long departmentId);
 

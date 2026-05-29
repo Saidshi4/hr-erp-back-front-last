@@ -194,6 +194,35 @@ export interface Holiday {
   scopeType?: string
 }
 
+export interface HolidayPermission {
+  id: number
+  name: string
+  description?: string
+  startDate: string
+  endDate: string
+  applyScope: 'COMPANY' | 'DEPARTMENT' | 'BRANCH' | 'EMPLOYEE'
+  targetIds?: number[]
+  employeeIds?: number[]
+  status: 'ACTIVE' | 'INACTIVE'
+  createdBy?: number
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface AnnualLeaveBalance {
+  id: number
+  employeeId: number
+  employeeName?: string
+  year: number
+  entitlementDays: number
+  usedDays: number
+  remainingDays: number
+  carryoverDays: number
+  status: 'ACTIVE' | 'INACTIVE'
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface Permission {
   id: number
   tenantId?: number

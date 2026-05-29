@@ -12,6 +12,8 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage.tsx'))
 const ReportsPage = lazy(() => import('./pages/ReportsPage.tsx'))
 const WorkSchedulePage = lazy(() => import('./pages/WorkSchedulePage.tsx'))
 const LeavesPage = lazy(() => import('./pages/LeavesPage.tsx'))
+const HolidayPermissionsPage = lazy(() => import('./pages/HolidayPermissionsPage.tsx'))
+const AnnualLeavePage = lazy(() => import('./pages/AnnualLeavePage.tsx'))
 const DevicesPage = lazy(() => import('./pages/DevicesPage.tsx'))
 const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage.tsx'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'))
@@ -44,6 +46,8 @@ export default function App() {
           <Route path="/reports" element={<ProtectedRoute><AppLayout><ReportsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/work-schedule" element={<ProtectedRoute><AppLayout><WorkSchedulePage /></AppLayout></ProtectedRoute>} />
           <Route path="/leaves" element={<ProtectedRoute><AppLayout><LeavesPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/holiday-permissions" element={<ProtectedRoute><AppLayout><HolidayPermissionsPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/annual-leave" element={<ProtectedRoute><AppLayout><AnnualLeavePage /></AppLayout></ProtectedRoute>} />
           <Route path="/devices" element={<ProtectedRoute><AppLayout><DevicesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/access-logs" element={<ProtectedRoute><AppLayout><AccessLogsPage /></AppLayout></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />

@@ -307,6 +307,33 @@ export interface AttendanceReportFilters {
   area?: string
 }
 
+export interface TabelFilters {
+  year: number
+  month: number
+  branchId?: number
+  departmentId?: number
+  positionId?: number
+  search?: string
+}
+
+export interface TabelRow {
+  employeePk: number
+  fin?: string
+  fullName: string
+  position: string
+  daily: Record<string, number | string | null>
+  workingDays: number
+  totalHours: number
+}
+
+export interface TabelMonthlyData {
+  year: number
+  month: number
+  daysInMonth: number
+  employees: number
+  rows: TabelRow[]
+}
+
 export interface DeviceConfig {
   id: number
   deviceId: string

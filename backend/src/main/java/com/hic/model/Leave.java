@@ -40,7 +40,19 @@ public class Leave {
     private LocalDate endDate;
 
     @Column(name = "status", nullable = false)
-    private String status = "ACTIVE";
+    private String status = "PENDING";
+
+    @Column(name = "reason", columnDefinition = "TEXT")
+    private String reason;
+
+    @Column(name = "created_by")
+    private Long createdBy;
+
+    @Column(name = "approved_by")
+    private Long approvedBy;
+
+    @Column(name = "approval_date")
+    private LocalDateTime approvalDate;
 
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

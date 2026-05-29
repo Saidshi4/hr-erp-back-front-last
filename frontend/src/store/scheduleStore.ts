@@ -82,7 +82,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     set({ loading: true, error: null })
     try {
       const res = await permissionApi.getAll()
-      set({ permissions: res.data?.data ?? [], loading: false })
+      set({ permissions: res.data?.data?.content ?? [], loading: false })
     } catch (e: unknown) {
       set({ error: (e as Error).message, loading: false })
     }
@@ -96,7 +96,7 @@ export const useScheduleStore = create<ScheduleState>((set, get) => ({
     await get().fetchPermissions()
   },
   deletePermission: async (id) => {
-    await permissionApi.delete(id)
+    await permissionApi.remove(id)
     await get().fetchPermissions()
   },
 

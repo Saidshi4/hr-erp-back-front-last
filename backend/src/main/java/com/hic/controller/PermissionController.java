@@ -3,6 +3,7 @@ package com.hic.controller;
 import com.hic.dto.ApiResponse;
 import com.hic.dto.PermissionDTO;
 import com.hic.dto.PermissionTypeDTO;
+import com.hic.dto.PaginatedResponse;
 import com.hic.service.PermissionService;
 import com.hic.service.PermissionTypeService;
 import lombok.RequiredArgsConstructor;
@@ -19,8 +20,15 @@ public class PermissionController {
     private final PermissionTypeService permissionTypeService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<PermissionDTO>>> getAll() {
-        return ResponseEntity.ok(ApiResponse.success(permissionService.getAll()));
+    public ResponseEntity<ApiResponse<PaginatedResponse<PermissionDTO>>> getAll(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String start,
+            @RequestParam(required = false) String end,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ResponseEntity.ok(ApiResponse.success(permissionService.getAll(search, status, type, start, end, page, size)));
     }
 
     @GetMapping("/{id}")
@@ -38,10 +46,27 @@ public class PermissionController {
         return ResponseEntity.ok(ApiResponse.success(permissionService.update(id, dto)));
     }
 
+    @PostMapping("/{id}/approve")
+    public ResponseEntity<ApiResponse<PermissionDTO>> approve(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(permissionService.approve(id)));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ResponseEntity<ApiResponse<PermissionDTO>> reject(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(permissionService.reject(id)));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable Long id) {
         permissionService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @GetMapping("/employee/{employeePk}")
+    public ResponseEntity<ApiResponse<List<PermissionDTO>>> getEmployeeHistory(
+            @PathVariable Long employeePk,
+            @RequestParam(required = false) Integer year) {
+        return ResponseEntity.ok(ApiResponse.success(permissionService.getEmployeeHistory(employeePk, year)));
     }
 
     @GetMapping("/types")

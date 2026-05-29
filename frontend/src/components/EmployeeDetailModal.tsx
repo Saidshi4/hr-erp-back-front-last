@@ -10,6 +10,7 @@ interface EmployeeDetailModalProps {
   onClose: () => void
   onEdit: (employee: Employee) => void
   onDelete: (employee: Employee) => void
+  onViewPermissionHistory?: (employee: Employee) => void
 }
 
 const statusLabel = (status: Employee['employmentStatus']) => {
@@ -34,6 +35,7 @@ export default function EmployeeDetailModal({
   onClose,
   onEdit,
   onDelete,
+  onViewPermissionHistory,
 }: EmployeeDetailModalProps) {
   // Close on Escape key
   useEffect(() => {
@@ -160,6 +162,14 @@ export default function EmployeeDetailModal({
                   </button>
                 </div>
               </div>
+              {onViewPermissionHistory && (
+                <button
+                  onClick={() => onViewPermissionHistory(employee)}
+                  className="mt-3 w-full px-3 py-2 rounded-lg text-sm font-medium border border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                >
+                  İcazə tarixçəsi
+                </button>
+              )}
             </div>
 
             {/* Right side: employment + security + compensation */}

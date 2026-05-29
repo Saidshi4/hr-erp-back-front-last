@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout.tsx'
 import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
@@ -130,6 +131,7 @@ function getAvatarColor(name: string) {
 }
 
 export default function EmployeesPage() {
+  const navigate = useNavigate()
   const defaultDeviceId = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID || 1)
   const { employees, loading, error, fetchEmployees, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
   const { branches, fetchBranches } = useBranchStore()
@@ -1080,6 +1082,10 @@ export default function EmployeesPage() {
           onClose={closeProfile}
           onEdit={(emp) => { closeProfile(); openEdit(emp) }}
           onDelete={(emp) => setDeleteConfirm(emp)}
+          onViewPermissionHistory={(emp) => {
+            closeProfile()
+            navigate(`/leaves?employeePk=${emp.id}&year=${new Date().getFullYear()}`)
+          }}
         />
       )}
 

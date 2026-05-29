@@ -197,6 +197,7 @@ export interface Holiday {
 export interface Permission {
   id: number
   tenantId?: number
+  permissionTypeId?: number
   name: string
   description?: string
   leaveType: string
@@ -205,6 +206,15 @@ export interface Permission {
   startDate: string
   endDate: string
   status: string
+  reason?: string
+  createdBy?: number
+  createdAt?: string
+  updatedAt?: string
+  approvedBy?: number
+  approvalDate?: string
+  employeeName?: string
+  employeeId?: string
+  finNumber?: string
 }
 
 export interface PermissionType {

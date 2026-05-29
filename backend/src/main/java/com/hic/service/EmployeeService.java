@@ -1,6 +1,7 @@
 package com.hic.service;
 
 import com.hic.dto.EmployeeDTO;
+import com.hic.dto.EmployeeSearchResultDTO;
 import com.hic.dto.EmployeeResponseDTO;
 import com.hic.dto.PaginatedResponse;
 import com.hic.exception.BadRequestException;
@@ -110,6 +111,45 @@ public class EmployeeService {
                 ? employeeRepository.searchByTenant(tenantId, query, pageable)
                 : employeeRepository.search(query, pageable);
         return buildPaginatedResponse(employeePage);
+    }
+
+    public List<EmployeeSearchResultDTO> searchEmployees(String query) {
+        String normalizedQuery = query != null ? query.trim() : "";
+        if (normalizedQuery.isEmpty()) {
+            return List.of();
+        }
+
+        Pageable pageable = PageRequest.of(0, 20, Sort.by("firstName").ascending().and(Sort.by("lastName").ascending()));
+        Long tenantId = TenantContext.getTenantId();
+        Long branchId = userScopeService.resolveBranchScope(null);
+        List<Employee> employees = tenantId != null
+                ? employeeRepository.searchMinimalByTenant(tenantId, branchId, normalizedQuery, pageable)
+                : employeeRepository.searchMinimal(branchId, normalizedQuery, pageable);
+
+        Map<Long, String> departmentNames = departmentRepository.findAllById(
+                        employees.stream()
+                                .map(Employee::getDepartmentId)
+                                .filter(java.util.Objects::nonNull)
+                                .collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(Department::getId, Department::getDepartmentName));
+
+        return employees.stream()
+                .map(employee -> {
+                    EmployeeSearchResultDTO dto = new EmployeeSearchResultDTO();
+                    dto.setEmployeePk(employee.getId());
+                    dto.setEmployeeId(employee.getEmployeeId());
+                    dto.setFirstName(employee.getFirstName());
+                    dto.setLastName(employee.getLastName());
+                    dto.setFinNumber(employee.getFinNumber());
+                    dto.setDepartmentId(employee.getDepartmentId());
+                    dto.setDepartmentName(employee.getDepartmentId() != null
+                            ? departmentNames.get(employee.getDepartmentId())
+                            : null);
+                    dto.setBranchId(employee.getBranchId());
+                    return dto;
+                })
+                .toList();
     }
 
     @Transactional

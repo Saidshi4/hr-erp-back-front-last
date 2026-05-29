@@ -28,6 +28,14 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);
 
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.tenantId = :tenantId AND lr.employeeId = :employeeId " +
+           "AND lr.startDate <= :end AND lr.endDate >= :start AND lr.status = 'APPROVED'")
+    List<LeaveRequest> findApprovedByTenantAndEmployeeIdAndDateRange(
+            @Param("tenantId") Long tenantId,
+            @Param("employeeId") Long employeeId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
+
     // Legacy non-tenant methods
     List<LeaveRequest> findByEmployeeId(Long employeeId);
     List<LeaveRequest> findByStatus(LeaveStatus status);
@@ -37,6 +45,13 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, Long
            "AND lr.startDate <= :end AND lr.endDate >= :start")
     List<LeaveRequest> findByEmployeeIdsAndDateRange(
             @Param("employeeIds") List<Long> employeeIds,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end);
+
+    @Query("SELECT lr FROM LeaveRequest lr WHERE lr.employeeId = :employeeId " +
+           "AND lr.startDate <= :end AND lr.endDate >= :start AND lr.status = 'APPROVED'")
+    List<LeaveRequest> findApprovedByEmployeeIdAndDateRange(
+            @Param("employeeId") Long employeeId,
             @Param("start") LocalDate start,
             @Param("end") LocalDate end);
 }

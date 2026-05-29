@@ -84,6 +84,17 @@ export interface Employee {
   updatedAt?: string
 }
 
+export interface EmployeeSearchResult {
+  employeePk: number
+  employeeId: string
+  firstName: string
+  lastName: string
+  finNumber?: string
+  departmentId?: number
+  departmentName?: string
+  branchId?: number
+}
+
 export interface AttendanceLog {
   id: number
   employeeId: number
@@ -93,6 +104,24 @@ export interface AttendanceLog {
   eventType?: string
   status?: string
   createdAt?: string
+}
+
+export interface EmployeeAttendanceRow {
+  date: string
+  checkInTime?: string
+  checkOutTime?: string
+  hoursWorked?: number
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE'
+  notes?: string
+}
+
+export interface EmployeeAttendanceSummary {
+  totalDays: number
+  workingDays: number
+  totalHours: number
+  absentDays: number
+  lateDays: number
+  leaveDays: number
 }
 
 export interface DoorAttendanceSyncResult {

@@ -1,15 +1,19 @@
 import client from './client.ts'
-import { AttendanceReportFilters } from '../types'
+import { ApiResponse, AttendanceReportFilters, EmployeeAttendanceRow, EmployeeAttendanceSummary } from '../types'
 
 export const attendanceApi = {
   getLogs: (employeeId: number, start: string, end: string) =>
     client.get(`/attendance/employee/${employeeId}?start=${start}&end=${end}`),
+  getEmployeeAttendance: (employeePk: number, start: string, end: string) =>
+    client.get<ApiResponse<EmployeeAttendanceRow[]>>(`/attendance/employee/${employeePk}?start=${start}&end=${end}`),
   getRange: (start: string, end: string) =>
     client.get(`/attendance/range?start=${start}&end=${end}`),
   getAccessLogs: (params?: { deviceId?: number; employeeNo?: string; limit?: number }) =>
     client.get('/logs/attendance', { params }),
   getSummary: (employeeId: number, start: string, end: string) =>
     client.get(`/attendance/summary/${employeeId}?start=${start}&end=${end}`),
+  getEmployeeAttendanceSummary: (employeePk: number, start: string, end: string) =>
+    client.get<ApiResponse<EmployeeAttendanceSummary>>(`/attendance/employee/${employeePk}/summary?start=${start}&end=${end}`),
   log: (data: object) => client.post('/attendance/log', data),
   syncDoor: (params: { entryDeviceId: number; exitDeviceId: number; start: string; end: string; limit?: number }) =>
     client.post('/attendance/sync-door', null, { params }),

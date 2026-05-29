@@ -33,4 +33,17 @@ public interface EmployeePermissionRepository extends JpaRepository<EmployeePerm
     List<EmployeePermission> findByDateRange(@Param("tenantId") Long tenantId,
                                              @Param("startDate") LocalDate startDate,
                                              @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT e FROM EmployeePermission e WHERE e.tenantId = :tenantId AND e.employeeId = :employeeId " +
+           "AND e.status IN ('ACTIVE', 'APPROVED') AND e.startDate <= :endDate AND e.endDate >= :startDate")
+    List<EmployeePermission> findByTenantIdAndEmployeeIdAndDateRange(@Param("tenantId") Long tenantId,
+                                                                     @Param("employeeId") Long employeeId,
+                                                                     @Param("startDate") LocalDate startDate,
+                                                                     @Param("endDate") LocalDate endDate);
+
+    @Query("SELECT e FROM EmployeePermission e WHERE e.employeeId = :employeeId " +
+           "AND e.status IN ('ACTIVE', 'APPROVED') AND e.startDate <= :endDate AND e.endDate >= :startDate")
+    List<EmployeePermission> findByEmployeeIdAndDateRange(@Param("employeeId") Long employeeId,
+                                                          @Param("startDate") LocalDate startDate,
+                                                          @Param("endDate") LocalDate endDate);
 }

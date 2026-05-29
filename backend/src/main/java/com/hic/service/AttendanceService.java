@@ -1,6 +1,8 @@
 package com.hic.service;
 
 import com.hic.dto.AttendanceDTO;
+import com.hic.dto.EmployeeAttendanceRowDTO;
+import com.hic.dto.EmployeeAttendanceSummaryDTO;
 import com.hic.dto.AttendanceLogDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
 import com.hic.exception.ResourceNotFoundException;
@@ -8,10 +10,16 @@ import com.hic.model.AttendanceLog;
 import com.hic.model.DailyAttendanceSummary;
 import com.hic.model.DailyAttendanceSummary.AttendanceStatus;
 import com.hic.model.Employee;
+import com.hic.model.EmployeePermission;
+import com.hic.model.LeaveRequest;
+import com.hic.model.Timetable;
 import com.hic.model.WorkSchedule;
 import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.DailyAttendanceSummaryRepository;
+import com.hic.repository.EmployeePermissionRepository;
 import com.hic.repository.EmployeeRepository;
+import com.hic.repository.LeaveRequestRepository;
+import com.hic.repository.TimetableRepository;
 import com.hic.repository.WorkScheduleRepository;
 import com.hic.util.DateUtil;
 import com.hic.util.TenantContext;
@@ -19,9 +27,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -32,7 +45,11 @@ public class AttendanceService {
     private final AttendanceLogRepository attendanceLogRepository;
     private final DailyAttendanceSummaryRepository summaryRepository;
     private final EmployeeRepository employeeRepository;
+    private final LeaveRequestRepository leaveRequestRepository;
+    private final EmployeePermissionRepository employeePermissionRepository;
+    private final TimetableRepository timetableRepository;
     private final WorkScheduleRepository workScheduleRepository;
+    private final UserScopeService userScopeService;
     private final DateUtil dateUtil;
 
     @Transactional
@@ -80,6 +97,7 @@ public class AttendanceService {
 
         Optional<DailyAttendanceSummary> existing = summaryRepository.findByEmployeeIdAndAttendanceDate(employeeId, date);
         DailyAttendanceSummary summary = existing.orElse(new DailyAttendanceSummary());
+        summary.setTenantId(resolveAttendanceTenantId(employeeId));
         summary.setEmployeeId(employeeId);
         summary.setAttendanceDate(date);
         summary.setIsHoliday(false);
@@ -113,6 +131,88 @@ public class AttendanceService {
     public List<DailyAttendanceSummaryDTO> getDailySummary(Long employeeId, LocalDate start, LocalDate end) {
         return summaryRepository.findByEmployeeIdAndAttendanceDateBetween(employeeId, start, end)
                 .stream().map(this::toSummaryDTO).collect(Collectors.toList());
+    }
+
+    public List<EmployeeAttendanceRowDTO> getEmployeeAttendance(Long employeeId, LocalDate start, LocalDate end) {
+        Employee employee = getAccessibleEmployee(employeeId);
+        Long tenantId = TenantContext.getTenantId();
+
+        LocalDateTime rangeStart = start.atStartOfDay();
+        LocalDateTime rangeEnd = end.atTime(23, 59, 59);
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTimeBetween(tenantId, employeeId, rangeStart, rangeEnd)
+                : attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(employeeId, rangeStart, rangeEnd);
+        Map<LocalDate, List<AttendanceLog>> logsByDate = logs.stream()
+                .filter(log -> log.getCheckInTime() != null)
+                .collect(Collectors.groupingBy(log -> log.getCheckInTime().toLocalDate(), LinkedHashMap::new, Collectors.toList()));
+
+        Map<LocalDate, DailyAttendanceSummary> summariesByDate = summaryRepository
+                .findByEmployeeIdAndAttendanceDateBetween(employeeId, start, end)
+                .stream()
+                .collect(Collectors.toMap(DailyAttendanceSummary::getAttendanceDate, summary -> summary, (left, right) -> right, LinkedHashMap::new));
+
+        List<LeaveRequest> approvedLeaves = tenantId != null
+                ? leaveRequestRepository.findApprovedByTenantAndEmployeeIdAndDateRange(tenantId, employeeId, start, end)
+                : leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(employeeId, start, end);
+        List<EmployeePermission> approvedPermissions = tenantId != null
+                ? employeePermissionRepository.findByTenantIdAndEmployeeIdAndDateRange(tenantId, employeeId, start, end)
+                : employeePermissionRepository.findByEmployeeIdAndDateRange(employeeId, start, end);
+        Optional<Timetable> timetable = getEmployeeTimetable(employee, tenantId);
+
+        List<EmployeeAttendanceRowDTO> rows = new ArrayList<>();
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            DailyAttendanceSummary summary = summariesByDate.get(date);
+            List<AttendanceLog> dayLogs = logsByDate.getOrDefault(date, List.of());
+            boolean onLeave = overlapsLeave(approvedLeaves, date) || overlapsPermission(approvedPermissions, date);
+
+            LocalDateTime firstCheckIn = summary != null && summary.getCheckInTime() != null
+                    ? summary.getCheckInTime()
+                    : dayLogs.stream()
+                            .map(AttendanceLog::getCheckInTime)
+                            .filter(java.util.Objects::nonNull)
+                            .min(LocalDateTime::compareTo)
+                            .orElse(null);
+            LocalDateTime lastCheckOut = summary != null && summary.getCheckOutTime() != null
+                    ? summary.getCheckOutTime()
+                    : dayLogs.stream()
+                            .map(AttendanceLog::getCheckOutTime)
+                            .filter(java.util.Objects::nonNull)
+                            .max(LocalDateTime::compareTo)
+                            .orElse(null);
+
+            double hoursWorked = summary != null && summary.getHoursWorked() != null
+                    ? summary.getHoursWorked()
+                    : (firstCheckIn != null && lastCheckOut != null ? dateUtil.calculateWorkHours(firstCheckIn, lastCheckOut) : 0.0);
+
+            EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
+            row.setDate(date);
+            row.setCheckInTime(firstCheckIn);
+            row.setCheckOutTime(lastCheckOut);
+            row.setHoursWorked(hoursWorked);
+            row.setStatus(determineDailyStatus(summary, firstCheckIn, onLeave, timetable.orElse(null)));
+            row.setNotes(buildNotes(approvedLeaves, approvedPermissions, date));
+            rows.add(row);
+        }
+
+        return rows;
+    }
+
+    public EmployeeAttendanceSummaryDTO getEmployeeAttendanceSummary(Long employeeId, LocalDate start, LocalDate end) {
+        List<EmployeeAttendanceRowDTO> rows = getEmployeeAttendance(employeeId, start, end);
+        EmployeeAttendanceSummaryDTO summary = new EmployeeAttendanceSummaryDTO();
+        summary.setTotalDays(rows.size());
+        summary.setWorkingDays(rows.stream()
+                .filter(row -> row.getStatus() == AttendanceStatus.PRESENT || row.getStatus() == AttendanceStatus.LATE)
+                .count());
+        summary.setTotalHours(rows.stream()
+                .map(EmployeeAttendanceRowDTO::getHoursWorked)
+                .filter(java.util.Objects::nonNull)
+                .mapToDouble(Double::doubleValue)
+                .sum());
+        summary.setAbsentDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.ABSENT).count());
+        summary.setLateDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.LATE).count());
+        summary.setLeaveDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.ON_LEAVE).count());
+        return summary;
     }
 
     private AttendanceStatus determineStatus(LocalDateTime checkIn, WorkSchedule schedule, int gracePeriod) {
@@ -168,5 +268,87 @@ public class AttendanceService {
         dto.setIsLeave(s.getIsLeave());
         dto.setAttendanceStatus(s.getAttendanceStatus());
         return dto;
+    }
+
+    private Employee getAccessibleEmployee(Long employeeId) {
+        Long tenantId = TenantContext.getTenantId();
+        Employee employee = tenantId != null
+                ? employeeRepository.findByTenantIdAndId(tenantId, employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", employeeId))
+                : employeeRepository.findById(employeeId)
+                .orElseThrow(() -> new ResourceNotFoundException("Employee", employeeId));
+
+        Long branchScope = userScopeService.resolveBranchScope(null);
+        if (branchScope != null && (employee.getBranchId() == null || !branchScope.equals(employee.getBranchId()))) {
+            throw new ResourceNotFoundException("Employee", employeeId);
+        }
+        return employee;
+    }
+
+    private Long resolveAttendanceTenantId(Long employeeId) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId != null) {
+            return tenantId;
+        }
+        return employeeRepository.findById(employeeId)
+                .map(Employee::getTenantId)
+                .orElse(null);
+    }
+
+    private Optional<Timetable> getEmployeeTimetable(Employee employee, Long tenantId) {
+        if (employee.getTimetableId() == null) {
+            return Optional.empty();
+        }
+        return tenantId != null
+                ? timetableRepository.findByTenantIdAndId(tenantId, employee.getTimetableId())
+                : timetableRepository.findById(employee.getTimetableId());
+    }
+
+    private boolean overlapsLeave(List<LeaveRequest> leaves, LocalDate date) {
+        return leaves.stream().anyMatch(leave ->
+                !leave.getStartDate().isAfter(date) && !leave.getEndDate().isBefore(date));
+    }
+
+    private boolean overlapsPermission(List<EmployeePermission> permissions, LocalDate date) {
+        return permissions.stream().anyMatch(permission ->
+                !permission.getStartDate().isAfter(date) && !permission.getEndDate().isBefore(date));
+    }
+
+    private AttendanceStatus determineDailyStatus(DailyAttendanceSummary summary,
+                                                  LocalDateTime firstCheckIn,
+                                                  boolean onLeave,
+                                                  Timetable timetable) {
+        if (onLeave) {
+            return AttendanceStatus.ON_LEAVE;
+        }
+        if (summary != null && summary.getAttendanceStatus() == AttendanceStatus.ON_LEAVE) {
+            return AttendanceStatus.ON_LEAVE;
+        }
+        if (firstCheckIn == null) {
+            return AttendanceStatus.ABSENT;
+        }
+
+        LocalTime startTime = timetable != null && timetable.getStartTime() != null
+                ? timetable.getStartTime()
+                : LocalTime.of(9, 0);
+        int allowedLateMinutes = timetable != null && timetable.getAllowedLateMinutes() != null
+                ? timetable.getAllowedLateMinutes()
+                : 0;
+        long lateMinutes = Duration.between(startTime, firstCheckIn.toLocalTime()).toMinutes();
+        return lateMinutes > allowedLateMinutes ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+    }
+
+    private String buildNotes(List<LeaveRequest> leaves, List<EmployeePermission> permissions, LocalDate date) {
+        Optional<EmployeePermission> permission = permissions.stream()
+                .filter(item -> !item.getStartDate().isAfter(date) && !item.getEndDate().isBefore(date))
+                .findFirst();
+        if (permission.isPresent()) {
+            String reason = permission.get().getReason();
+            return reason != null && !reason.isBlank() ? reason : "Approved permission";
+        }
+
+        boolean onLeave = leaves.stream()
+                .anyMatch(item -> !item.getStartDate().isAfter(date) && !item.getEndDate().isBefore(date));
+        return onLeave ? "Approved leave" : null;
     }
 }

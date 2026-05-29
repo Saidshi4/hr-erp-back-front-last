@@ -1,45 +1,216 @@
-import { useState, useCallback } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
-import { AttendanceLog, DoorAttendanceSyncResult } from '../types'
+import { employeeApi } from '../api/employeeApi.ts'
+import {
+  DoorAttendanceSyncResult,
+  EmployeeAttendanceRow,
+  EmployeeAttendanceSummary,
+  EmployeeSearchResult,
+} from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
 
-export default function AttendancePage() {
-  const today = new Date().toISOString().split('T')[0]
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+type PeriodType = 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_YEAR' | 'LAST_YEAR' | 'CUSTOM'
 
-  const [startDate, setStartDate] = useState(weekAgo)
-  const [endDate, setEndDate] = useState(today)
-  const [logs, setLogs] = useState<AttendanceLog[]>([])
-  const [search, setSearch] = useState('')
-  const debouncedSearch = useDebounce(search, 300)
-  const [entryDeviceId, setEntryDeviceId] = useState<string>('')
-  const [exitDeviceId, setExitDeviceId] = useState<string>('')
-  const [syncResult, setSyncResult] = useState<DoorAttendanceSyncResult | null>(null)
+const monthOptions = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+]
+
+const statusStyles: Record<EmployeeAttendanceRow['status'], string> = {
+  PRESENT: 'bg-green-100 text-green-700',
+  LATE: 'bg-amber-100 text-amber-700',
+  ABSENT: 'bg-red-100 text-red-700',
+  ON_LEAVE: 'bg-blue-100 text-blue-700',
+  EARLY_LEAVE: 'bg-purple-100 text-purple-700',
+}
+
+const defaultSummary: EmployeeAttendanceSummary = {
+  totalDays: 0,
+  workingDays: 0,
+  totalHours: 0,
+  absentDays: 0,
+  lateDays: 0,
+  leaveDays: 0,
+}
+
+function formatEmployeeLabel(employee: EmployeeSearchResult) {
+  return `${employee.firstName} ${employee.lastName} · ${employee.employeeId}${employee.finNumber ? ` · FIN ${employee.finNumber}` : ''}`
+}
+
+function toDateInputValue(date: Date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getPresetPeriod(periodType: PeriodType, selectedMonth: number, selectedYear: number) {
+  if (periodType === 'CUSTOM') {
+    return null
+  }
+
+  if (periodType === 'THIS_YEAR' || periodType === 'LAST_YEAR') {
+    return {
+      start: `${selectedYear}-01-01`,
+      end: `${selectedYear}-12-31`,
+    }
+  }
+
+  const start = new Date(selectedYear, selectedMonth, 1)
+  const end = new Date(selectedYear, selectedMonth + 1, 0)
+  return {
+    start: toDateInputValue(start),
+    end: toDateInputValue(end),
+  }
+}
+
+export default function AttendancePage() {
+  const now = new Date()
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+  const lastMonthDate = new Date(currentYear, currentMonth - 1, 1)
+  const lastMonth = lastMonthDate.getMonth()
+  const lastMonthYear = lastMonthDate.getFullYear()
+
+  const [employeeQuery, setEmployeeQuery] = useState('')
+  const [selectedEmployee, setSelectedEmployee] = useState<EmployeeSearchResult | null>(null)
+  const [employeeResults, setEmployeeResults] = useState<EmployeeSearchResult[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const debouncedEmployeeQuery = useDebounce(employeeQuery, 300)
+
+  const [periodType, setPeriodType] = useState<PeriodType>('THIS_MONTH')
+  const [selectedMonth, setSelectedMonth] = useState(currentMonth)
+  const [selectedYear, setSelectedYear] = useState(currentYear)
+  const [customStartDate, setCustomStartDate] = useState(toDateInputValue(new Date(currentYear, currentMonth, 1)))
+  const [customEndDate, setCustomEndDate] = useState(toDateInputValue(now))
+
+  const [attendanceRows, setAttendanceRows] = useState<EmployeeAttendanceRow[]>([])
+  const [summary, setSummary] = useState<EmployeeAttendanceSummary>(defaultSummary)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fetched, setFetched] = useState(false)
 
-  const fetchLogs = useCallback(async () => {
-    if (!startDate || !endDate) return
+  const [entryDeviceId, setEntryDeviceId] = useState('')
+  const [exitDeviceId, setExitDeviceId] = useState('')
+  const [syncResult, setSyncResult] = useState<DoorAttendanceSyncResult | null>(null)
+  const [syncLoading, setSyncLoading] = useState(false)
+
+  useEffect(() => {
+    if (periodType === 'THIS_MONTH') {
+      setSelectedMonth(currentMonth)
+      setSelectedYear(currentYear)
+    } else if (periodType === 'LAST_MONTH') {
+      setSelectedMonth(lastMonth)
+      setSelectedYear(lastMonthYear)
+    } else if (periodType === 'THIS_YEAR') {
+      setSelectedYear(currentYear)
+    } else if (periodType === 'LAST_YEAR') {
+      setSelectedYear(currentYear - 1)
+    }
+  }, [currentMonth, currentYear, lastMonth, lastMonthYear, periodType])
+
+  useEffect(() => {
+    if (selectedEmployee && employeeQuery === formatEmployeeLabel(selectedEmployee)) {
+      setEmployeeResults([])
+      setSearchLoading(false)
+      return
+    }
+
+    let cancelled = false
+    const query = debouncedEmployeeQuery.trim()
+
+    if (!query) {
+      setEmployeeResults([])
+      setSearchLoading(false)
+      return
+    }
+
+    setSearchLoading(true)
+    employeeApi.searchEmployees(query)
+      .then((response) => {
+        if (!cancelled) {
+          setEmployeeResults(response.data?.data ?? [])
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setEmployeeResults([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setSearchLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedEmployeeQuery, employeeQuery, selectedEmployee])
+
+  const activePeriod = useMemo(() => {
+    if (periodType === 'CUSTOM') {
+      return { start: customStartDate, end: customEndDate }
+    }
+    return getPresetPeriod(periodType, selectedMonth, selectedYear)
+  }, [customEndDate, customStartDate, periodType, selectedMonth, selectedYear])
+
+  useEffect(() => {
+    if (!selectedEmployee || !activePeriod?.start || !activePeriod?.end) {
+      setAttendanceRows([])
+      setSummary(defaultSummary)
+      return
+    }
+
+    let cancelled = false
     setLoading(true)
     setError(null)
-    setSyncResult(null)
-    try {
-      const start = `${startDate}T00:00:00`
-      const end = `${endDate}T23:59:59`
-      const res = await attendanceApi.getRange(start, end)
-      setLogs(res.data?.data ?? [])
-      setFetched(true)
-    } catch (e: unknown) {
-      setError((e as Error).message || 'Failed to fetch attendance logs')
-    } finally {
-      setLoading(false)
-    }
-  }, [startDate, endDate])
 
-  const syncDoorAndFetchLogs = useCallback(async () => {
-    if (!startDate || !endDate) return
+    Promise.all([
+      attendanceApi.getEmployeeAttendance(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+      attendanceApi.getEmployeeAttendanceSummary(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+    ])
+      .then(([attendanceResponse, summaryResponse]) => {
+        if (cancelled) {
+          return
+        }
+        setAttendanceRows(attendanceResponse.data?.data ?? [])
+        setSummary(summaryResponse.data?.data ?? defaultSummary)
+      })
+      .catch((requestError: unknown) => {
+        if (cancelled) {
+          return
+        }
+        setAttendanceRows([])
+        setSummary(defaultSummary)
+        setError((requestError as Error).message || 'Failed to fetch attendance data')
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [activePeriod, selectedEmployee])
+
+  const syncDoorAttendance = async () => {
+    if (!activePeriod?.start || !activePeriod?.end) {
+      setError('Please choose a valid period before syncing devices.')
+      return
+    }
     if (!entryDeviceId || !exitDeviceId) {
       setError('Please enter both Entry Device ID and Exit Device ID.')
       return
@@ -52,216 +223,311 @@ export default function AttendancePage() {
       return
     }
 
-    setLoading(true)
+    setSyncLoading(true)
     setError(null)
     try {
-      const start = `${startDate}T00:00:00`
-      const end = `${endDate}T23:59:59`
-      const syncRes = await attendanceApi.syncDoor({
+      const response = await attendanceApi.syncDoor({
         entryDeviceId: entryId,
         exitDeviceId: exitId,
-        start,
-        end,
+        start: `${activePeriod.start}T00:00:00`,
+        end: `${activePeriod.end}T23:59:59`,
       })
-      setSyncResult(syncRes.data?.data ?? null)
+      setSyncResult(response.data?.data ?? null)
 
-      const logsRes = await attendanceApi.getRange(start, end)
-      setLogs(logsRes.data?.data ?? [])
-      setFetched(true)
-    } catch (e: unknown) {
-      setError((e as Error).message || 'Failed to sync door attendance')
+      if (selectedEmployee) {
+        const [attendanceResponse, summaryResponse] = await Promise.all([
+          attendanceApi.getEmployeeAttendance(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+          attendanceApi.getEmployeeAttendanceSummary(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+        ])
+        setAttendanceRows(attendanceResponse.data?.data ?? [])
+        setSummary(summaryResponse.data?.data ?? defaultSummary)
+      }
+    } catch (syncError: unknown) {
+      setError((syncError as Error).message || 'Failed to sync door attendance')
     } finally {
-      setLoading(false)
+      setSyncLoading(false)
     }
-  }, [startDate, endDate, entryDeviceId, exitDeviceId])
-
-  const formatTime = (dt?: string) => {
-    if (!dt) return '—'
-    return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
-  const presentCount = logs.filter(l => l.checkInTime && !l.checkOutTime).length
-  const completedCount = logs.filter(l => l.checkInTime && l.checkOutTime).length
+  const summaryCards = [
+    { label: 'Total working days', value: summary.workingDays, accent: 'text-slate-900' },
+    { label: 'Total working hours', value: summary.totalHours.toFixed(2), accent: 'text-slate-900' },
+    { label: 'Absent days', value: summary.absentDays, accent: 'text-red-600' },
+    { label: 'Late days', value: summary.lateDays, accent: 'text-amber-600' },
+    { label: 'Permission / leave days', value: summary.leaveDays, accent: 'text-blue-600' },
+  ]
 
-  const filteredLogs = debouncedSearch
-    ? logs.filter(l => String(l.employeeId).includes(debouncedSearch))
-    : logs
+  const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
-        {/* Header */}
+      <div className="p-8 min-h-screen bg-slate-50">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Attendance</h1>
-          <p className="text-sm text-gray-500 mt-1">View and track employee attendance records</p>
+          <h1 className="text-2xl font-bold text-slate-900">Davamiyyet</h1>
+          <p className="mt-1 text-sm text-slate-500">Select an employee and review attendance instantly by month, year, or custom range.</p>
         </div>
 
-        {/* Filter Card */}
-        <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-          <div className="flex flex-wrap gap-4 items-end">
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">From Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">To Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Entry Device ID</label>
-              <input
-                type="number"
-                value={entryDeviceId}
-                onChange={(e) => setEntryDeviceId(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="e.g. 1"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Exit Device ID</label>
-              <input
-                type="number"
-                value={exitDeviceId}
-                onChange={(e) => setExitDeviceId(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                placeholder="e.g. 2"
-              />
-            </div>
-            <button
-              onClick={syncDoorAndFetchLogs}
-              disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-              style={{ background: '#2563eb' }}
-            >
-              {loading ? 'Syncing...' : 'Sync Door & Search'}
-            </button>
-            <button
-              onClick={fetchLogs}
-              disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
-              style={{ background: '#a855f7' }}
-            >
-              {loading ? (
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              )}
-              {loading ? 'Loading...' : 'Search'}
-            </button>
-          </div>
-        </div>
-
-        {syncResult && (
-          <div className="bg-blue-50 border border-blue-200 text-blue-900 px-4 py-3 rounded-lg mb-4 text-sm">
-            Synced punches: {syncResult.totalPunches} · Matched sessions: {syncResult.matchedSessions} · New logs: {syncResult.createdLogs} · Recalculated days: {syncResult.recalculatedDays}
-            {syncResult.skippedEmployees > 0 ? ` · Skipped employees: ${syncResult.skippedEmployees}` : ''}
-          </div>
-        )}
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
-
-        {fetched && (
-          <>
-            {/* Search */}
-            <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
-              <input
-                type="text"
-                placeholder="Search by employee ID..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-300"
-              />
-            </div>
-
-            {/* Summary */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Total Records</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Currently In</p>
-                <p className="text-xl font-bold mt-1" style={{ color: '#10b981' }}>{presentCount}</p>
-              </div>
-              <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Completed</p>
-                <p className="text-xl font-bold text-gray-900 mt-1">{completedCount}</p>
-              </div>
-            </div>
-
-            {/* Logs */}
-            {filteredLogs.length === 0 ? (
-              <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
-                {debouncedSearch ? `No records found matching "${debouncedSearch}".` : 'No attendance records found for the selected period.'}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredLogs.map((log) => (
-                  <div key={log.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
-                    <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#faf5ff' }}>
-                      <svg className="w-5 h-5" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
+        <div className="grid gap-6 xl:grid-cols-[2fr,1fr]">
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="relative">
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Employee</label>
+                  <input
+                    type="text"
+                    value={employeeQuery}
+                    onChange={(event) => {
+                      setEmployeeQuery(event.target.value)
+                      setSelectedEmployee(null)
+                    }}
+                    placeholder="Search by name, employee ID, or FIN"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                  {!selectedEmployee && (searchLoading || employeeResults.length > 0 || debouncedEmployeeQuery.trim()) && (
+                    <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                      {searchLoading ? (
+                        <div className="px-3 py-3 text-sm text-slate-500">Searching employees…</div>
+                      ) : employeeResults.length > 0 ? (
+                        employeeResults.map((employee) => (
+                          <button
+                            key={employee.employeePk}
+                            type="button"
+                            onClick={() => {
+                              setSelectedEmployee(employee)
+                              setEmployeeQuery(formatEmployeeLabel(employee))
+                              setEmployeeResults([])
+                            }}
+                            className="block w-full border-b border-slate-100 px-3 py-3 text-left text-sm last:border-b-0 hover:bg-slate-50"
+                          >
+                            <div className="font-medium text-slate-900">{employee.firstName} {employee.lastName}</div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              {employee.employeeId}
+                              {employee.finNumber ? ` · FIN ${employee.finNumber}` : ''}
+                              {employee.departmentName ? ` · ${employee.departmentName}` : ''}
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-3 py-3 text-sm text-slate-500">No employees found.</div>
+                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">Employee #{log.employeeId}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {log.eventType || 'Check-in'} {log.deviceId ? `· ${log.deviceId}` : ''}
-                      </p>
-                    </div>
-                    <div className="hidden md:block text-center min-w-[120px]">
-                      <p className="text-xs text-gray-400 mb-0.5">Check In</p>
-                      <p className="text-sm font-medium text-gray-700">{formatTime(log.checkInTime)}</p>
-                      <p className="text-xs text-gray-400">{log.checkInTime ? new Date(log.checkInTime).toLocaleDateString() : '—'}</p>
-                    </div>
-                    <div className="hidden md:block text-center min-w-[120px]">
-                      <p className="text-xs text-gray-400 mb-0.5">Check Out</p>
-                      <p className="text-sm font-medium text-gray-700">{formatTime(log.checkOutTime)}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Period type</label>
+                  <select
+                    value={periodType}
+                    onChange={(event) => setPeriodType(event.target.value as PeriodType)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="THIS_MONTH">This month</option>
+                    <option value="LAST_MONTH">Last month</option>
+                    <option value="THIS_YEAR">This year</option>
+                    <option value="LAST_YEAR">Last year</option>
+                    <option value="CUSTOM">Custom range</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {periodType === 'CUSTOM' ? (
+                  <>
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Start date</label>
+                      <input
+                        type="date"
+                        value={customStartDate}
+                        onChange={(event) => setCustomStartDate(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
                     </div>
                     <div>
-                      <span
-                        className="px-2.5 py-1 rounded-full text-xs font-medium"
-                        style={log.checkInTime && log.checkOutTime
-                          ? { background: '#d1fae5', color: '#065f46' }
-                          : log.checkInTime
-                          ? { background: '#fef3c7', color: '#92400e' }
-                          : { background: '#f3f4f6', color: '#6b7280' }}
-                      >
-                        {log.checkInTime && log.checkOutTime ? 'Completed' :
-                         log.checkInTime ? 'In Office' : 'No Record'}
-                      </span>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">End date</label>
+                      <input
+                        type="date"
+                        value={customEndDate}
+                        onChange={(event) => setCustomEndDate(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
                     </div>
+                  </>
+                ) : (
+                  <>
+                    {(periodType === 'THIS_MONTH' || periodType === 'LAST_MONTH') && (
+                      <div>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-500">Month</label>
+                        <select
+                          value={selectedMonth}
+                          onChange={(event) => setSelectedMonth(Number(event.target.value))}
+                          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        >
+                          {monthOptions.map((month, index) => (
+                            <option key={month} value={index}>{month}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Year</label>
+                      <select
+                        value={selectedYear}
+                        onChange={(event) => setSelectedYear(Number(event.target.value))}
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      >
+                        {yearOptions.map((year) => (
+                          <option key={year} value={year}>{year}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </>
+                )}
+
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <div className="font-medium text-slate-700">Selected period</div>
+                  <div className="mt-1">
+                    {activePeriod ? `${activePeriod.start} → ${activePeriod.end}` : 'Choose a period'}
                   </div>
-                ))}
+                </div>
+              </div>
+
+              {selectedEmployee && (
+                <div className="mt-4 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-900">
+                  Viewing attendance for <span className="font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
+                  {selectedEmployee.departmentName ? ` · ${selectedEmployee.departmentName}` : ''}
+                </div>
+              )}
+            </div>
+
+            {syncResult && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                Synced punches: {syncResult.totalPunches} · Matched sessions: {syncResult.matchedSessions} · New logs: {syncResult.createdLogs} · Recalculated days: {syncResult.recalculatedDays}
+                {syncResult.skippedEmployees > 0 ? ` · Skipped employees: ${syncResult.skippedEmployees}` : ''}
               </div>
             )}
-          </>
-        )}
 
-        {!fetched && !loading && (
-          <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
-            <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <p>Select a date range and click Search to view attendance records.</p>
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              {summaryCards.map((card) => (
+                <div key={card.label} className="rounded-2xl bg-white p-4 shadow-sm">
+                  <div className="text-xs text-slate-400">{card.label}</div>
+                  <div className={`mt-2 text-2xl font-bold ${card.accent}`}>{card.value}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
+              <div className="border-b border-slate-100 px-5 py-4">
+                <h2 className="text-lg font-semibold text-slate-900">Daily attendance</h2>
+                <p className="mt-1 text-sm text-slate-500">Date, check-in, check-out, hours, status, and notes for the selected employee.</p>
+              </div>
+
+              {!selectedEmployee ? (
+                <div className="px-5 py-12 text-center text-sm text-slate-400">Search and select an employee to load attendance.</div>
+              ) : loading ? (
+                <div className="px-5 py-12 text-center text-sm text-slate-500">Loading attendance…</div>
+              ) : attendanceRows.length === 0 ? (
+                <div className="px-5 py-12 text-center text-sm text-slate-400">No attendance records were found for the selected period.</div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100">
+                    <thead className="bg-slate-50">
+                      <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                        <th className="px-5 py-3">Date</th>
+                        <th className="px-5 py-3">Check-in</th>
+                        <th className="px-5 py-3">Check-out</th>
+                        <th className="px-5 py-3">Hours worked</th>
+                        <th className="px-5 py-3">Status</th>
+                        <th className="px-5 py-3">Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                      {attendanceRows.map((row) => (
+                        <tr key={row.date}>
+                          <td className="px-5 py-4 font-medium text-slate-900">{new Date(row.date).toLocaleDateString()}</td>
+                          <td className="px-5 py-4">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                          <td className="px-5 py-4">{row.checkOutTime ? new Date(row.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                          <td className="px-5 py-4">{row.hoursWorked?.toFixed(2) ?? '0.00'}</td>
+                          <td className="px-5 py-4">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
+                              {row.status.replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-slate-500">{row.notes || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+
+          <div className="space-y-6">
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">Door sync</h2>
+              <p className="mt-1 text-sm text-slate-500">Keep the existing device sync flow available for the selected period.</p>
+
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Entry Device ID</label>
+                  <input
+                    type="number"
+                    value={entryDeviceId}
+                    onChange={(event) => setEntryDeviceId(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. 1"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Exit Device ID</label>
+                  <input
+                    type="number"
+                    value={exitDeviceId}
+                    onChange={(event) => setExitDeviceId(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="e.g. 2"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={syncDoorAttendance}
+                  disabled={syncLoading}
+                  className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {syncLoading ? 'Syncing…' : 'Sync door attendance'}
+                </button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
+              <div className="mt-4 space-y-3 text-sm text-slate-600">
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                  <span>Total days in period</span>
+                  <span className="font-semibold text-slate-900">{summary.totalDays}</span>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
+                  <span>Selected employee</span>
+                  <span className="max-w-[180px] truncate font-semibold text-slate-900">
+                    {selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : '—'}
+                  </span>
+                </div>
+                <div className="rounded-xl bg-slate-50 px-4 py-3">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Period</div>
+                  <div className="mt-1 font-medium text-slate-900">
+                    {activePeriod ? `${activePeriod.start} → ${activePeriod.end}` : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </Layout>
   )

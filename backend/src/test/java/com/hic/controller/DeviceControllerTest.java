@@ -1,6 +1,7 @@
 package com.hic.controller;
 
 import com.hic.service.IsapiProxyService;
+import com.hic.service.DeviceService;
 import com.hic.repository.UserRepository;
 import com.hic.util.JwtUtil;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,9 @@ class DeviceControllerTest {
 
     @MockBean
     private IsapiProxyService isapiProxyService;
+
+    @MockBean
+    private DeviceService deviceService;
 
     @MockBean
     private JwtUtil jwtUtil;

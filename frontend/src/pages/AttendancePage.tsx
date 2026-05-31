@@ -403,6 +403,9 @@ export default function AttendancePage() {
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                 Synced punches: {syncResult.totalPunches} · Matched sessions: {syncResult.matchedSessions} · New logs: {syncResult.createdLogs} · Recalculated days: {syncResult.recalculatedDays}
                 {syncResult.skippedEmployees > 0 ? ` · Skipped employees: ${syncResult.skippedEmployees}` : ''}
+                {(syncResult.unresolvedEmployeeNos?.length ?? 0) > 0
+                  ? ` · Unresolved employeeNo: ${syncResult.unresolvedEmployeeNos?.slice(0, 10).join(', ')}`
+                  : ''}
               </div>
             )}
 

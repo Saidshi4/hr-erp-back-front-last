@@ -36,11 +36,10 @@ export default function AccessLogsPage() {
   }, [search, deviceIdFilter])
 
   const filteredLogs = logs.filter((log) => {
-    if (!search) return true
-    const s = search.toLowerCase()
-    const matchesSearch = (
-      String(log.employeeNo ?? '').toLowerCase().includes(s) ||
-      String(log.deviceId ?? '').toLowerCase().includes(s)
+    const normalizedSearch = search.trim().toLowerCase()
+    const matchesSearch = !normalizedSearch || (
+      String(log.employeeNo ?? '').toLowerCase().includes(normalizedSearch) ||
+      String(log.deviceId ?? '').toLowerCase().includes(normalizedSearch)
     )
     if (!matchesSearch) return false
 

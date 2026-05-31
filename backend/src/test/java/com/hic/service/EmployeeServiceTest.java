@@ -135,7 +135,7 @@ class EmployeeServiceTest {
     }
 
     @Test
-    void create_isapiSyncFails_throwsException() {
+    void create_isapiSyncFails_stillPersistsEmployee() {
         when(departmentRepository.existsById(1L)).thenReturn(true);
         when(employeeRepository.count()).thenReturn(0L);
         when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
@@ -143,12 +143,16 @@ class EmployeeServiceTest {
             e.setId(1L);
             return e;
         });
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
         doThrow(new DeviceSyncException("ISAPI user sync is unavailable"))
                 .when(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
 
-        assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
-                .isInstanceOf(DeviceSyncException.class)
-                .hasMessageContaining("ISAPI user sync is unavailable");
+        EmployeeResponseDTO result = employeeService.create(testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        verify(employeeRepository).save(any(Employee.class));
+        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
     }
 
     @Test
@@ -182,6 +186,22 @@ class EmployeeServiceTest {
 
         assertThat(result).isNotNull();
         verify(employeeRepository).save(any(Employee.class));
+    }
+
+    @Test
+    void update_isapiSyncFails_stillUpdatesEmployee() {
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+        doThrow(new DeviceSyncException("sync unavailable"))
+                .when(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
+
+        EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        verify(employeeRepository).save(any(Employee.class));
+        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), anyList());
     }
 
     @Test

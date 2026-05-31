@@ -35,20 +35,46 @@ public class EventReadController {
     public List<PunchResponse> getPunches(
             @RequestParam(required = false) Long deviceId,
             @RequestParam(required = false) String employeeNo,
-            @RequestParam(required = false) Integer limit
+            @RequestParam(required = false) Integer limit,
+            @RequestParam(required = false) OffsetDateTime start,
+            @RequestParam(required = false) OffsetDateTime end,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
     ) {
         String normalizedEmployeeNo = normalizeToNull(employeeNo);
-        Pageable pageable = PageRequest.of(0, validateLimit(limit));
+        boolean hasRange = start != null || end != null;
+        if (hasRange && (start == null || end == null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Both start and end must be provided");
+        }
+
+        Pageable pageable = hasRange
+                ? PageRequest.of(validatePage(page), validateLimit(size))
+                : PageRequest.of(0, validateLimit(limit));
 
         List<AttendancePunchEntity> punches;
-        if (deviceId != null && normalizedEmployeeNo != null) {
-            punches = attendancePunchRepository.findByDeviceIdAndEmployeeNoOrderByPunchTimeDesc(deviceId, normalizedEmployeeNo, pageable);
-        } else if (deviceId != null) {
-            punches = attendancePunchRepository.findByDeviceIdOrderByPunchTimeDesc(deviceId, pageable);
-        } else if (normalizedEmployeeNo != null) {
-            punches = attendancePunchRepository.findByEmployeeNoOrderByPunchTimeDesc(normalizedEmployeeNo, pageable);
+        if (hasRange) {
+            if (deviceId != null && normalizedEmployeeNo != null) {
+                punches = attendancePunchRepository.findByDeviceIdAndEmployeeNoAndPunchTimeBetweenOrderByPunchTimeAsc(
+                        deviceId, normalizedEmployeeNo, start, end, pageable);
+            } else if (deviceId != null) {
+                punches = attendancePunchRepository.findByDeviceIdAndPunchTimeBetweenOrderByPunchTimeAsc(
+                        deviceId, start, end, pageable);
+            } else if (normalizedEmployeeNo != null) {
+                punches = attendancePunchRepository.findByEmployeeNoAndPunchTimeBetweenOrderByPunchTimeAsc(
+                        normalizedEmployeeNo, start, end, pageable);
+            } else {
+                punches = attendancePunchRepository.findByPunchTimeBetweenOrderByPunchTimeAsc(start, end, pageable);
+            }
         } else {
-            punches = attendancePunchRepository.findByOrderByPunchTimeDesc(pageable);
+            if (deviceId != null && normalizedEmployeeNo != null) {
+                punches = attendancePunchRepository.findByDeviceIdAndEmployeeNoOrderByPunchTimeDesc(deviceId, normalizedEmployeeNo, pageable);
+            } else if (deviceId != null) {
+                punches = attendancePunchRepository.findByDeviceIdOrderByPunchTimeDesc(deviceId, pageable);
+            } else if (normalizedEmployeeNo != null) {
+                punches = attendancePunchRepository.findByEmployeeNoOrderByPunchTimeDesc(normalizedEmployeeNo, pageable);
+            } else {
+                punches = attendancePunchRepository.findByOrderByPunchTimeDesc(pageable);
+            }
         }
 
         return punches.stream()
@@ -116,6 +142,16 @@ public class EventReadController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "limit must be between 1 and 500");
         }
         return resolved;
+    }
+
+    private static int validatePage(Integer page) {
+        if (page == null) {
+            return 0;
+        }
+        if (page < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "page must be >= 0");
+        }
+        return page;
     }
 
     private static String normalizeToNull(String value) {

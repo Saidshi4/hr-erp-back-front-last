@@ -44,18 +44,14 @@ public class DoorAttendanceSyncService {
     ) {
         int effectiveLimit = limit == null || limit <= 0 ? DEFAULT_LIMIT : limit;
 
-        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> entryPunches = attendanceLogSyncService
-                .getAttendanceLogs(entryDeviceId, null, effectiveLimit)
+        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> entryPunches = fetchPunchesInRange(entryDeviceId, start, end, effectiveLimit)
                 .stream()
                 .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
-                .filter(p -> isWithinRange(toLocalDateTime(p.getPunchTime()), start, end))
                 .toList();
 
-        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> exitPunches = attendanceLogSyncService
-                .getAttendanceLogs(exitDeviceId, null, effectiveLimit)
+        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> exitPunches = fetchPunchesInRange(exitDeviceId, start, end, effectiveLimit)
                 .stream()
                 .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
-                .filter(p -> isWithinRange(toLocalDateTime(p.getPunchTime()), start, end))
                 .toList();
 
         Set<String> employeeCodes = new HashSet<>();
@@ -67,6 +63,7 @@ public class DoorAttendanceSyncService {
         int matchedSessions = 0;
         int createdLogs = 0;
         int skippedEmployees = 0;
+        Set<String> unresolvedEmployeeNos = new HashSet<>();
         Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
 
         for (String employeeCode : employeeCodes) {
@@ -76,6 +73,7 @@ public class DoorAttendanceSyncService {
 
             if (employee == null) {
                 skippedEmployees++;
+                unresolvedEmployeeNos.add(employeeCode);
                 continue;
             }
 
@@ -158,18 +156,49 @@ public class DoorAttendanceSyncService {
                 matchedSessions,
                 createdLogs,
                 skippedEmployees,
-                recalculatedDays
+                recalculatedDays,
+                unresolvedEmployeeNos.stream().sorted().toList()
         );
+    }
+
+    private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> fetchPunchesInRange(
+            Long deviceId,
+            LocalDateTime start,
+            LocalDateTime end,
+            int pageSize
+    ) {
+        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> punches = new ArrayList<>();
+        OffsetDateTime rangeStart = start == null
+                ? OffsetDateTime.now(ZoneId.systemDefault()).minusDays(7)
+                : start.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        OffsetDateTime rangeEnd = end == null
+                ? OffsetDateTime.now(ZoneId.systemDefault())
+                : end.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+
+        int page = 0;
+        while (true) {
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> batch = attendanceLogSyncService.getAttendanceLogs(
+                    deviceId,
+                    null,
+                    rangeStart,
+                    rangeEnd,
+                    page,
+                    pageSize
+            );
+            if (batch.isEmpty()) {
+                break;
+            }
+            punches.addAll(batch);
+            if (batch.size() < pageSize) {
+                break;
+            }
+            page++;
+        }
+        return punches;
     }
 
     private LocalDateTime toLocalDateTime(OffsetDateTime time) {
         return time.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
-    }
-
-    private boolean isWithinRange(LocalDateTime value, LocalDateTime start, LocalDateTime end) {
-        return value != null
-                && (start == null || !value.isBefore(start))
-                && (end == null || !value.isAfter(end));
     }
 
     private void addRecalcDate(Map<Long, Set<LocalDate>> map, Long employeeId, LocalDate date) {

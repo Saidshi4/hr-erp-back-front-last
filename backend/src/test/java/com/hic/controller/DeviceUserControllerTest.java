@@ -2,6 +2,7 @@ package com.hic.controller;
 
 import com.hic.repository.UserRepository;
 import com.hic.service.DeviceUserIsapiProxyService;
+import com.hic.service.EmployeeFaceImageService;
 import com.hic.util.JwtUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,6 +36,9 @@ class DeviceUserControllerTest {
 
     @MockBean
     private DeviceUserIsapiProxyService deviceUserIsapiProxyService;
+
+    @MockBean
+    private EmployeeFaceImageService employeeFaceImageService;
 
     @MockBean
     private JwtUtil jwtUtil;
@@ -64,5 +69,18 @@ class DeviceUserControllerTest {
                 .andExpect(content().json("{\"id\":11}"));
 
         verify(deviceUserIsapiProxyService).uploadFace(eq(7L), eq(11L), any());
+    }
+
+    @Test
+    void deleteFace_proxiesAndCleansEmployeeFaceImageOn404() throws Exception {
+        when(deviceUserIsapiProxyService.deleteFace(eq(7L), eq(11L), any(HttpServletRequest.class)))
+                .thenReturn(ResponseEntity.status(404).body("{\"status\":\"NOT_FOUND\"}"));
+
+        mockMvc.perform(delete("/api/devices/7/users/11/face")
+                        .param("employeeId", "55"))
+                .andExpect(status().isNotFound());
+
+        verify(deviceUserIsapiProxyService).deleteFace(eq(7L), eq(11L), any(HttpServletRequest.class));
+        verify(employeeFaceImageService).deleteFaceImages(55L);
     }
 }

@@ -51,6 +51,30 @@ public class AttendanceLogSyncService {
                 .toList();
     }
 
+    public List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> getAttendanceLogs(
+            Long deviceId,
+            String employeeNo,
+            OffsetDateTime start,
+            OffsetDateTime end,
+            Integer page,
+            Integer size
+    ) {
+        String url = UriComponentsBuilder
+                .fromHttpUrl(basePunchesUrl())
+                .queryParamIfPresent("deviceId", Optional.ofNullable(deviceId))
+                .queryParamIfPresent("employeeNo", Optional.ofNullable(normalizeToNull(employeeNo)))
+                .queryParamIfPresent("start", Optional.ofNullable(start))
+                .queryParamIfPresent("end", Optional.ofNullable(end))
+                .queryParamIfPresent("page", Optional.ofNullable(page))
+                .queryParamIfPresent("size", Optional.ofNullable(size))
+                .toUriString();
+
+        List<IsapiPunchResponse> punches = exchangeForList(url);
+        return punches.stream()
+                .map(this::toAttendanceLogEntry)
+                .toList();
+    }
+
     private AttendanceLogSyncDTO.AttendanceLogEntryDTO toAttendanceLogEntry(IsapiPunchResponse response) {
         return new AttendanceLogSyncDTO.AttendanceLogEntryDTO(
                 response.getId(),

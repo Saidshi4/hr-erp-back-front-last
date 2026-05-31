@@ -20,6 +20,7 @@ import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,6 +38,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class EmployeeService {
 
@@ -182,7 +184,7 @@ public class EmployeeService {
 
         Employee saved = employeeRepository.save(employee);
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId);
-        isapiEmployeeUserSyncService.syncEmployee(saved, assignedDeviceIds);
+        syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
 
@@ -199,7 +201,7 @@ public class EmployeeService {
         List<Long> assignedDeviceIds = dto.getDeviceIds() != null
                 ? replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId)
                 : getEmployeeDeviceIds(saved.getId());
-        isapiEmployeeUserSyncService.syncEmployee(saved, assignedDeviceIds);
+        syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
 
@@ -411,6 +413,14 @@ public class EmployeeService {
     private void validateDepartmentExists(Long departmentId) {
         if (!departmentRepository.existsById(departmentId)) {
             throw new ResourceNotFoundException("Department", departmentId);
+        }
+    }
+
+    private void syncEmployeeToDevicesSafely(Employee employee, List<Long> assignedDeviceIds) {
+        try {
+            isapiEmployeeUserSyncService.syncEmployee(employee, assignedDeviceIds);
+        } catch (RuntimeException ex) {
+            log.warn("Employee {} was saved but device sync failed: {}", employee.getEmployeeId(), ex.getMessage());
         }
     }
 

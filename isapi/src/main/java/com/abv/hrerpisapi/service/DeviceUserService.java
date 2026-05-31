@@ -219,6 +219,38 @@ public class DeviceUserService {
         return toResponse(entity);
     }
 
+    public DeviceUserFaceDeleteResponse deleteFaceData(Long deviceId, Long userId) {
+        log.info("ActionLog.deviceUser.face.delete.started deviceId={} userId={}", deviceId, userId);
+        DeviceEntity device = requireDevice(deviceId);
+        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+
+        try {
+            UserOperationResult result = isapiClient.deleteFaceFromFDLib(device, entity.getEmployeeNo());
+            boolean treatAsSuccess = result.success() || result.statusCode() == 404;
+            if (treatAsSuccess) {
+                entity.setFaceDataUrl(null);
+                deviceUserRepository.save(entity);
+                log.info("ActionLog.deviceUser.face.delete.ended deviceId={} userId={} employeeNo={} statusCode={}",
+                        deviceId, userId, entity.getEmployeeNo(), result.statusCode());
+                return new DeviceUserFaceDeleteResponse(
+                        entity.getId(),
+                        entity.getDeviceId(),
+                        entity.getEmployeeNo(),
+                        "SUCCESS",
+                        result.statusCode() == 404 ? "Face data already missing on device" : "Face data deleted"
+                );
+            }
+            log.warn("ActionLog.deviceUser.face.delete.failed deviceId={} userId={} employeeNo={} statusCode={} response={}",
+                    deviceId, userId, entity.getEmployeeNo(), result.statusCode(), result.responseSnippet());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Face delete failed: " + result.responseSnippet());
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            log.warn("ActionLog.deviceUser.face.delete.error deviceId={} userId={} employeeNo={} error={}",
+                    deviceId, userId, entity.getEmployeeNo(), e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Face delete error: " + e.getMessage());
+        }
+    }
+
     public DeviceUserFaceSyncResponse syncFaceFromDevice(Long deviceId, Long userId) {
         DeviceEntity device = requireDevice(deviceId);
         DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
@@ -353,6 +385,15 @@ public class DeviceUserService {
             String message,
             String faceUrl,
             String imageBase64
+    ) {
+    }
+
+    public record DeviceUserFaceDeleteResponse(
+            Long id,
+            Long deviceId,
+            String employeeNo,
+            String status,
+            String message
     ) {
     }
 }

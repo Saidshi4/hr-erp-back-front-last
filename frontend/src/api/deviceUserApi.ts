@@ -25,4 +25,8 @@ export const deviceUserApi = {
     const query = employeeId ? `?employeeId=${employeeId}` : ''
     return client.post<DeviceFaceSyncResponse>(`/devices/${deviceId}/users/${userId}/face/sync${query}`)
   },
+  deleteFace: (deviceId: number, userId: number, employeeId?: number) => {
+    const query = employeeId ? `?employeeId=${employeeId}` : ''
+    return client.delete(`/devices/${deviceId}/users/${userId}/face${query}`)
+  },
 }

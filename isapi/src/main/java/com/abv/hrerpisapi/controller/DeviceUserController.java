@@ -1,6 +1,7 @@
 package com.abv.hrerpisapi.controller;
 
 import com.abv.hrerpisapi.service.DeviceUserService;
+import com.abv.hrerpisapi.service.DeviceUserService.DeviceUserFaceDeleteResponse;
 import com.abv.hrerpisapi.service.DeviceUserService.DeviceUserFaceSyncResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +72,12 @@ public class DeviceUserController {
     public DeviceUserFaceSyncResponse syncFace(@PathVariable Long deviceId,
                                                @PathVariable Long userId) {
         return deviceUserService.syncFaceFromDevice(deviceId, userId);
+    }
+
+    @DeleteMapping("/{userId}/face")
+    public DeviceUserFaceDeleteResponse deleteFace(@PathVariable Long deviceId,
+                                                   @PathVariable Long userId) {
+        return deviceUserService.deleteFaceData(deviceId, userId);
     }
 
     private void validateCreateRequest(DeviceUserCreateRequest request) {

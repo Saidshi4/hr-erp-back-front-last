@@ -46,6 +46,12 @@ interface EmployeeFormData {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null
+const extractStatusCode = (value: unknown): number | undefined => {
+  if (!isRecord(value)) return undefined
+  const response = value.response
+  if (!isRecord(response)) return undefined
+  return typeof response.status === 'number' ? response.status : undefined
+}
 
 const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
   const parsedId = typeof item.id === 'number' ? item.id : Number(item.id)
@@ -156,6 +162,7 @@ export default function EmployeesPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null)
   const [uploadingFaceEmployeeId, setUploadingFaceEmployeeId] = useState<number | null>(null)
+  const [deletingFaceEmployeeId, setDeletingFaceEmployeeId] = useState<number | null>(null)
   const [uploadFaceError, setUploadFaceError] = useState<string | null>(null)
   const [showProfileModal, setShowProfileModal] = useState(false)
   const [profileLoading, setProfileLoading] = useState(false)
@@ -464,6 +471,34 @@ export default function EmployeesPage() {
     }
   }
 
+  const handleFaceDelete = async (employee: Employee) => {
+    setUploadFaceError(null)
+    setDeletingFaceEmployeeId(employee.id)
+    try {
+      const usersRes = await deviceUserApi.getAll(defaultDeviceId)
+      const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
+      if (!deviceUser) {
+        throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
+      }
+      await deviceUserApi.deleteFace(defaultDeviceId, deviceUser.id, employee.id)
+      await fetchEmployees(currentPage, 20)
+      if (selectedEmployee?.id === employee.id) {
+        await openProfile(employee)
+      }
+    } catch (e: unknown) {
+      if (extractStatusCode(e) === 404) {
+        await fetchEmployees(currentPage, 20)
+        if (selectedEmployee?.id === employee.id) {
+          await openProfile(employee)
+        }
+      } else {
+        setUploadFaceError((e as Error).message || 'Şəkil silinmədi')
+      }
+    } finally {
+      setDeletingFaceEmployeeId(null)
+    }
+  }
+
   const captureFromCamera = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
@@ -673,6 +708,16 @@ export default function EmployeesPage() {
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 16l4-4a3 3 0 014.243 0L15 15.757m-2-2 1.586-1.586a3 3 0 014.243 0L21 14m-6-10h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </label>
+                          <button
+                            onClick={() => handleFaceDelete(emp)}
+                            className="p-1.5 rounded hover:bg-amber-50 transition-colors"
+                            title="Şəkili sil"
+                            disabled={deletingFaceEmployeeId === emp.id}
+                          >
+                            <svg className={`w-4 h-4 ${deletingFaceEmployeeId === emp.id ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#d97706' }}>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10m-9 4h8m-7 4h6M9 3h6l1 2h4v2H4V5h4l1-2zM6 7h12l-1 13a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7z" />
+                            </svg>
+                          </button>
                           <button
                             onClick={() => setDeleteConfirm(emp)}
                             className="p-1.5 rounded hover:bg-red-50 transition-colors"

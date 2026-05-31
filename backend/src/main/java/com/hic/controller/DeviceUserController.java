@@ -101,4 +101,16 @@ public class DeviceUserController {
 
         return response;
     }
+
+    @DeleteMapping("/{userId}/face")
+    public ResponseEntity<String> deleteFace(@PathVariable Long deviceId,
+                                             @PathVariable Long userId,
+                                             @RequestParam(required = false) Long employeeId,
+                                             HttpServletRequest request) {
+        ResponseEntity<String> response = deviceUserIsapiProxyService.deleteFace(deviceId, userId, request);
+        if (employeeId != null && (response.getStatusCode().is2xxSuccessful() || response.getStatusCode().value() == 404)) {
+            employeeFaceImageService.deleteFaceImages(employeeId);
+        }
+        return response;
+    }
 }

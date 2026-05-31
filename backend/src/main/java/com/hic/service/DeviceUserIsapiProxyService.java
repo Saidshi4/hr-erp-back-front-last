@@ -45,6 +45,10 @@ public class DeviceUserIsapiProxyService {
         return isapiProxyService.forward(HttpMethod.POST, buildUserPath(deviceId, userId) + "/face/sync", request, null);
     }
 
+    public ResponseEntity<String> deleteFace(Long deviceId, Long userId, HttpServletRequest request) {
+        return isapiProxyService.forward(HttpMethod.DELETE, buildUserPath(deviceId, userId) + "/face", request, null);
+    }
+
     private String buildBasePath(Long deviceId) {
         return "/api/devices/" + deviceId + "/users";
     }

@@ -128,6 +128,7 @@ class IsapiEmployeeUserSyncServiceTest {
 
     @Test
     void syncEmployee_http404IncludesTargetUrlAndHostHint() {
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "");
         server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
                 .andExpect(method(HttpMethod.POST))
                 .andRespond(withStatus(HttpStatus.NOT_FOUND)
@@ -163,6 +164,10 @@ class IsapiEmployeeUserSyncServiceTest {
                         .body("{\"status\":404,\"error\":\"Not Found\"}"));
 
         server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
+
+        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
@@ -181,6 +186,50 @@ class IsapiEmployeeUserSyncServiceTest {
         employee.setEmployeeId("EMP202401004");
         employee.setFirstName("Nigar");
         employee.setLastName("Aliyeva");
+        employee.setGender("FEMALE");
+        employee.setHireDate(LocalDate.of(2026, 5, 18));
+
+        service.syncEmployee(employee);
+        server.verify();
+    }
+
+    @Test
+    void syncEmployee_http404FallbackUpdatesExistingDeviceUser() {
+        ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
+        ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.201:8081");
+
+        server.expect(requestTo("http://192.168.0.200/ISAPI/AccessControl/UserInfo/Record?format=json&security=1&iv=iv-token"))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withStatus(HttpStatus.NOT_FOUND)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body("{\"status\":404,\"error\":\"Not Found\"}"));
+
+        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
+                .andExpect(method(HttpMethod.GET))
+                .andRespond(withSuccess("""
+                        [
+                          {"id": 77, "employeeNo": "EMP202401005"}
+                        ]
+                        """, MediaType.APPLICATION_JSON));
+
+        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users/77"))
+                .andExpect(method(HttpMethod.PUT))
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(content().json("""
+                        {
+                          "name": "Aygun Karimova",
+                          "userType": "normal",
+                          "gender": "female",
+                          "beginTime": "2026-05-18T00:00:00",
+                          "endTime": "2036-05-17T23:59:59"
+                        }
+                        """))
+                .andRespond(withSuccess("{\"status\":\"ok\"}", MediaType.APPLICATION_JSON));
+
+        Employee employee = new Employee();
+        employee.setEmployeeId("EMP202401005");
+        employee.setFirstName("Aygun");
+        employee.setLastName("Karimova");
         employee.setGender("FEMALE");
         employee.setHireDate(LocalDate.of(2026, 5, 18));
 

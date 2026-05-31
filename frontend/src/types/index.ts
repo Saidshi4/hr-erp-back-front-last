@@ -130,6 +130,7 @@ export interface DoorAttendanceSyncResult {
   createdLogs: number
   skippedEmployees: number
   recalculatedDays: number
+  unresolvedEmployeeNos?: string[]
 }
 
 export interface AccessLog {

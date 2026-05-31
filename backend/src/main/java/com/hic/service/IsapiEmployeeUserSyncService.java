@@ -4,6 +4,8 @@ import com.hic.dto.IsapiUserInfoCreateRequestDTO;
 import com.hic.exception.DeviceSyncException;
 import com.hic.exception.UpstreamApiException;
 import com.hic.model.Employee;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +34,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class IsapiEmployeeUserSyncService {
 
+    private static final ObjectMapper OM = new ObjectMapper();
     private static final String DEFAULT_DEVICE_BASE_URL = "http://192.168.0.200";
     private static final String ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE = "/api/devices/%d/users";
 
@@ -185,26 +188,63 @@ public class IsapiEmployeeUserSyncService {
     }
 
     private void syncEmployeeViaIsapiService(Employee employee, long deviceId) {
-        String proxyPath = String.format(ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE, deviceId);
-        String url = trimTrailingSlash(isapiBaseUrl) + proxyPath;
-        DeviceUserCreateRequest body = buildDeviceUserCreateRequest(employee);
+        String basePath = String.format(ISAPI_SERVICE_DEVICE_USER_PATH_TEMPLATE, deviceId);
+        String baseUrl = trimTrailingSlash(isapiBaseUrl) + basePath;
+        DeviceUserCreateRequest createBody = buildDeviceUserCreateRequest(employee);
+        Long existingUserId = findDeviceUserIdByEmployeeNo(baseUrl, employee.getEmployeeId());
+        HttpMethod method = existingUserId == null ? HttpMethod.POST : HttpMethod.PUT;
+        String url = existingUserId == null ? baseUrl : baseUrl + "/" + existingUserId;
+        Object body = existingUserId == null
+                ? createBody
+                : new DeviceUserUpdateRequest(
+                createBody.name(),
+                createBody.userType(),
+                createBody.gender(),
+                createBody.beginTime(),
+                createBody.endTime(),
+                null
+        );
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setAccept(List.of(MediaType.APPLICATION_JSON));
 
         try {
-            HttpEntity<DeviceUserCreateRequest> entity = new HttpEntity<>(body, headers);
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            HttpEntity<Object> entity = new HttpEntity<>(body, headers);
+            ResponseEntity<String> response = restTemplate.exchange(url, method, entity, String.class);
             if (!response.getStatusCode().is2xxSuccessful()) {
                 throw buildUpstreamApiException(url, response.getStatusCode(), response.getBody());
             }
-            log.info("Employee {} synced via isapi service endpoint {} (deviceConfigId={})", employee.getEmployeeId(), url, deviceId);
+            log.info("Employee {} synced via isapi service endpoint {} (deviceConfigId={}, mode={})",
+                    employee.getEmployeeId(), url, deviceId, existingUserId == null ? "CREATE" : "UPDATE");
         } catch (HttpStatusCodeException ex) {
             throw buildUpstreamApiException(url, ex.getStatusCode(), ex.getResponseBodyAsString());
         } catch (ResourceAccessException ex) {
             log.error("ISAPI service sync is unavailable for employee {} via {}", employee.getEmployeeId(), url, ex);
             throw new DeviceSyncException("ISAPI service sync is unavailable for " + url, ex);
+        }
+    }
+
+    private Long findDeviceUserIdByEmployeeNo(String baseUrl, String employeeNo) {
+        try {
+            ResponseEntity<String> response = restTemplate.exchange(baseUrl, HttpMethod.GET, HttpEntity.EMPTY, String.class);
+            if (!response.getStatusCode().is2xxSuccessful() || !StringUtils.hasText(response.getBody())) {
+                return null;
+            }
+            JsonNode users = OM.readTree(response.getBody());
+            if (!users.isArray()) {
+                return null;
+            }
+            for (JsonNode user : users) {
+                if (employeeNo.equals(user.path("employeeNo").asText())) {
+                    long id = user.path("id").asLong(-1L);
+                    return id > 0 ? id : null;
+                }
+            }
+            return null;
+        } catch (Exception ex) {
+            log.warn("Failed to inspect existing device users for upsert at {}: {}", baseUrl, ex.getMessage());
+            return null;
         }
     }
 
@@ -247,6 +287,16 @@ public class IsapiEmployeeUserSyncService {
             String gender,
             String beginTime,
             String endTime
+    ) {
+    }
+
+    private record DeviceUserUpdateRequest(
+            String name,
+            String userType,
+            String gender,
+            String beginTime,
+            String endTime,
+            String faceDataUrl
     ) {
     }
 }

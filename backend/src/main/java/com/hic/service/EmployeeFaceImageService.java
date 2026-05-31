@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -91,6 +92,32 @@ public class EmployeeFaceImageService {
     public Optional<FaceImageData> getLatestFaceImage(Long employeeId) {
         return faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)
                 .flatMap(this::toFaceImageData);
+    }
+
+    public void deleteFaceImages(Long employeeId) {
+        if (employeeId == null) {
+            return;
+        }
+
+        List<FaceData> faceDataList = faceDataRepository.findByEmployeeId(employeeId);
+        if (faceDataList.isEmpty()) {
+            return;
+        }
+
+        Path targetDir = Paths.get(faceImagesDir).toAbsolutePath().normalize();
+        for (FaceData faceData : faceDataList) {
+            if (!StringUtils.hasText(faceData.getFaceImageUrl())) {
+                continue;
+            }
+            Path filePath = targetDir.resolve(faceData.getFaceImageUrl()).normalize();
+            if (filePath.startsWith(targetDir)) {
+                try {
+                    Files.deleteIfExists(filePath);
+                } catch (IOException ignored) {
+                }
+            }
+        }
+        faceDataRepository.deleteAll(faceDataList);
     }
 
     private Optional<FaceImageData> toFaceImageData(FaceData faceData) {

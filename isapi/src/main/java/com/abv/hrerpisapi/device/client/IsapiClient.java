@@ -445,6 +445,16 @@ public class IsapiClient {
 
         return toUserOperationResult(resp);
     }
+
+    public UserOperationResult deleteFaceFromFDLib(DeviceEntity device, String employeeNo)
+            throws IOException, InterruptedException {
+        String encodedEmployeeNo = URLEncoder.encode(employeeNo, StandardCharsets.UTF_8);
+        HttpResponse<String> resp = clientFor(device)
+                .delete("/ISAPI/Intelligent/FDLib/FDSetUp?format=json&FDID=1&FPID=" + encodedEmployeeNo,
+                        "application/json",
+                        "");
+        return toUserOperationResult(resp);
+    }
     // -----------------------------------------------------------------------
     // Legacy user management (generic devices)
     // -----------------------------------------------------------------------

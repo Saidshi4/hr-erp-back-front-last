@@ -129,6 +129,7 @@ export interface DoorAttendanceSyncResult {
   matchedSessions: number
   createdLogs: number
   skippedEmployees: number
+  skippedPunches?: number
   recalculatedDays: number
   unresolvedEmployeeNos?: string[]
 }

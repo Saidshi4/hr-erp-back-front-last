@@ -12,6 +12,7 @@ public class DoorAttendanceSyncResultDTO {
     private int matchedSessions;
     private int createdLogs;
     private int skippedEmployees;
+    private int skippedPunches;
     private int recalculatedDays;
     private List<String> unresolvedEmployeeNos;
 }

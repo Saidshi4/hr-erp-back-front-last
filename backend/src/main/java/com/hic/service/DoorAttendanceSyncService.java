@@ -8,6 +8,7 @@ import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DoorAttendanceSyncService {
 
     private static final int DEFAULT_LIMIT = 500;
@@ -33,6 +35,7 @@ public class DoorAttendanceSyncService {
     private final AttendanceLogRepository attendanceLogRepository;
     private final EmployeeRepository employeeRepository;
     private final AttendanceCalculationService attendanceCalculationService;
+    private final AttendanceService attendanceService;
 
     @Transactional
     public DoorAttendanceSyncResultDTO syncDoorAttendance(
@@ -55,36 +58,37 @@ public class DoorAttendanceSyncService {
                 .toList();
 
         Set<String> employeeCodes = new HashSet<>();
-        entryPunches.forEach(p -> employeeCodes.add(p.getEmployeeNo().trim()));
-        exitPunches.forEach(p -> employeeCodes.add(p.getEmployeeNo().trim()));
+        entryPunches.forEach(p -> employeeCodes.add(normalizeEmployeeCode(p.getEmployeeNo())));
+        exitPunches.forEach(p -> employeeCodes.add(normalizeEmployeeCode(p.getEmployeeNo())));
 
         Long tenantId = TenantContext.getTenantId();
         String doorId = entryDeviceId + ":" + exitDeviceId;
         int matchedSessions = 0;
         int createdLogs = 0;
         int skippedEmployees = 0;
+        int skippedPunches = 0;
         Set<String> unresolvedEmployeeNos = new HashSet<>();
         Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
 
         for (String employeeCode : employeeCodes) {
-            Employee employee = tenantId != null
-                    ? employeeRepository.findByTenantIdAndEmployeeId(tenantId, employeeCode).orElse(null)
-                    : employeeRepository.findByEmployeeId(employeeCode).orElse(null);
+            Employee employee = resolveEmployee(tenantId, employeeCode);
 
             if (employee == null) {
                 skippedEmployees++;
+                skippedPunches += countPunchesForEmployeeCode(entryPunches, employeeCode)
+                        + countPunchesForEmployeeCode(exitPunches, employeeCode);
                 unresolvedEmployeeNos.add(employeeCode);
                 continue;
             }
 
             List<LocalDateTime> employeeEntries = entryPunches.stream()
-                    .filter(p -> employeeCode.equals(p.getEmployeeNo().trim()))
+                    .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
                     .map(p -> toLocalDateTime(p.getPunchTime()))
                     .sorted(Comparator.naturalOrder())
                     .toList();
 
             List<LocalDateTime> employeeExits = exitPunches.stream()
-                    .filter(p -> employeeCode.equals(p.getEmployeeNo().trim()))
+                    .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
                     .map(p -> toLocalDateTime(p.getPunchTime()))
                     .sorted(Comparator.naturalOrder())
                     .toList();
@@ -100,6 +104,11 @@ public class DoorAttendanceSyncService {
                     exitTime = employeeExits.get(exitIndex);
                     exitIndex++;
                     matchedSessions++;
+                }
+
+                addRecalcDate(recalcDatesByEmployee, employee.getId(), entryTime.toLocalDate());
+                if (exitTime != null) {
+                    addRecalcDate(recalcDatesByEmployee, employee.getId(), exitTime.toLocalDate());
                 }
 
                 boolean alreadyExists = tenantId != null
@@ -133,11 +142,6 @@ public class DoorAttendanceSyncService {
                 log.setStatus("ACTIVE");
                 attendanceLogRepository.save(log);
                 createdLogs++;
-
-                addRecalcDate(recalcDatesByEmployee, employee.getId(), entryTime.toLocalDate());
-                if (exitTime != null) {
-                    addRecalcDate(recalcDatesByEmployee, employee.getId(), exitTime.toLocalDate());
-                }
             }
         }
 
@@ -147,8 +151,14 @@ public class DoorAttendanceSyncService {
             dates.sort(Comparator.naturalOrder());
             for (LocalDate date : dates) {
                 attendanceCalculationService.calculateForDay(entry.getKey(), date);
+                attendanceService.generateDailySummary(entry.getKey(), date);
                 recalculatedDays++;
             }
+        }
+
+        if (!unresolvedEmployeeNos.isEmpty()) {
+            log.warn("Door attendance sync unresolved employeeNo values: {} ({} punches skipped)",
+                    unresolvedEmployeeNos, skippedPunches);
         }
 
         return new DoorAttendanceSyncResultDTO(
@@ -156,6 +166,7 @@ public class DoorAttendanceSyncService {
                 matchedSessions,
                 createdLogs,
                 skippedEmployees,
+                skippedPunches,
                 recalculatedDays,
                 unresolvedEmployeeNos.stream().sorted().toList()
         );
@@ -199,6 +210,46 @@ public class DoorAttendanceSyncService {
 
     private LocalDateTime toLocalDateTime(OffsetDateTime time) {
         return time.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+    }
+
+    private Employee resolveEmployee(Long tenantId, String employeeCode) {
+        String normalizedCode = employeeCode == null ? null : employeeCode.trim();
+        if (normalizedCode == null || normalizedCode.isEmpty()) {
+            return null;
+        }
+
+        Employee byEmployeeCode = tenantId != null
+                ? employeeRepository.findByTenantIdAndEmployeeId(tenantId, normalizedCode)
+                .or(() -> employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(tenantId, normalizedCode))
+                .orElse(null)
+                : employeeRepository.findByEmployeeId(normalizedCode)
+                .or(() -> employeeRepository.findByEmployeeIdIgnoreCase(normalizedCode))
+                .orElse(null);
+        if (byEmployeeCode != null) {
+            return byEmployeeCode;
+        }
+
+        if (normalizedCode.chars().allMatch(Character::isDigit)) {
+            try {
+                Long employeePk = Long.parseLong(normalizedCode);
+                return tenantId != null
+                        ? employeeRepository.findByTenantIdAndId(tenantId, employeePk).orElse(null)
+                        : employeeRepository.findById(employeePk).orElse(null);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private int countPunchesForEmployeeCode(List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> punches, String employeeCode) {
+        return (int) punches.stream()
+                .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
+                .count();
+    }
+
+    private String normalizeEmployeeCode(String employeeCode) {
+        return employeeCode == null ? null : employeeCode.trim().toUpperCase();
     }
 
     private void addRecalcDate(Map<Long, Set<LocalDate>> map, Long employeeId, LocalDate date) {

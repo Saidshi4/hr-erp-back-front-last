@@ -28,6 +28,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     Optional<Employee> findByTenantIdAndFinNumber(Long tenantId, String finNumber);
 
     Optional<Employee> findByTenantIdAndEmployeeId(Long tenantId, String employeeId);
+    Optional<Employee> findByTenantIdAndEmployeeIdIgnoreCase(Long tenantId, String employeeId);
 
     Optional<Employee> findByTenantIdAndId(Long tenantId, Long id);
 
@@ -69,6 +70,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByEmploymentStatus(EmploymentStatus status);
     Optional<Employee> findByFinNumber(String finNumber);
     Optional<Employee> findByEmployeeId(String employeeId);
+    Optional<Employee> findByEmployeeIdIgnoreCase(String employeeId);
     List<Employee> findByDepartmentIdIn(Collection<Long> departmentIds);
     Page<Employee> findByDepartmentIdIn(Collection<Long> departmentIds, Pageable pageable);
 

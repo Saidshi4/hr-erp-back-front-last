@@ -1,5 +1,7 @@
 package com.hic.controller;
 
+import com.hic.dto.DeviceSyncDTO;
+import com.hic.service.DeviceService;
 import com.hic.service.IsapiProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -7,10 +9,13 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpMethod;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/devices")
 @RequiredArgsConstructor
 public class DeviceController {
+    private final DeviceService deviceService;
     private final IsapiProxyService isapiProxyService;
 
     @GetMapping
@@ -21,6 +26,11 @@ public class DeviceController {
     @GetMapping("/{id}")
     public ResponseEntity<String> getById(@PathVariable Long id, HttpServletRequest request) {
         return isapiProxyService.forward(HttpMethod.GET, "/api/devices/" + id, request, null);
+    }
+
+    @PostMapping("/sync")
+    public ResponseEntity<DeviceSyncDTO.SyncResultDTO> syncFromIsapi() {
+        return ResponseEntity.ok(deviceService.syncFromIsapi());
     }
 
     @PostMapping

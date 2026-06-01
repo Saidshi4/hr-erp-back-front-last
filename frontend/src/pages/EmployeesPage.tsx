@@ -407,7 +407,7 @@ export default function EmployeesPage() {
         address: form.address,
         notes: form.notes,
         area: selectedDeviceLabels.length ? selectedDeviceLabels.join(', ') : form.area,
-        deviceIds: selectedDeviceIds,
+        ...(editingEmployee || selectedDeviceIds.length > 0 ? { deviceIds: selectedDeviceIds } : {}),
       }
 
       let savedEmployee: Employee | undefined
@@ -1010,6 +1010,9 @@ export default function EmployeesPage() {
 
                   <div className="mt-5">
                     <h4 className="text-sm font-bold text-gray-700 mb-2">Area / Device Assignment</h4>
+                    <p className="text-xs text-gray-500 mb-2">
+                      Seçilməsə, işçinin şöbəsinin (branch) cihazlarına avtomatik əlavə olunacaq.
+                    </p>
                     <input
                       value={deviceSearch}
                       onChange={(e) => setDeviceSearch(e.target.value)}

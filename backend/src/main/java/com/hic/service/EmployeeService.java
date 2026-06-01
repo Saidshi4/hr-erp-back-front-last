@@ -183,7 +183,10 @@ public class EmployeeService {
         }
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId);
+        List<Long> deviceIdsToAssign = dto.getDeviceIds() != null
+                ? dto.getDeviceIds()
+                : resolveDeviceIdsByBranch(saved, tenantId);
+        List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
@@ -198,9 +201,10 @@ public class EmployeeService {
         mapDtoToEmployee(dto, employee);
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> assignedDeviceIds = dto.getDeviceIds() != null
-                ? replaceEmployeeDeviceAccess(saved, dto.getDeviceIds(), tenantId)
+        List<Long> deviceIdsToAssign = dto.getDeviceIds() != null
+                ? dto.getDeviceIds()
                 : getEmployeeDeviceIds(saved.getId());
+        List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
     }
@@ -391,6 +395,20 @@ public class EmployeeService {
             throw new BadRequestException("Invalid or unauthorized device ids: " + invalidIds);
         }
         return normalized;
+    }
+
+    private List<Long> resolveDeviceIdsByBranch(Employee employee, Long tenantId) {
+        Long branchId = employee.getBranchId();
+        if (branchId == null) {
+            return List.of();
+        }
+        List<DeviceConfig> branchDevices = deviceConfigRepository.findByBranchId(branchId);
+        return branchDevices.stream()
+                .filter(d -> tenantId == null || d.getTenantId() == null || tenantId.equals(d.getTenantId()))
+                .map(DeviceConfig::getId)
+                .distinct()
+                .sorted()
+                .toList();
     }
 
     private List<Long> getEmployeeDeviceIds(Long employeeId) {

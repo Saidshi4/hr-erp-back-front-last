@@ -264,4 +264,45 @@ class EmployeeServiceTest {
         assertThat(result.get(0).getFinNumber()).isEqualTo("FIN12345");
         assertThat(result.get(0).getDepartmentName()).isEqualTo("Engineering");
     }
+
+    @Test
+    void update_branchChangedWithoutDeviceIds_resolvesDevicesByNewBranch() {
+        testEmployee.setBranchId(1L);
+        testEmployeeDTO.setBranchId(2L);
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(employeeDeviceAccessRepository.findByEmployeeId(1L)).thenReturn(List.of());
+        when(deviceConfigRepository.findByBranchId(2L)).thenReturn(List.of());
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+
+        EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        verify(deviceConfigRepository).findByBranchId(2L);
+        verify(employeeDeviceAccessRepository).deleteByEmployeeId(1L);
+    }
+
+    @Test
+    void update_explicitDeviceIdsFromWrongBranch_throwsBadRequestException() {
+        testEmployee.setBranchId(1L);
+        testEmployeeDTO.setBranchId(1L);
+        testEmployeeDTO.setDeviceIds(List.of(10L));
+
+        com.hic.model.DeviceConfig wrongBranchDevice = new com.hic.model.DeviceConfig();
+        wrongBranchDevice.setId(10L);
+        wrongBranchDevice.setBranchId(2L);
+        wrongBranchDevice.setTenantId(testEmployee.getTenantId());
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
+        when(departmentRepository.existsById(1L)).thenReturn(true);
+        when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
+        when(deviceConfigRepository.findAllById(List.of(10L))).thenReturn(List.of(wrongBranchDevice));
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
+
+        assertThatThrownBy(() -> employeeService.update(1L, testEmployeeDTO))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Device ids do not belong to employee branch");
+    }
 }

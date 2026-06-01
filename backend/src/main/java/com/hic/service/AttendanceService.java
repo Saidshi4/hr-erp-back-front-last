@@ -31,6 +31,8 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -186,8 +188,8 @@ public class AttendanceService {
 
             EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
             row.setDate(date);
-            row.setCheckInTime(firstCheckIn);
-            row.setCheckOutTime(lastCheckOut);
+            row.setCheckInTime(toOffsetDateTime(firstCheckIn));
+            row.setCheckOutTime(toOffsetDateTime(lastCheckOut));
             row.setHoursWorked(hoursWorked);
             row.setStatus(determineDailyStatus(summary, firstCheckIn, onLeave, timetable.orElse(null)));
             row.setNotes(buildNotes(approvedLeaves, approvedPermissions, date));
@@ -242,14 +244,14 @@ public class AttendanceService {
         AttendanceLogDTO dto = new AttendanceLogDTO();
         dto.setId(log.getId());
         dto.setEmployeeId(log.getEmployeeId());
-        dto.setCheckInTime(log.getCheckInTime());
-        dto.setCheckOutTime(log.getCheckOutTime());
+        dto.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
+        dto.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
         dto.setDeviceId(log.getDeviceId());
         dto.setDoorId(log.getDoorId());
         dto.setEventType(log.getEventType());
         dto.setVerificationMethod(log.getVerificationMethod());
         dto.setStatus(log.getStatus());
-        dto.setCreatedAt(log.getCreatedAt());
+        dto.setCreatedAt(toOffsetDateTime(log.getCreatedAt()));
         return dto;
     }
 
@@ -258,8 +260,8 @@ public class AttendanceService {
         dto.setId(s.getId());
         dto.setEmployeeId(s.getEmployeeId());
         dto.setAttendanceDate(s.getAttendanceDate());
-        dto.setCheckInTime(s.getCheckInTime());
-        dto.setCheckOutTime(s.getCheckOutTime());
+        dto.setCheckInTime(toOffsetDateTime(s.getCheckInTime()));
+        dto.setCheckOutTime(toOffsetDateTime(s.getCheckOutTime()));
         dto.setHoursWorked(s.getHoursWorked());
         dto.setIsStandardDay(s.getIsStandardDay());
         dto.setIsAdditionalDay(s.getIsAdditionalDay());
@@ -350,5 +352,12 @@ public class AttendanceService {
         boolean onLeave = leaves.stream()
                 .anyMatch(item -> !item.getStartDate().isAfter(date) && !item.getEndDate().isBefore(date));
         return onLeave ? "Approved leave" : null;
+    }
+
+    private OffsetDateTime toOffsetDateTime(LocalDateTime localDateTime) {
+        if (localDateTime == null) {
+            return null;
+        }
+        return localDateTime.atZone(ZoneId.systemDefault()).toOffsetDateTime();
     }
 }

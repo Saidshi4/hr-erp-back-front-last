@@ -25,7 +25,9 @@ export default function AccessLogsPage() {
       const deviceId = deviceIdFilter.trim() && !Number.isNaN(normalizedDeviceId)
         ? normalizedDeviceId
         : undefined
-      const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId })
+      const start = startDate ? new Date(`${startDate}T00:00:00`).toISOString() : undefined
+      const end = endDate ? new Date(`${endDate}T23:59:59`).toISOString() : undefined
+      const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId, start, end })
       setLogs(res.data?.data ?? [])
       setFetched(true)
     } catch (e: unknown) {
@@ -33,7 +35,7 @@ export default function AccessLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, deviceIdFilter])
+  }, [search, deviceIdFilter, startDate, endDate])
 
   const filteredLogs = logs.filter((log) => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -41,13 +43,7 @@ export default function AccessLogsPage() {
       String(log.employeeNo ?? '').toLowerCase().includes(normalizedSearch) ||
       String(log.deviceId ?? '').toLowerCase().includes(normalizedSearch)
     )
-    if (!matchesSearch) return false
-
-    if (!log.punchTime) return true
-    const punchDate = new Date(log.punchTime)
-    const start = new Date(`${startDate}T00:00:00`)
-    const end = new Date(`${endDate}T23:59:59`)
-    return punchDate >= start && punchDate <= end
+    return matchesSearch
   })
 
   const uniqueEmployees = new Set(filteredLogs.map(l => l.employeeNo).filter(Boolean)).size

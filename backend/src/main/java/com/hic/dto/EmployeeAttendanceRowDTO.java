@@ -4,13 +4,13 @@ import com.hic.model.DailyAttendanceSummary.AttendanceStatus;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 public class EmployeeAttendanceRowDTO {
     private LocalDate date;
-    private LocalDateTime checkInTime;
-    private LocalDateTime checkOutTime;
+    private OffsetDateTime checkInTime;
+    private OffsetDateTime checkOutTime;
     private Double hoursWorked;
     private AttendanceStatus status;
     private String notes;

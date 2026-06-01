@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -47,19 +48,20 @@ public class DoorAttendanceSyncService {
     ) {
         int effectiveLimit = limit == null || limit <= 0 ? DEFAULT_LIMIT : limit;
 
-        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> entryPunches = fetchPunchesInRange(entryDeviceId, start, end, effectiveLimit)
+        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> allPunches = new ArrayList<>();
+        allPunches.addAll(fetchPunchesInRange(entryDeviceId, start, end, effectiveLimit)
                 .stream()
                 .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
-                .toList();
-
-        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> exitPunches = fetchPunchesInRange(exitDeviceId, start, end, effectiveLimit)
+                .toList());
+        allPunches.addAll(fetchPunchesInRange(exitDeviceId, start, end, effectiveLimit)
                 .stream()
                 .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
-                .toList();
+                .toList());
 
-        Set<String> employeeCodes = new HashSet<>();
-        entryPunches.forEach(p -> employeeCodes.add(normalizeEmployeeCode(p.getEmployeeNo())));
-        exitPunches.forEach(p -> employeeCodes.add(normalizeEmployeeCode(p.getEmployeeNo())));
+        Set<String> employeeCodes = allPunches.stream()
+                .map(p -> normalizeEmployeeCode(p.getEmployeeNo()))
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
 
         Long tenantId = TenantContext.getTenantId();
         String doorId = entryDeviceId + ":" + exitDeviceId;
@@ -75,35 +77,28 @@ public class DoorAttendanceSyncService {
 
             if (employee == null) {
                 skippedEmployees++;
-                skippedPunches += countPunchesForEmployeeCode(entryPunches, employeeCode)
-                        + countPunchesForEmployeeCode(exitPunches, employeeCode);
+                skippedPunches += countPunchesForEmployeeCode(allPunches, employeeCode);
                 unresolvedEmployeeNos.add(employeeCode);
                 continue;
             }
 
-            List<LocalDateTime> employeeEntries = entryPunches.stream()
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> employeePunches = allPunches.stream()
                     .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
-                    .map(p -> toLocalDateTime(p.getPunchTime()))
-                    .sorted(Comparator.naturalOrder())
+                    .sorted(Comparator.comparing(p -> toLocalDateTime(p.getPunchTime())))
                     .toList();
 
-            List<LocalDateTime> employeeExits = exitPunches.stream()
-                    .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
-                    .map(p -> toLocalDateTime(p.getPunchTime()))
-                    .sorted(Comparator.naturalOrder())
-                    .toList();
+            for (int i = 0; i < employeePunches.size(); i += 2) {
+                AttendanceLogSyncDTO.AttendanceLogEntryDTO entryPunch = employeePunches.get(i);
+                AttendanceLogSyncDTO.AttendanceLogEntryDTO exitPunch = (i + 1 < employeePunches.size())
+                        ? employeePunches.get(i + 1)
+                        : null;
 
-            int exitIndex = 0;
-            for (LocalDateTime entryTime : employeeEntries) {
-                while (exitIndex < employeeExits.size() && employeeExits.get(exitIndex).isBefore(entryTime)) {
-                    exitIndex++;
-                }
+                LocalDateTime entryTime = toLocalDateTime(entryPunch.getPunchTime());
+                LocalDateTime exitTime = exitPunch != null ? toLocalDateTime(exitPunch.getPunchTime()) : null;
 
-                LocalDateTime exitTime = null;
-                if (exitIndex < employeeExits.size()) {
-                    exitTime = employeeExits.get(exitIndex);
-                    exitIndex++;
-                    matchedSessions++;
+                if (exitTime != null && !exitTime.isAfter(entryTime)) {
+                    exitTime = null;
+                    exitPunch = null;
                 }
 
                 addRecalcDate(recalcDatesByEmployee, employee.getId(), entryTime.toLocalDate());
@@ -136,12 +131,15 @@ public class DoorAttendanceSyncService {
                 log.setCheckInTime(entryTime);
                 log.setCheckOutTime(exitTime);
                 log.setDoorId(doorId);
-                log.setDeviceId(String.valueOf(entryDeviceId));
+                log.setDeviceId(String.valueOf(entryPunch.getDeviceId()));
                 log.setEventType("DOOR_SESSION");
                 log.setVerificationMethod("ISAPI_PUNCH");
                 log.setStatus("ACTIVE");
                 attendanceLogRepository.save(log);
                 createdLogs++;
+                if (exitTime != null) {
+                    matchedSessions++;
+                }
             }
         }
 
@@ -162,7 +160,7 @@ public class DoorAttendanceSyncService {
         }
 
         return new DoorAttendanceSyncResultDTO(
-                entryPunches.size() + exitPunches.size(),
+                allPunches.size(),
                 matchedSessions,
                 createdLogs,
                 skippedEmployees,
@@ -246,6 +244,15 @@ public class DoorAttendanceSyncService {
         return (int) punches.stream()
                 .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
                 .count();
+    }
+
+    private int countPunchesForEmployeeCode(
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> entryPunches,
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> exitPunches,
+            String employeeCode
+    ) {
+        return countPunchesForEmployeeCode(entryPunches, employeeCode)
+                + countPunchesForEmployeeCode(exitPunches, employeeCode);
     }
 
     private String normalizeEmployeeCode(String employeeCode) {

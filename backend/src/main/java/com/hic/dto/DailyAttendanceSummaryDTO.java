@@ -4,7 +4,7 @@ import com.hic.model.DailyAttendanceSummary.AttendanceStatus;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 public class DailyAttendanceSummaryDTO {
@@ -12,8 +12,8 @@ public class DailyAttendanceSummaryDTO {
     private Long employeeId;
     private String employeeName;
     private LocalDate attendanceDate;
-    private LocalDateTime checkInTime;
-    private LocalDateTime checkOutTime;
+    private OffsetDateTime checkInTime;
+    private OffsetDateTime checkOutTime;
     private Double hoursWorked;
     private Boolean isStandardDay;
     private Boolean isAdditionalDay;

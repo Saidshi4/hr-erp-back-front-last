@@ -198,12 +198,21 @@ public class EmployeeService {
 
         validateDepartmentExists(dto.getDepartmentId());
         Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : TenantContext.getTenantId();
+        Long oldBranchId = employee.getBranchId();
         mapDtoToEmployee(dto, employee);
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> deviceIdsToAssign = dto.getDeviceIds() != null
-                ? dto.getDeviceIds()
-                : getEmployeeDeviceIds(saved.getId());
+        List<Long> deviceIdsToAssign;
+        if (dto.getDeviceIds() != null) {
+            deviceIdsToAssign = dto.getDeviceIds();
+        } else {
+            List<Long> existingDeviceIds = getEmployeeDeviceIds(saved.getId());
+            if (!java.util.Objects.equals(oldBranchId, saved.getBranchId()) || existingDeviceIds.isEmpty()) {
+                deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
+            } else {
+                deviceIdsToAssign = existingDeviceIds;
+            }
+        }
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
@@ -352,6 +361,7 @@ public class EmployeeService {
 
     private List<Long> replaceEmployeeDeviceAccess(Employee employee, List<Long> requestedDeviceIds, Long tenantId) {
         List<Long> validDeviceIds = validateDeviceIds(requestedDeviceIds, tenantId);
+        validateDeviceIdsBelongToBranch(validDeviceIds, employee.getBranchId());
         employeeDeviceAccessRepository.deleteByEmployeeId(employee.getId());
         if (validDeviceIds.isEmpty()) {
             return List.of();
@@ -395,6 +405,20 @@ public class EmployeeService {
             throw new BadRequestException("Invalid or unauthorized device ids: " + invalidIds);
         }
         return normalized;
+    }
+
+    private void validateDeviceIdsBelongToBranch(List<Long> deviceIds, Long branchId) {
+        if (deviceIds == null || deviceIds.isEmpty() || branchId == null) {
+            return;
+        }
+        List<DeviceConfig> devices = deviceConfigRepository.findAllById(deviceIds);
+        List<Long> wrongBranchDeviceIds = devices.stream()
+                .filter(d -> !branchId.equals(d.getBranchId()))
+                .map(DeviceConfig::getId)
+                .toList();
+        if (!wrongBranchDeviceIds.isEmpty()) {
+            throw new BadRequestException("Device ids do not belong to employee branch: " + wrongBranchDeviceIds);
+        }
     }
 
     private List<Long> resolveDeviceIdsByBranch(Employee employee, Long tenantId) {

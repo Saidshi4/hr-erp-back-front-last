@@ -139,10 +139,48 @@ class DoorAttendanceSyncServiceTest {
         assertThat(result.getSkippedEmployees()).isZero();
     }
 
+    @Test
+    void syncDoorAttendance_pairsPunchesByTimeRegardlessOfDevice() {
+        TenantContext.setTenantId(7L);
+        Employee employee = new Employee();
+        employee.setId(10L);
+        employee.setTenantId(7L);
+        employee.setEmployeeId("EMP0010");
+
+        // Employee punches on exit device (2L) at 08:00 (entry), then on entry device (1L) at 17:00 (exit)
+        when(attendanceLogSyncService.getAttendanceLogs(eq(1L), eq(null), any(), any(), eq(0), eq(200)))
+                .thenReturn(List.of(punch("EMP0010", "2026-05-20T17:00:00Z", 1L)));
+        when(attendanceLogSyncService.getAttendanceLogs(eq(1L), eq(null), any(), any(), eq(1), eq(200)))
+                .thenReturn(List.of());
+        when(attendanceLogSyncService.getAttendanceLogs(eq(2L), eq(null), any(), any(), eq(0), eq(200)))
+                .thenReturn(List.of(punch("EMP0010", "2026-05-20T08:00:00Z", 2L)));
+        when(attendanceLogSyncService.getAttendanceLogs(eq(2L), eq(null), any(), any(), eq(1), eq(200)))
+                .thenReturn(List.of());
+
+        when(employeeRepository.findByTenantIdAndEmployeeId(7L, "EMP0010")).thenReturn(Optional.of(employee));
+        when(attendanceLogRepository.save(any(AttendanceLog.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DoorAttendanceSyncResultDTO result = doorAttendanceSyncService.syncDoorAttendance(
+                1L,
+                2L,
+                LocalDateTime.of(2026, 5, 20, 0, 0),
+                LocalDateTime.of(2026, 5, 20, 23, 59),
+                200
+        );
+
+        assertThat(result.getTotalPunches()).isEqualTo(2);
+        assertThat(result.getCreatedLogs()).isEqualTo(1);
+        assertThat(result.getMatchedSessions()).isEqualTo(1);
+    }
+
     private AttendanceLogSyncDTO.AttendanceLogEntryDTO punch(String employeeNo, String punchTime) {
+        return punch(employeeNo, punchTime, 1L);
+    }
+
+    private AttendanceLogSyncDTO.AttendanceLogEntryDTO punch(String employeeNo, String punchTime, Long deviceId) {
         return new AttendanceLogSyncDTO.AttendanceLogEntryDTO(
                 1L,
-                1L,
+                deviceId,
                 employeeNo,
                 OffsetDateTime.parse(punchTime),
                 1L

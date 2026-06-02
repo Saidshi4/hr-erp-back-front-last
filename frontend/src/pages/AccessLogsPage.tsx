@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
 import { AccessLog } from '../types'
+import { t } from '../i18n/index.ts'
 
 export default function AccessLogsPage() {
   const today = new Date().toISOString().split('T')[0]
@@ -31,7 +32,7 @@ export default function AccessLogsPage() {
       setLogs(res.data?.data ?? [])
       setFetched(true)
     } catch (e: unknown) {
-      setError((e as Error).message || 'Failed to fetch access logs')
+      setError((e as Error).message || t('accessLogs.fetchFailed'))
     } finally {
       setLoading(false)
     }
@@ -54,15 +55,15 @@ export default function AccessLogsPage() {
       <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Access Logs</h1>
-          <p className="text-sm text-gray-500 mt-1">Device access history and entry records</p>
+          <h1 className="text-2xl font-bold text-gray-900">{t('accessLogs.title')}</h1>
+          <p className="text-sm text-gray-500 mt-1">{t('accessLogs.subtitle')}</p>
         </div>
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
           <div className="flex flex-wrap gap-4 items-end">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">From Date</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.fromDate')}</label>
               <input
                 type="date"
                 value={startDate}
@@ -71,7 +72,7 @@ export default function AccessLogsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">To Date</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.toDate')}</label>
               <input
                 type="date"
                 value={endDate}
@@ -80,20 +81,20 @@ export default function AccessLogsPage() {
               />
             </div>
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Device ID</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.deviceId')}</label>
               <input
                 type="text"
-                placeholder="e.g. 12"
+                placeholder={t('accessLogs.sampleDeviceId')}
                 value={deviceIdFilter}
                 onChange={(e) => setDeviceIdFilter(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
             <div className="flex-1 min-w-[200px]">
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Search</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('common.search')}</label>
               <input
                 type="text"
-                placeholder="Employee No..."
+                placeholder={t('accessLogs.employeeNo')}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
@@ -112,7 +113,7 @@ export default function AccessLogsPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               )}
-              {loading ? 'Loading...' : 'Search'}
+              {loading ? t('accessLogs.loading') : t('common.search')}
             </button>
           </div>
         </div>
@@ -128,22 +129,22 @@ export default function AccessLogsPage() {
             {/* Summary */}
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Total Events</p>
+                <p className="text-xs text-gray-400">{t('accessLogs.totalEvents')}</p>
                 <p className="text-xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Unique Employees</p>
+                <p className="text-xs text-gray-400">{t('accessLogs.uniqueEmployees')}</p>
                 <p className="text-xl font-bold mt-1" style={{ color: '#10b981' }}>{uniqueEmployees}</p>
               </div>
               <div className="bg-white rounded-xl p-4 shadow-sm">
-                <p className="text-xs text-gray-400">Unique Devices</p>
+                <p className="text-xs text-gray-400">{t('accessLogs.uniqueDevices')}</p>
                 <p className="text-xl font-bold mt-1 text-gray-900">{uniqueDevices}</p>
               </div>
             </div>
 
             {filteredLogs.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
-                No access logs found for the selected criteria.
+                {t('accessLogs.noResults')}
               </div>
             ) : (
               <div className="space-y-3">
@@ -162,15 +163,15 @@ export default function AccessLogsPage() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">Employee #{log.employeeNo || '—'}</p>
+                        <p className="text-sm font-semibold text-gray-900">{t('accessLogs.employeeLabel', { employeeNo: log.employeeNo || '—' })}</p>
                         <p className="text-xs text-gray-400 mt-0.5">
-                          Access Event {log.deviceId ? `· Device: ${log.deviceId}` : ''}
+                          {t('accessLogs.accessEvent')} {log.deviceId ? `· ${t('accessLogs.device')}: ${log.deviceId}` : ''}
                         </p>
                       </div>
 
                       {/* Time */}
                       <div className="hidden md:block text-center min-w-[150px]">
-                        <p className="text-xs text-gray-400 mb-0.5">Access Time</p>
+                        <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.accessTime')}</p>
                         <p className="text-sm font-medium text-gray-700">
                           {log.punchTime
                             ? new Date(log.punchTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
@@ -180,7 +181,7 @@ export default function AccessLogsPage() {
 
                       {/* Device */}
                       <div className="hidden lg:block text-center min-w-[120px]">
-                        <p className="text-xs text-gray-400 mb-0.5">Device</p>
+                        <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.device')}</p>
                         <p className="text-sm text-gray-600 font-mono">{log.deviceId ?? '—'}</p>
                       </div>
 
@@ -189,7 +190,7 @@ export default function AccessLogsPage() {
                         className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
                         style={{ background: '#d1fae5', color: '#065f46' }}
                       >
-                        Recorded
+                        {t('accessLogs.recorded')}
                       </span>
                     </div>
                   )
@@ -204,7 +205,7 @@ export default function AccessLogsPage() {
             <svg className="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p>Select a date range and click Search to view access logs.</p>
+            <p>{t('accessLogs.emptyState')}</p>
           </div>
         )}
       </div>

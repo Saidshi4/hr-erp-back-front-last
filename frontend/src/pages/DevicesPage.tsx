@@ -84,7 +84,7 @@ export default function DevicesPage() {
       // Also refresh device list since devices may have been unassigned
       await fetchDevices()
     } catch (e: any) {
-      alert(e?.response?.data?.message || 'Failed to delete door')
+      alert(e?.response?.data?.message || 'Qapını silmək alınmadı')
     }
   }
 
@@ -121,11 +121,11 @@ export default function DevicesPage() {
   }
 
   const handleSave = async () => {
-    if (!form.deviceIp.trim()) { setFormError('Device IP is required.'); return }
-    if (!form.username.trim()) { setFormError('Username is required.'); return }
-    if (!editingDevice && !form.password.trim()) { setFormError('Password is required.'); return }
+    if (!form.deviceIp.trim()) { setFormError('Cihaz IP-si tələb olunur.'); return }
+    if (!form.username.trim()) { setFormError('İstifadəçi adı tələb olunur.'); return }
+    if (!editingDevice && !form.password.trim()) { setFormError('Şifrə tələb olunur.'); return }
     if (form.branchId && selectedDoorId === 'new' && !newDoorName.trim()) {
-      setFormError('Door name is required when creating a new door.')
+      setFormError('Yeni qapı yaradarkən qapı adı tələb olunur.')
       return
     }
     setSaving(true)
@@ -168,7 +168,7 @@ export default function DevicesPage() {
       await fetchDevices()
       setShowModal(false)
     } catch (e: unknown) {
-      setFormError((e as Error).message || 'Failed to save device')
+      setFormError((e as Error).message || 'Cihazı yadda saxlamaq alınmadı')
     } finally {
       setSaving(false)
     }
@@ -202,15 +202,15 @@ export default function DevicesPage() {
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Devices</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Cihazlar</h1>
             <p className="text-sm text-gray-500 mt-1">
               <span className="inline-flex items-center gap-1.5 mr-3">
                 <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span>
-                {activeCount} online
+                {activeCount} onlayn
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
-                {inactiveCount} offline
+                {inactiveCount} oflayn
               </span>
             </p>
           </div>
@@ -222,7 +222,7 @@ export default function DevicesPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              Refresh
+              Yenilə
             </button>
             <button
               onClick={() => { setShowDoorManager(true); setManagerBranchId(''); setManagerDoors([]) }}
@@ -231,7 +231,7 @@ export default function DevicesPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
-              Manage Doors
+              Qapıları idarə et
             </button>
             <button
               onClick={openCreate}
@@ -241,7 +241,7 @@ export default function DevicesPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Add Device
+              Cihaz əlavə et
             </button>
           </div>
         </div>
@@ -255,7 +255,7 @@ export default function DevicesPage() {
               </svg>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Total Devices</p>
+              <p className="text-xs text-gray-400">Ümumi cihazlar</p>
               <p className="text-lg font-bold text-gray-900">{devices.length}</p>
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function DevicesPage() {
               <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Online</p>
+              <p className="text-xs text-gray-400">Onlayn</p>
               <p className="text-lg font-bold text-gray-900">{activeCount}</p>
             </div>
           </div>
@@ -273,7 +273,7 @@ export default function DevicesPage() {
               <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
             </div>
             <div>
-              <p className="text-xs text-gray-400">Offline</p>
+              <p className="text-xs text-gray-400">Oflayn</p>
               <p className="text-lg font-bold text-gray-900">{inactiveCount}</p>
             </div>
           </div>
@@ -283,7 +283,7 @@ export default function DevicesPage() {
         {loading ? (
           <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
             <div className="w-8 h-8 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-3"></div>
-            Loading devices...
+            Cihazlar yüklənir...
           </div>
         ) : error ? (
           <div className="bg-white rounded-xl shadow-sm p-8 text-center text-red-500">{error}</div>
@@ -294,9 +294,9 @@ export default function DevicesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
               </svg>
             </div>
-            <p className="text-gray-500 text-sm">No devices configured yet.</p>
+            <p className="text-gray-500 text-sm">Hələ heç bir cihaz qurulmayıb.</p>
             <button onClick={openCreate} className="mt-3 text-sm font-medium" style={{ color: '#a855f7' }}>
-              + Add your first device
+              + İlk cihazı əlavə et
             </button>
           </div>
         ) : (
@@ -321,7 +321,7 @@ export default function DevicesPage() {
                         : { background: '#fee2e2', color: '#991b1b' }}
                     >
                       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${device.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-400'}`}></span>
-                      {device.status === 'ACTIVE' ? 'Online' : 'Offline'}
+                      {device.status === 'ACTIVE' ? 'Onlayn' : 'Oflayn'}
                     </span>
                     {device.doorRole && (
                       <span
@@ -337,17 +337,17 @@ export default function DevicesPage() {
 
                 {/* IP */}
                 <div className="hidden md:block text-center min-w-[130px]">
-                  <p className="text-xs text-gray-400 mb-0.5">IP Address</p>
+                  <p className="text-xs text-gray-400 mb-0.5">IP ünvanı</p>
                   <p className="text-sm font-mono text-gray-700">
                     {device.deviceIp}{device.devicePort && device.devicePort !== 80 ? `:${device.devicePort}` : ''}
                   </p>
                 </div>
 
-                {/* Last Sync */}
+                {/* Son sinxron */}
                 <div className="hidden lg:block text-center min-w-[150px]">
-                  <p className="text-xs text-gray-400 mb-0.5">Last Sync</p>
+                  <p className="text-xs text-gray-400 mb-0.5">Son sinxron</p>
                   <p className="text-sm text-gray-600">
-                    {device.lastSyncTime ? new Date(device.lastSyncTime).toLocaleString() : 'Never'}
+                    {device.lastSyncTime ? new Date(device.lastSyncTime).toLocaleString() : 'Heç vaxt'}
                   </p>
                 </div>
 
@@ -362,19 +362,19 @@ export default function DevicesPage() {
                     <svg className={`w-3.5 h-3.5 ${syncingId === device.id ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
-                    {syncingId === device.id ? 'Syncing...' : 'Sync'}
+                    {syncingId === device.id ? 'Sinxronlaşdırılır...' : 'Sinxron'}
                   </button>
                   <button
                     onClick={() => openEdit(device)}
                     className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                   >
-                    Edit
+                    Redaktə et
                   </button>
                   <button
                     onClick={() => setDeleteConfirm(device)}
                     className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 rounded-lg hover:bg-red-100 transition-colors"
                   >
-                    Delete
+                    Sil
                   </button>
                 </div>
               </div>
@@ -388,7 +388,7 @@ export default function DevicesPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              {editingDevice ? 'Edit Device' : 'Add Device'}
+              {editingDevice ? 'Cihazı redaktə et' : 'Cihaz əlavə et'}
             </h2>
             {formError && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-4 text-sm">
@@ -397,17 +397,17 @@ export default function DevicesPage() {
             )}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Device Name</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cihaz adı</label>
                 <input
                   type="text"
                   value={form.deviceName}
                   onChange={(e) => setForm({ ...form, deviceName: e.target.value })}
-                  placeholder="e.g., Main Entrance"
+                  placeholder="məs., Əsas giriş"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">IP Address *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">IP ünvanı *</label>
                 <input
                   type="text"
                   value={form.deviceIp}
@@ -427,7 +427,7 @@ export default function DevicesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">İstifadəçi adı</label>
                 <input
                   type="text"
                   value={form.username}
@@ -437,7 +437,7 @@ export default function DevicesPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Password {editingDevice ? '(leave blank to keep)' : ''}
+                  Şifrə {editingDevice ? '(boş saxlayın ki, dəyişməsin)' : ''}
                 </label>
                 <input
                   type="password"
@@ -447,7 +447,7 @@ export default function DevicesPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Filial</label>
                 <select
                   value={form.branchId}
                   onChange={(e) => {
@@ -463,7 +463,7 @@ export default function DevicesPage() {
                   }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
-                  <option value="">Select branch...</option>
+                  <option value="">Filial seçin...</option>
                   {branches.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
@@ -472,7 +472,7 @@ export default function DevicesPage() {
               {form.branchId && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Door</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Qapı</label>
                     <select
                       value={selectedDoorId}
                       onChange={(e) => {
@@ -482,36 +482,36 @@ export default function DevicesPage() {
                       }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                     >
-                      <option value="">None</option>
+                      <option value="">Yoxdur</option>
                       {doors.map((d) => (
                         <option key={d.id} value={d.id}>{d.name}</option>
                       ))}
-                      <option value="new">+ Create new door...</option>
+                      <option value="new">+ Yeni qapı yarat...</option>
                     </select>
                   </div>
                   {selectedDoorId === 'new' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">New Door Name</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Yeni qapı adı</label>
                       <input
                         type="text"
                         value={newDoorName}
                         onChange={(e) => setNewDoorName(e.target.value)}
-                        placeholder="e.g., Main Gate"
+                        placeholder="məs., Əsas qapı"
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       />
                     </div>
                   )}
                   {selectedDoorId && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
                       <select
                         value={doorRole}
                         onChange={(e) => setDoorRole(e.target.value as 'ENTRY' | 'EXIT' | '')}
                         className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                       >
-                        <option value="">Select role...</option>
-                        <option value="ENTRY">Entry</option>
-                        <option value="EXIT">Exit</option>
+                        <option value="">Rol seçin...</option>
+                        <option value="ENTRY">Giriş</option>
+                        <option value="EXIT">Çıxış</option>
                       </select>
                     </div>
                   )}
@@ -524,8 +524,8 @@ export default function DevicesPage() {
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
-                  <option value="ACTIVE">Active</option>
-                  <option value="INACTIVE">Inactive</option>
+                  <option value="ACTIVE">Aktiv</option>
+                  <option value="INACTIVE">Deaktiv</option>
                 </select>
               </div>
             </div>
@@ -534,7 +534,7 @@ export default function DevicesPage() {
                 onClick={() => setShowModal(false)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Cancel
+                Ləğv et
               </button>
               <button
                 onClick={handleSave}
@@ -542,7 +542,7 @@ export default function DevicesPage() {
                 className="px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 transition-colors"
                 style={{ background: '#a855f7' }}
               >
-                {saving ? 'Saving...' : editingDevice ? 'Update' : 'Create'}
+                {saving ? 'Yadda saxlanılır...' : editingDevice ? 'Yenilə' : 'Yarat'}
               </button>
             </div>
           </div>
@@ -553,9 +553,9 @@ export default function DevicesPage() {
       {showDoorManager && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Manage Doors</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Qapıları idarə et</h2>
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Filial</label>
               <select
                 value={managerBranchId}
                 onChange={(e) => {
@@ -566,7 +566,7 @@ export default function DevicesPage() {
                 }}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
               >
-                <option value="">Select branch...</option>
+                <option value="">Filial seçin...</option>
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>{b.name}</option>
                 ))}
@@ -574,10 +574,10 @@ export default function DevicesPage() {
             </div>
             <div className="max-h-64 overflow-y-auto space-y-2">
               {managerLoading ? (
-                <div className="text-center text-gray-400 text-sm py-4">Loading...</div>
+                <div className="text-center text-gray-400 text-sm py-4">Yüklənir...</div>
               ) : managerDoors.length === 0 ? (
                 <div className="text-center text-gray-400 text-sm py-4">
-                  {managerBranchId ? 'No doors found for this branch.' : 'Select a branch to view doors.'}
+                  {managerBranchId ? 'Bu filial üçün qapı tapılmadı.' : 'Qapıları görmək üçün filial seçin.'}
                 </div>
               ) : (
                 managerDoors.map((door) => (
@@ -590,7 +590,7 @@ export default function DevicesPage() {
                       onClick={() => setDoorDeleteConfirm(door)}
                       className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
                     >
-                      Delete
+                      Sil
                     </button>
                   </div>
                 ))
@@ -612,7 +612,7 @@ export default function DevicesPage() {
       {doorDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Door</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Qapını sil</h2>
             <p className="text-gray-600 mb-6 text-sm">
               Are you sure you want to delete <strong>{doorDeleteConfirm.name}</strong>? All linked devices will be unassigned. This action cannot be undone.
             </p>
@@ -621,13 +621,13 @@ export default function DevicesPage() {
                 onClick={() => setDoorDeleteConfirm(null)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Cancel
+                Ləğv et
               </button>
               <button
                 onClick={handleDeleteDoor}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Delete
+                Sil
               </button>
             </div>
           </div>
@@ -638,7 +638,7 @@ export default function DevicesPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Device</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Cihazı sil</h2>
             <p className="text-gray-600 mb-6 text-sm">
               Are you sure you want to delete <strong>{deleteConfirm.deviceName || deleteConfirm.deviceId}</strong>? This action cannot be undone.
             </p>
@@ -647,13 +647,13 @@ export default function DevicesPage() {
                 onClick={() => setDeleteConfirm(null)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Cancel
+                Ləğv et
               </button>
               <button
                 onClick={handleDelete}
                 className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
-                Delete
+                Sil
               </button>
             </div>
           </div>

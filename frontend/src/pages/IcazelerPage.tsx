@@ -211,16 +211,16 @@ export default function IcazelerPage() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="px-3 py-2 text-left">#</th>
-                <th className="px-3 py-2 text-left">Employee</th>
-                <th className="px-3 py-2 text-left">Target</th>
+                <th className="px-3 py-2 text-left">Əməkdaş</th>
+                <th className="px-3 py-2 text-left">Hədəf</th>
                 <th className="px-3 py-2 text-left">Növ</th>
                 <th className="px-3 py-2 text-left">Səbəb</th>
-                <th className="px-3 py-2 text-left">Start</th>
-                <th className="px-3 py-2 text-left">End</th>
+                <th className="px-3 py-2 text-left">Başlanğıc</th>
+                <th className="px-3 py-2 text-left">Bitiş</th>
                 <th className="px-3 py-2 text-left">Status</th>
-                <th className="px-3 py-2 text-left">Approved by</th>
-                <th className="px-3 py-2 text-left">Approval date</th>
-                <th className="px-3 py-2 text-left">Created by</th>
+                <th className="px-3 py-2 text-left">Təsdiqləyən</th>
+                <th className="px-3 py-2 text-left">Təsdiq tarixi</th>
+                <th className="px-3 py-2 text-left">Yaradan</th>
                 <th className="px-3 py-2 text-right">Əməliyyatlar</th>
               </tr>
             </thead>
@@ -262,16 +262,16 @@ export default function IcazelerPage() {
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl p-5 w-full max-w-xl space-y-2">
             <h3 className="text-lg font-semibold">İcazə detalları</h3>
-            <p><strong>Employee:</strong> {selected.employeeId || '—'} {selected.employeeName || ''}</p>
-            <p><strong>Target:</strong> {targetLabel(selected)}</p>
+            <p><strong>Əməkdaş:</strong> {selected.employeeId || '—'} {selected.employeeName || ''}</p>
+            <p><strong>Hədəf:</strong> {targetLabel(selected)}</p>
             <p><strong>Növ:</strong> {selected.leaveType}</p>
             <p><strong>Səbəb:</strong> {selected.reason || '—'}</p>
             <p><strong>Tarix:</strong> {selected.startDate} → {selected.endDate}</p>
             <p><strong>Status:</strong> {selected.status}</p>
-            <p><strong>Created by:</strong> {selected.createdBy ?? '—'}</p>
-            <p><strong>Created at:</strong> {selected.createdAt || '—'}</p>
-            <p><strong>Approved by:</strong> {selected.approvedBy ?? '—'}</p>
-            <p><strong>Approval date:</strong> {selected.approvalDate || '—'}</p>
+            <p><strong>Yaradan:</strong> {selected.createdBy ?? '—'}</p>
+            <p><strong>Yaradılma tarixi:</strong> {selected.createdAt || '—'}</p>
+            <p><strong>Təsdiqləyən:</strong> {selected.approvedBy ?? '—'}</p>
+            <p><strong>Təsdiq tarixi:</strong> {selected.approvalDate || '—'}</p>
             <div className="text-right pt-2"><button onClick={() => setSelected(null)} className="px-3 py-2 border rounded-lg">Bağla</button></div>
           </div>
         </div>

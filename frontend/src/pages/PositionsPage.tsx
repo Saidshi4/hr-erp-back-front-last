@@ -207,8 +207,8 @@ export default function PositionsPage() {
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-400 font-medium">QAYDALAR</span>
                     <div className="flex gap-1">
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: '#fef3c7', color: '#92400e' }}>Overtime Off</span>
-                      <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: '#ede9fe', color: '#6d28d9' }}>Office Standard</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: '#fef3c7', color: '#92400e' }}>Əlavə iş deaktiv</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: '#ede9fe', color: '#6d28d9' }}>Standart ofis</span>
                     </div>
                   </div>
                 </div>

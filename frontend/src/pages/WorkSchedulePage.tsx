@@ -24,12 +24,12 @@ const APPLY_TYPE_LABELS: Record<string, string> = {
 }
 const PERMISSION_STATUSES = ['ACTIVE', 'INACTIVE', 'PENDING', 'APPROVED', 'REJECTED']
 const DEFAULT_TIMETABLE_NAMES = [
-  'Office Standard',
-  'Operations Shift',
-  'Night Monitoring',
-  'Support Rotation',
-  'Morning Shift',
-  'Evening Shift',
+  'Standart ofis',
+  'Əməliyyat növbəsi',
+  'Gecə nəzarəti',
+  'Dəstək növbəsi',
+  'Səhər növbəsi',
+  'Axşam növbəsi',
 ]
 const DEFAULT_HOLIDAY_NAMES = [
   'Novruz Bayramı',

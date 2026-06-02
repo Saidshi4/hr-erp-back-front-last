@@ -9,22 +9,23 @@ import {
   EmployeeSearchResult,
 } from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
+import { t } from '../i18n/index.ts'
 
 type PeriodType = 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_YEAR' | 'LAST_YEAR' | 'CUSTOM'
 
 const monthOptions = [
-  'January',
-  'February',
-  'March',
-  'April',
+  'Yanvar',
+  'Fevral',
+  'Mart',
+  'Aprel',
   'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
+  'İyun',
+  'İyul',
+  'Avqust',
+  'Sentyabr',
+  'Oktyabr',
+  'Noyabr',
+  'Dekabr',
 ]
 
 const statusStyles: Record<EmployeeAttendanceRow['status'], string> = {
@@ -42,6 +43,14 @@ const defaultSummary: EmployeeAttendanceSummary = {
   absentDays: 0,
   lateDays: 0,
   leaveDays: 0,
+}
+
+const statusLabels: Record<EmployeeAttendanceRow['status'], string> = {
+  PRESENT: 'İşdə',
+  LATE: 'Gecikib',
+  ABSENT: 'Qayıb',
+  ON_LEAVE: 'Məzuniyyətdə',
+  EARLY_LEAVE: 'Erkən çıxış',
 }
 
 function formatEmployeeLabel(employee: EmployeeSearchResult) {
@@ -212,14 +221,14 @@ export default function AttendancePage() {
       return
     }
     if (!entryDeviceId || !exitDeviceId) {
-      setError('Please enter both Entry Device ID and Exit Device ID.')
+      setError('Zəhmət olmasa həm giriş, həm çıxış cihaz ID-lərini daxil edin.')
       return
     }
 
     const entryId = Number(entryDeviceId)
     const exitId = Number(exitDeviceId)
     if (Number.isNaN(entryId) || Number.isNaN(exitId)) {
-      setError('Device IDs must be numeric values.')
+      setError('Cihaz ID-ləri rəqəm olmalıdır.')
       return
     }
 
@@ -243,18 +252,18 @@ export default function AttendancePage() {
         setSummary(summaryResponse.data?.data ?? defaultSummary)
       }
     } catch (syncError: unknown) {
-      setError((syncError as Error).message || 'Failed to sync door attendance')
+      setError((syncError as Error).message || t('attendance.syncFailed'))
     } finally {
       setSyncLoading(false)
     }
   }
 
   const summaryCards = [
-    { label: 'Total working days', value: summary.workingDays, accent: 'text-slate-900' },
-    { label: 'Total working hours', value: summary.totalHours.toFixed(2), accent: 'text-slate-900' },
-    { label: 'Absent days', value: summary.absentDays, accent: 'text-red-600' },
-    { label: 'Late days', value: summary.lateDays, accent: 'text-amber-600' },
-    { label: 'Permission / leave days', value: summary.leaveDays, accent: 'text-blue-600' },
+    { label: t('attendance.totalWorkingDays'), value: summary.workingDays, accent: 'text-slate-900' },
+    { label: t('attendance.totalWorkingHours'), value: summary.totalHours.toFixed(2), accent: 'text-slate-900' },
+    { label: t('attendance.absentDays'), value: summary.absentDays, accent: 'text-red-600' },
+    { label: t('attendance.lateDays'), value: summary.lateDays, accent: 'text-amber-600' },
+    { label: t('attendance.leaveDays'), value: summary.leaveDays, accent: 'text-blue-600' },
   ]
 
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
@@ -263,8 +272,8 @@ export default function AttendancePage() {
     <Layout>
       <div className="p-8 min-h-screen bg-slate-50">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Davamiyyet</h1>
-          <p className="mt-1 text-sm text-slate-500">Select an employee and review attendance instantly by month, year, or custom range.</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('attendance.title')}</h1>
+          <p className="mt-1 text-sm text-slate-500">{t('attendance.subtitle')}</p>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[2fr,1fr]">
@@ -272,7 +281,7 @@ export default function AttendancePage() {
             <div className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="relative">
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Employee</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.employee')}</label>
                   <input
                     type="text"
                     value={employeeQuery}
@@ -280,13 +289,13 @@ export default function AttendancePage() {
                       setEmployeeQuery(event.target.value)
                       setSelectedEmployee(null)
                     }}
-                    placeholder="Search by name, employee ID, or FIN"
+                    placeholder={t('attendance.searchEmployee')}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                   />
                   {!selectedEmployee && (searchLoading || employeeResults.length > 0 || debouncedEmployeeQuery.trim()) && (
                     <div className="absolute z-20 mt-2 max-h-64 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
                       {searchLoading ? (
-                        <div className="px-3 py-3 text-sm text-slate-500">Searching employees…</div>
+                        <div className="px-3 py-3 text-sm text-slate-500">{t('attendance.searchingEmployees')}</div>
                       ) : employeeResults.length > 0 ? (
                         employeeResults.map((employee) => (
                           <button
@@ -308,24 +317,24 @@ export default function AttendancePage() {
                           </button>
                         ))
                       ) : (
-                        <div className="px-3 py-3 text-sm text-slate-500">No employees found.</div>
+                        <div className="px-3 py-3 text-sm text-slate-500">{t('attendance.noEmployeesFound')}</div>
                       )}
                     </div>
                   )}
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Period type</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.periodType')}</label>
                   <select
                     value={periodType}
                     onChange={(event) => setPeriodType(event.target.value as PeriodType)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                   >
-                    <option value="THIS_MONTH">This month</option>
-                    <option value="LAST_MONTH">Last month</option>
-                    <option value="THIS_YEAR">This year</option>
-                    <option value="LAST_YEAR">Last year</option>
-                    <option value="CUSTOM">Custom range</option>
+                    <option value="THIS_MONTH">{t('attendance.thisMonth')}</option>
+                    <option value="LAST_MONTH">{t('attendance.lastMonth')}</option>
+                    <option value="THIS_YEAR">{t('attendance.thisYear')}</option>
+                    <option value="LAST_YEAR">{t('attendance.lastYear')}</option>
+                    <option value="CUSTOM">{t('attendance.customRange')}</option>
                   </select>
                 </div>
               </div>
@@ -334,7 +343,7 @@ export default function AttendancePage() {
                 {periodType === 'CUSTOM' ? (
                   <>
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Start date</label>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('common.startDate')}</label>
                       <input
                         type="date"
                         value={customStartDate}
@@ -343,7 +352,7 @@ export default function AttendancePage() {
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-500">End date</label>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('common.endDate')}</label>
                       <input
                         type="date"
                         value={customEndDate}
@@ -356,7 +365,7 @@ export default function AttendancePage() {
                   <>
                     {(periodType === 'THIS_MONTH' || periodType === 'LAST_MONTH') && (
                       <div>
-                        <label className="mb-1.5 block text-xs font-medium text-slate-500">Month</label>
+                        <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.month')}</label>
                         <select
                           value={selectedMonth}
                           onChange={(event) => setSelectedMonth(Number(event.target.value))}
@@ -369,7 +378,7 @@ export default function AttendancePage() {
                       </div>
                     )}
                     <div>
-                      <label className="mb-1.5 block text-xs font-medium text-slate-500">Year</label>
+                      <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.year')}</label>
                       <select
                         value={selectedYear}
                         onChange={(event) => setSelectedYear(Number(event.target.value))}
@@ -384,16 +393,16 @@ export default function AttendancePage() {
                 )}
 
                 <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  <div className="font-medium text-slate-700">Selected period</div>
+                  <div className="font-medium text-slate-700">{t('attendance.selectedPeriod')}</div>
                   <div className="mt-1">
-                    {activePeriod ? `${activePeriod.start} → ${activePeriod.end}` : 'Choose a period'}
+                    {activePeriod ? `${activePeriod.start} → ${activePeriod.end}` : t('attendance.choosePeriod')}
                   </div>
                 </div>
               </div>
 
               {selectedEmployee && (
                 <div className="mt-4 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-900">
-                  Viewing attendance for <span className="font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
+                  {t('attendance.viewingAttendanceFor')} <span className="font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
                   {selectedEmployee.departmentName ? ` · ${selectedEmployee.departmentName}` : ''}
                 </div>
               )}
@@ -401,11 +410,16 @@ export default function AttendancePage() {
 
             {syncResult && (
               <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                Synced punches: {syncResult.totalPunches} · Matched sessions: {syncResult.matchedSessions} · New logs: {syncResult.createdLogs} · Recalculated days: {syncResult.recalculatedDays}
-                {syncResult.skippedEmployees > 0 ? ` · Skipped employees: ${syncResult.skippedEmployees}` : ''}
-                {(syncResult.skippedPunches ?? 0) > 0 ? ` · Skipped punches: ${syncResult.skippedPunches}` : ''}
+                {t('attendance.syncSummary', {
+                  totalPunches: syncResult.totalPunches,
+                  matchedSessions: syncResult.matchedSessions,
+                  createdLogs: syncResult.createdLogs,
+                  recalculatedDays: syncResult.recalculatedDays,
+                })}
+                {syncResult.skippedEmployees > 0 ? ` · ${t('attendance.skippedEmployees', { count: syncResult.skippedEmployees })}` : ''}
+                {(syncResult.skippedPunches ?? 0) > 0 ? ` · ${t('attendance.skippedPunches', { count: syncResult.skippedPunches ?? 0 })}` : ''}
                 {(syncResult.unresolvedEmployeeNos?.length ?? 0) > 0
-                  ? ` · Unresolved employeeNo: ${syncResult.unresolvedEmployeeNos?.slice(0, 10).join(', ')}`
+                  ? ` · ${t('attendance.unresolvedEmployeeNo', { value: syncResult.unresolvedEmployeeNos?.slice(0, 10).join(', ') ?? '' })}`
                   : ''}
               </div>
             )}
@@ -427,27 +441,27 @@ export default function AttendancePage() {
 
             <div className="overflow-hidden rounded-2xl bg-white shadow-sm">
               <div className="border-b border-slate-100 px-5 py-4">
-                <h2 className="text-lg font-semibold text-slate-900">Daily attendance</h2>
-                <p className="mt-1 text-sm text-slate-500">Date, check-in, check-out, hours, status, and notes for the selected employee.</p>
+                <h2 className="text-lg font-semibold text-slate-900">{t('attendance.dailyAttendance')}</h2>
+                <p className="mt-1 text-sm text-slate-500">{t('attendance.dailyAttendanceDesc')}</p>
               </div>
 
               {!selectedEmployee ? (
-                <div className="px-5 py-12 text-center text-sm text-slate-400">Search and select an employee to load attendance.</div>
+                <div className="px-5 py-12 text-center text-sm text-slate-400">{t('attendance.searchToLoad')}</div>
               ) : loading ? (
-                <div className="px-5 py-12 text-center text-sm text-slate-500">Loading attendance…</div>
+                <div className="px-5 py-12 text-center text-sm text-slate-500">{t('attendance.loadingAttendance')}</div>
               ) : attendanceRows.length === 0 ? (
-                <div className="px-5 py-12 text-center text-sm text-slate-400">No attendance records were found for the selected period.</div>
+                <div className="px-5 py-12 text-center text-sm text-slate-400">{t('attendance.noAttendance')}</div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-slate-100">
                     <thead className="bg-slate-50">
                       <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                        <th className="px-5 py-3">Date</th>
-                        <th className="px-5 py-3">Check-in</th>
-                        <th className="px-5 py-3">Check-out</th>
-                        <th className="px-5 py-3">Hours worked</th>
-                        <th className="px-5 py-3">Status</th>
-                        <th className="px-5 py-3">Notes</th>
+                        <th className="px-5 py-3">{t('attendance.date')}</th>
+                        <th className="px-5 py-3">{t('attendance.checkIn')}</th>
+                        <th className="px-5 py-3">{t('attendance.checkOut')}</th>
+                        <th className="px-5 py-3">{t('attendance.hoursWorked')}</th>
+                        <th className="px-5 py-3">{t('common.status')}</th>
+                        <th className="px-5 py-3">{t('attendance.notes')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
@@ -459,7 +473,7 @@ export default function AttendancePage() {
                           <td className="px-5 py-4">{row.hoursWorked?.toFixed(2) ?? '0.00'}</td>
                           <td className="px-5 py-4">
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
-                              {row.status.replace('_', ' ')}
+                              {statusLabels[row.status]}
                             </span>
                           </td>
                           <td className="px-5 py-4 text-slate-500">{row.notes || '—'}</td>
@@ -474,28 +488,28 @@ export default function AttendancePage() {
 
           <div className="space-y-6">
             <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900">Door sync</h2>
-              <p className="mt-1 text-sm text-slate-500">Keep the existing device sync flow available for the selected period.</p>
+              <h2 className="text-lg font-semibold text-slate-900">{t('attendance.doorSync')}</h2>
+              <p className="mt-1 text-sm text-slate-500">{t('attendance.doorSyncDesc')}</p>
 
               <div className="mt-4 space-y-4">
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Entry Device ID</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.entryDeviceId')}</label>
                   <input
                     type="number"
                     value={entryDeviceId}
                     onChange={(event) => setEntryDeviceId(event.target.value)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. 1"
+                    placeholder={t('attendance.sampleDevice1')}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">Exit Device ID</label>
+                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.exitDeviceId')}</label>
                   <input
                     type="number"
                     value={exitDeviceId}
                     onChange={(event) => setExitDeviceId(event.target.value)}
                     className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="e.g. 2"
+                    placeholder={t('attendance.sampleDevice2')}
                   />
                 </div>
                 <button
@@ -504,26 +518,26 @@ export default function AttendancePage() {
                   disabled={syncLoading}
                   className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {syncLoading ? 'Syncing…' : 'Sync door attendance'}
+                  {syncLoading ? t('attendance.syncing') : t('attendance.syncDoorAttendance')}
                 </button>
               </div>
             </div>
 
             <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900">Overview</h2>
+              <h2 className="text-lg font-semibold text-slate-900">{t('attendance.overview')}</h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">
                 <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                  <span>Total days in period</span>
+                  <span>{t('attendance.totalDaysInPeriod')}</span>
                   <span className="font-semibold text-slate-900">{summary.totalDays}</span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
-                  <span>Selected employee</span>
+                  <span>{t('attendance.selectedEmployee')}</span>
                   <span className="max-w-[180px] truncate font-semibold text-slate-900">
                     {selectedEmployee ? `${selectedEmployee.firstName} ${selectedEmployee.lastName}` : '—'}
                   </span>
                 </div>
                 <div className="rounded-xl bg-slate-50 px-4 py-3">
-                  <div className="text-xs uppercase tracking-wide text-slate-400">Period</div>
+                  <div className="text-xs uppercase tracking-wide text-slate-400">{t('attendance.period')}</div>
                   <div className="mt-1 font-medium text-slate-900">
                     {activePeriod ? `${activePeriod.start} → ${activePeriod.end}` : '—'}
                   </div>

@@ -52,7 +52,7 @@ export default function EmployeeDetailModal({
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 p-4 md:p-6 overflow-y-auto">
       <div className="min-h-full bg-[#f4f5fb] rounded-3xl p-6 md:p-8">
         <div className="flex items-start justify-between mb-4">
-          <h2 className="text-2xl font-bold text-[#1f2d6b]">Employee Profile</h2>
+          <h2 className="text-2xl font-bold text-[#1f2d6b]">Əməkdaş profili</h2>
           <button
             onClick={onClose}
             className="p-2 rounded-lg hover:bg-white/70 text-[#8b94b8]"
@@ -99,25 +99,25 @@ export default function EmployeeDetailModal({
 
               <div className="mt-4 space-y-3 text-sm">
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="text-[#98a2c8]">FULL NAME</span>
+                  <span className="text-[#98a2c8]">AD VƏ SOYAD</span>
                   <span className="text-right text-[#1f2d6b] font-semibold">
                     {employee.firstName} {employee.lastName}
                   </span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="text-[#98a2c8]">FATHER'S NAME</span>
+                  <span className="text-[#98a2c8]">ATA ADI</span>
                   <span className="text-right text-[#1f2d6b] font-semibold">{employee.fatherName || '—'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="text-[#98a2c8]">PHONE</span>
+                  <span className="text-[#98a2c8]">TELEFON</span>
                   <span className="text-right text-[#1f2d6b] font-semibold">{employee.mobilePhone || '—'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="text-[#98a2c8]">EMAIL</span>
+                  <span className="text-[#98a2c8]">E-POÇT</span>
                   <span className="text-right text-[#1f2d6b] font-semibold">{employee.email || '—'}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <span className="text-[#98a2c8]">FIN / SERIAL</span>
+                  <span className="text-[#98a2c8]">FIN / SERİYA</span>
                   <span className="text-right text-[#1f2d6b] font-semibold">
                     {employee.finNumber || '—'} / {employee.serialNumber || '—'}
                   </span>
@@ -175,90 +175,90 @@ export default function EmployeeDetailModal({
             {/* Right side: employment + security + compensation */}
             <div className="space-y-4">
               <div className="bg-white rounded-3xl p-5">
-                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Employment Information</h4>
+                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Məşğulluq məlumatları</h4>
                 <div className="space-y-2 text-sm">
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">DEPARTMENT</span>
+                    <span className="text-[#98a2c8]">DEPARTAMENT</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.departmentName || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">POSITION</span>
+                    <span className="text-[#98a2c8]">VƏZİFƏ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.positionName || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">EMPLOYMENT STATUS</span>
+                    <span className="text-[#98a2c8]">MƏŞĞULLUQ STATUSU</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{statusLabel(employee.employmentStatus)}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">SHIFT TYPE</span>
+                    <span className="text-[#98a2c8]">NÖVBƏ TİPİ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.shiftType || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">GROUP</span>
+                    <span className="text-[#98a2c8]">QRUP</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.groupName || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">CONTRACT NUMBER</span>
+                    <span className="text-[#98a2c8]">MÜQAVİLƏ NÖMRƏSİ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.contractNumber || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">EMPLOYMENT START DATE</span>
+                    <span className="text-[#98a2c8]">İŞƏ BAŞLAMA TARİXİ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{formatDate(employee.hireDate)}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">CONTRACT END DATE</span>
+                    <span className="text-[#98a2c8]">MÜQAVİLƏ BİTMƏ TARİXİ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{formatDate(employee.contractEndDate)}</span>
                   </div>
                 </div>
               </div>
 
               <div className="bg-white rounded-3xl p-5">
-                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Access & Security</h4>
+                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Giriş və təhlükəsizlik</h4>
                 <div className="flex gap-3 mb-3">
                   <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
-                    <p className="text-xs text-[#9f1239] mb-1">Card</p>
+                    <p className="text-xs text-[#9f1239] mb-1">Kart</p>
                     <p className="font-semibold text-[#9f1239]">{employee.cardId || 'X'}</p>
                   </div>
                   <div className="flex-1 rounded-xl p-3" style={{ background: '#ffe4e6' }}>
-                    <p className="text-xs text-[#9f1239] mb-1">Fingerprint</p>
+                    <p className="text-xs text-[#9f1239] mb-1">Barmaq izi</p>
                     <p className="font-semibold text-[#9f1239]">{employee.faceId || 'X'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 text-sm">
-                  <span className="text-[#98a2c8]">AREA DEVICES</span>
+                  <span className="text-[#98a2c8]">ƏRAZİ CİHAZLARI</span>
                   <span className="text-right font-semibold text-[#1f2d6b]">{employee.area || '—'}</span>
                 </div>
               </div>
 
               <div className="bg-white rounded-3xl p-5">
-                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Compensation & Additional Details</h4>
+                <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Məvacib və əlavə məlumatlar</h4>
                 <div className="space-y-2 text-sm">
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">SALARY</span>
+                    <span className="text-[#98a2c8]">MƏVACİB</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.salary ?? '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">HOURLY RATE</span>
+                    <span className="text-[#98a2c8]">SAATLIQ DƏRƏCƏ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.hourlyRate ?? '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">ALLOWANCE</span>
+                    <span className="text-[#98a2c8]">MÜAVİNƏT</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.allowance || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">EMERGENCY CONTACT</span>
+                    <span className="text-[#98a2c8]">TƏCİLİ ƏLAQƏ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.emergencyContact || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">BRANCH/OFFICE LOCATION</span>
+                    <span className="text-[#98a2c8]">FİLİAL / OFİS MƏKANI</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{branchDisplay}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">ADDRESS</span>
+                    <span className="text-[#98a2c8]">ÜNVAN</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.address || '—'}</span>
                   </div>
                   <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">NOTES</span>
+                    <span className="text-[#98a2c8]">QEYDLƏR</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.notes || '—'}</span>
                   </div>
                 </div>

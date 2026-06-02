@@ -50,12 +50,6 @@ const extractStatusCode = (value: unknown): number | undefined => {
   return typeof response.status === 'number' ? response.status : undefined
 }
 
-const safeSrc = (url: string | null): string | undefined => {
-  if (!url) return undefined
-  if (/^(blob:|data:image\/|https?:\/\/|\/)/i.test(url)) return url
-  return undefined
-}
-
 const defaultForm: EmployeeFormData = {
   firstName: '',
   lastName: '',
@@ -227,7 +221,7 @@ export default function EmployeesPage() {
     if (wizardImagePreview) {
       URL.revokeObjectURL(wizardImagePreview)
     }
-    setWizardImagePreview(emp.faceImageUrl || null)
+    setWizardImagePreview(null)
     setCurrentStep(1)
     setFormError(null)
     setShowWizard(true)
@@ -937,16 +931,12 @@ export default function EmployeesPage() {
             {currentStep === 3 && (
               <div className="flex flex-col items-center gap-4">
                 <div className="w-64 aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
-                  {wizardImagePreview ? (
-                   <img src={safeSrc(wizardImagePreview)} alt="Əməkdaş" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center text-gray-400">
-                      <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
-                      </svg>
-                      <p>Şəkil seçilməyib</p>
-                    </div>
-                  )}
+                  <div className="text-center text-gray-400">
+                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                    </svg>
+                    <p>{wizardImagePreview && wizardImageFile ? 'Şəkil seçildi' : 'Şəkil seçilməyib'}</p>
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={captureFromCamera} className="px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2" style={{ background: '#a855f7' }}>

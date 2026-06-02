@@ -74,10 +74,11 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 // ─── Tab 1: Timetables ────────────────────────────────────────────────────────
 const defaultTimetable = (): Partial<Timetable> => ({
-  name: 'Office Standard',
+  name: '',
   description: '',
   startTime: '09:00',
   endTime: '18:00',
+  breakMinutes: 0,
   allowedLateMinutes: 10,
   allowedEarlyLeaveMinutes: 5,
   shiftType: 'STANDARD',
@@ -96,7 +97,7 @@ function TimetableModal({ initial, onSave, onClose }: {
   const set = (k: keyof Timetable, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
   const handleSave = async () => {
-    if (!form.name) { setError('Ad seçilməlidir'); return }
+    if (!form.name?.trim()) { setError('Növbə adı daxil edilməlidir'); return }
     if (!form.startTime || !form.endTime) { setError('Başlanğıc və bitmə vaxtı seçilməlidir'); return }
     setSaving(true)
     try { await onSave(form); onClose() }
@@ -111,38 +112,41 @@ function TimetableModal({ initial, onSave, onClose }: {
         {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ad</label>
-            <select value={form.name} onChange={e => set('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-              {DEFAULT_TIMETABLE_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Növbə növü</label>
-            <select value={form.shiftType ?? 'STANDARD'} onChange={e => set('shiftType', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-              {SHIFT_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Növbə adı *</label>
+            <input
+              type="text"
+              value={form.name ?? ''}
+              onChange={e => set('name', e.target.value)}
+              placeholder="məs. Səhər növbəsi, Axşam növbəsi..."
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Başlanğıc vaxtı</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Başlanğıc vaxtı *</label>
               <input type="time" value={form.startTime} onChange={e => set('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bitmə vaxtı</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Bitmə vaxtı *</label>
               <input type="time" value={form.endTime} onChange={e => set('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">İcazəli gecikmə (dəq.)</label>
-              <select value={form.allowedLateMinutes ?? 10} onChange={e => set('allowedLateMinutes', Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {LATE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Fasilə (dəq.)</label>
+              <input
+                type="number"
+                min={0}
+                max={120}
+                value={form.breakMinutes ?? 0}
+                onChange={e => set('breakMinutes', Number(e.target.value))}
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Erkən çıxış (dəq.)</label>
-              <select value={form.allowedEarlyLeaveMinutes ?? 5} onChange={e => set('allowedEarlyLeaveMinutes', Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {EARLY_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gecikmə toleransı (dəq.)</label>
+              <select value={form.allowedLateMinutes ?? 10} onChange={e => set('allowedLateMinutes', Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                {LATE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
               </select>
             </div>
           </div>
@@ -223,9 +227,9 @@ function TimetableTab() {
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   <span>{t.startTime} – {t.endTime}</span>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-wrap">
+                  {(t.breakMinutes ?? 0) > 0 && <span>Fasilə: <strong>{t.breakMinutes} dəq.</strong></span>}
                   <span>Gecikmə: <strong>{t.allowedLateMinutes ?? 0} dəq.</strong></span>
-                  <span>Erkən: <strong>{t.allowedEarlyLeaveMinutes ?? 0} dəq.</strong></span>
                 </div>
               </div>
               {t.description && <p className="text-xs text-gray-400 truncate">{t.description}</p>}

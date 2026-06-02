@@ -33,9 +33,6 @@ interface EmployeeFormData {
   employmentStatus: string
   timetableId: number | ''
   shiftType: string
-  cardId: string
-  faceId: string
-  groupName: string
   salary: number | ''
   hourlyRate: number | ''
   allowance: string
@@ -51,6 +48,12 @@ const extractStatusCode = (value: unknown): number | undefined => {
   const response = value.response
   if (!isRecord(response)) return undefined
   return typeof response.status === 'number' ? response.status : undefined
+}
+
+const safeSrc = (url: string | null): string | undefined => {
+  if (!url) return undefined
+  if (/^(blob:|data:image\/|https?:\/\/|\/)/i.test(url)) return url
+  return undefined
 }
 
 const defaultForm: EmployeeFormData = {
@@ -74,9 +77,6 @@ const defaultForm: EmployeeFormData = {
   employmentStatus: 'ACTIVE',
   timetableId: '',
   shiftType: '',
-  cardId: '',
-  faceId: '',
-  groupName: '',
   salary: '',
   hourlyRate: '',
   allowance: '',
@@ -112,8 +112,6 @@ export default function EmployeesPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [form, setForm] = useState<EmployeeFormData>(defaultForm)
-  const [departmentQuery, setDepartmentQuery] = useState('')
-  const [positionQuery, setPositionQuery] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Employee | null>(null)
@@ -159,7 +157,7 @@ export default function EmployeesPage() {
     return 'Deaktiv'
   }
 
-  const stepTitles = ['General Identity', 'Work Information', 'Card, Fingerprint & Photo', 'Compensation']
+  const stepTitles = ['General Identity', 'Work Information', 'Şəkil', 'Compensation']
 
   const employeeIdPreview = useMemo(() => {
     if (editingEmployee?.employeeId) return editingEmployee.employeeId
@@ -187,8 +185,6 @@ export default function EmployeesPage() {
   const openCreate = () => {
     setEditingEmployee(null)
     setForm(defaultForm)
-    setDepartmentQuery('')
-    setPositionQuery('')
     setEmployeeDoors([])
     setCurrentStep(1)
     setFormError(null)
@@ -218,9 +214,6 @@ export default function EmployeesPage() {
       employmentStatus: emp.employmentStatus || 'ACTIVE',
       timetableId: emp.timetableId || '',
       shiftType: emp.shiftType || '',
-      cardId: emp.cardId || '',
-      faceId: emp.faceId || '',
-      groupName: emp.groupName || '',
       salary: emp.salary ?? '',
       hourlyRate: emp.hourlyRate ?? '',
       allowance: emp.allowance || '',
@@ -229,8 +222,6 @@ export default function EmployeesPage() {
       notes: emp.notes || '',
       area: emp.area || '',
     })
-    setDepartmentQuery(emp.departmentName || '')
-    setPositionQuery(emp.positionName || '')
     loadEmployeeDoors(emp.id)
     setWizardImageFile(null)
     if (wizardImagePreview) {
@@ -369,9 +360,6 @@ export default function EmployeesPage() {
         employmentStatus: form.employmentStatus as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE',
         timetableId: Number(form.timetableId),
         shiftType: form.shiftType,
-        cardId: form.cardId,
-        faceId: form.faceId,
-        groupName: form.groupName,
         salary: form.salary === '' ? undefined : Number(form.salary),
         hourlyRate: form.hourlyRate === '' ? undefined : Number(form.hourlyRate),
         allowance: form.allowance,
@@ -686,7 +674,9 @@ export default function EmployeesPage() {
                             disabled={deletingFaceEmployeeId === emp.id}
                           >
                             <svg className={`w-4 h-4 ${deletingFaceEmployeeId === emp.id ? 'animate-pulse' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#d97706' }}>
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h10m-9 4h8m-7 4h6M9 3h6l1 2h4v2H4V5h4l1-2zM6 7h12l-1 13a2 2 0 01-2 2H9a2 2 0 01-2-2L6 7z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                              <line x1="17" y1="7" x2="23" y2="1" strokeWidth={2} strokeLinecap="round" />
+                              <line x1="23" y1="7" x2="17" y2="1" strokeWidth={2} strokeLinecap="round" />
                             </svg>
                           </button>
                           <button
@@ -840,57 +830,60 @@ export default function EmployeesPage() {
             {currentStep === 2 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">POSITION</label>
-                  <input
-                    list="positions-list"
-                    value={positionQuery}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setPositionQuery(value)
-                      const found = positions.find((p) => p.positionName === value)
-                      setFormField('positionId', found?.id ?? '')
-                    }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  />
-                  <datalist id="positions-list">
-                    {positions
-                      .filter((p) => !form.departmentId || p.departmentId === Number(form.departmentId))
-                      .map((p) => (
-                        <option key={p.id} value={p.positionName} />
-                      ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">DEPARTMENT*</label>
-                  <input
-                    list="departments-list"
-                    value={departmentQuery}
-                    onChange={(e) => {
-                      const value = e.target.value
-                      setDepartmentQuery(value)
-                      const found = departments.find((d) => d.departmentName === value)
-                      setFormField('departmentId', found?.id ?? '')
-                    }}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  />
-                  <datalist id="departments-list">
-                    {departments.map((d) => (
-                      <option key={d.id} value={d.departmentName} />
-                    ))}
-                  </datalist>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT NUMBER</label>
-                  <input value={form.contractNumber} onChange={(e) => setFormField('contractNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                </div>
-                <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">BRANCH / OFFICE LOCATION</label>
-                  <select value={form.branchId} onChange={(e) => setFormField('branchId', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                  <select
+                    value={form.branchId}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : ''
+                      setFormField('branchId', val)
+                      setFormField('departmentId', '')
+                      setFormField('positionId', '')
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
                     <option value="">Seçin...</option>
                     {branches.map((b) => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DEPARTMENT*</label>
+                  <select
+                    value={form.departmentId}
+                    onChange={(e) => {
+                      const val = e.target.value ? Number(e.target.value) : ''
+                      setFormField('departmentId', val)
+                      setFormField('positionId', '')
+                    }}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Seçin...</option>
+                    {departments
+                      .filter((d) => !form.branchId || d.branchId === Number(form.branchId))
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>{d.departmentName}</option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">POSITION</label>
+                  <select
+                    value={form.positionId}
+                    onChange={(e) => setFormField('positionId', e.target.value ? Number(e.target.value) : '')}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  >
+                    <option value="">Seçin...</option>
+                    {positions
+                      .filter((p) => !form.departmentId || p.departmentId === Number(form.departmentId))
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.positionName}</option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT NUMBER</label>
+                  <input value={form.contractNumber} onChange={(e) => setFormField('contractNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT START DATE</label>
@@ -938,91 +931,33 @@ export default function EmployeesPage() {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
-                  <input value={form.shiftType} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
-                </div>
               </div>
             )}
 
             {currentStep === 3 && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex gap-2 mb-4">
-                    <button type="button" onClick={() => setFormField('cardId', `CARD-${Date.now()}`)} className="px-3 py-2 text-sm text-white rounded-lg" style={{ background: '#a855f7' }}>Add Card</button>
-                    <button type="button" onClick={() => setFormField('faceId', `FP-${Date.now()}`)} className="px-3 py-2 text-sm text-gray-700 rounded-lg border border-gray-300 bg-gray-100">Add Fingerprint</button>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">CARD ASSIGNMENT</label>
-                      <input value={form.cardId} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-64 aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
+                  {wizardImagePreview ? (
+                   <img src={safeSrc(wizardImagePreview)} alt="Employee" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center text-gray-400">
+                      <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                      </svg>
+                      <p>Şəkil seçilməyib</p>
                     </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">FINGERPRINT ASSIGNMENT</label>
-                      <input value={form.faceId} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT STATUS</label>
-                      <select value={form.employmentStatus} onChange={(e) => setFormField('employmentStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                        <option value="ACTIVE">Aktiv</option>
-                        <option value="INACTIVE">Deaktiv</option>
-                        <option value="ON_LEAVE">Məzuniyyətdə</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">SHIFT TYPE</label>
-                      <input value={form.shiftType} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-500 mb-1">GROUP</label>
-                      <input value={form.groupName} onChange={(e) => setFormField('groupName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
-                    </div>
-                  </div>
-
-                  <div className="mt-5">
-                    <h4 className="text-sm font-bold text-gray-700 mb-2">Door Access</h4>
-                    <p className="text-xs text-gray-500 mb-2">
-                      İşçi filialın door-larına avtomatik əlavə olunur. Branch dəyişəndə door access avtomatik yenilənir.
-                    </p>
-                    <div className="border border-gray-200 rounded-lg p-3 space-y-1 bg-gray-50">
-                      {employeeDoors.length === 0 ? (
-                        <p className="text-xs text-gray-500">Hələ door access təyin olunmayıb. Employee-yə branch təyin etdikdən sonra avtomatik əlavə olunacaq.</p>
-                      ) : (
-                        employeeDoors.map((door) => (
-                          <div key={door} className="flex items-center gap-2 text-sm text-gray-700">
-                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block"></span>
-                            <span>{door}</span>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
+                  )}
                 </div>
-
-                <div>
-                  <div className="w-full aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
-                    {wizardImagePreview ? (
-                      <img src={wizardImagePreview} alt="Employee" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="text-center text-gray-400">
-                        <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
-                        </svg>
-                        <p>Şəkil seçilməyib</p>
-                      </div>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
-                    <button type="button" onClick={captureFromCamera} className="px-3 py-2 text-sm text-white rounded-lg flex items-center justify-center gap-2" style={{ background: '#a855f7' }}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" /></svg>
-                      Cihazdan şəkil çək
-                    </button>
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="px-3 py-2 text-sm text-gray-700 rounded-lg flex items-center justify-center gap-2 border border-gray-300 bg-gray-100">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                      Kompüterdən yüklə
-                    </button>
-                    <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => onWizardFileSelect(e.target.files?.[0])} />
-                  </div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={captureFromCamera} className="px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2" style={{ background: '#a855f7' }}>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" /></svg>
+                    Cihazdan şəkil çək
+                  </button>
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="px-4 py-2 text-sm text-gray-700 rounded-lg flex items-center gap-2 border border-gray-300 bg-gray-100">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01.88-7.903A5 5 0 0115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                    Kompüterdən yüklə
+                  </button>
+                  <input ref={fileInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => onWizardFileSelect(e.target.files?.[0])} />
                 </div>
               </div>
             )}

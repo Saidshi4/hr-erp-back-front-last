@@ -181,6 +181,7 @@ export interface Timetable {
   startTime: string
   endTime: string
   crossesMidnight?: boolean
+  breakMinutes?: number
   allowedLateMinutes?: number
   allowedEarlyLeaveMinutes?: number
   shiftType?: string

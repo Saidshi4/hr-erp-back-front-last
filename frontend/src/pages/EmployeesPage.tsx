@@ -50,12 +50,6 @@ const extractStatusCode = (value: unknown): number | undefined => {
   return typeof response.status === 'number' ? response.status : undefined
 }
 
-const safeSrc = (url: string | null): string | undefined => {
-  if (!url) return undefined
-  if (/^(blob:|data:image\/|https?:\/\/|\/)/i.test(url)) return url
-  return undefined
-}
-
 const defaultForm: EmployeeFormData = {
   firstName: '',
   lastName: '',
@@ -157,7 +151,7 @@ export default function EmployeesPage() {
     return 'Deaktiv'
   }
 
-  const stepTitles = ['General Identity', 'Work Information', 'Şəkil', 'Compensation']
+  const stepTitles = ['Ümumi məlumat', 'İş məlumatları', 'Şəkil', 'Ödəniş']
 
   const employeeIdPreview = useMemo(() => {
     if (editingEmployee?.employeeId) return editingEmployee.employeeId
@@ -227,7 +221,7 @@ export default function EmployeesPage() {
     if (wizardImagePreview) {
       URL.revokeObjectURL(wizardImagePreview)
     }
-    setWizardImagePreview(emp.faceImageUrl || null)
+    setWizardImagePreview(null)
     setCurrentStep(1)
     setFormError(null)
     setShowWizard(true)
@@ -616,7 +610,7 @@ export default function EmployeesPage() {
                 <tr style={{ background: '#f9fafb' }}>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ƏMƏLİYYATLAR</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ŞƏKİL</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">EMPLOYEE ID</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ƏMƏKDAŞ ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">AD VƏ SOYAD</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ATA ADI</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">DEPARTAMENT</th>
@@ -793,7 +787,7 @@ export default function EmployeesPage() {
             {currentStep === 1 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">INTERNAL EMPLOYEE ID</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DAXİLİ ƏMƏKDAŞ ID</label>
                   <input value={employeeIdPreview} readOnly className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-gray-50 text-sm" />
                 </div>
                 <div>
@@ -801,27 +795,27 @@ export default function EmployeesPage() {
                   <input value={form.finNumber} onChange={(e) => setFormField('finNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">FIRST NAME*</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">AD*</label>
                   <input value={form.firstName} onChange={(e) => setFormField('firstName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">LAST NAME*</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SOYAD*</label>
                   <input value={form.lastName} onChange={(e) => setFormField('lastName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMAIL</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">E-POÇT</label>
                   <input type="email" value={form.email} onChange={(e) => setFormField('email', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">FATHER'S NAME</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ATA ADI</label>
                   <input value={form.fatherName} onChange={(e) => setFormField('fatherName', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">SERIAL NUMBER</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SERİYA NÖMRƏSİ</label>
                   <input value={form.serialNumber} onChange={(e) => setFormField('serialNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">DATE OF BIRTH</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DOĞUM TARİXİ</label>
                   <input type="date" value={form.birthDate} onChange={(e) => setFormField('birthDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
               </div>
@@ -830,7 +824,7 @@ export default function EmployeesPage() {
             {currentStep === 2 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">BRANCH / OFFICE LOCATION</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">FİLİAL / OFİS MƏKANI</label>
                   <select
                     value={form.branchId}
                     onChange={(e) => {
@@ -848,7 +842,7 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">DEPARTMENT*</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">DEPARTAMENT*</label>
                   <select
                     value={form.departmentId}
                     onChange={(e) => {
@@ -867,7 +861,7 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">POSITION</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">VƏZİFƏ</label>
                   <select
                     value={form.positionId}
                     onChange={(e) => setFormField('positionId', e.target.value ? Number(e.target.value) : '')}
@@ -882,27 +876,27 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT NUMBER</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">MÜQAVİLƏ NÖMRƏSİ</label>
                   <input value={form.contractNumber} onChange={(e) => setFormField('contractNumber', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT START DATE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">İŞƏ BAŞLAMA TARİXİ</label>
                   <input type="date" value={form.hireDate} onChange={(e) => setFormField('hireDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">CONTRACT END DATE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">MÜQAVİLƏ BİTMƏ TARİXİ</label>
                   <input type="date" value={form.contractEndDate} onChange={(e) => setFormField('contractEndDate', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">ANNUAL LEAVE DURATION</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">İLLİK MƏZUNİYYƏT MÜDDƏTİ</label>
                   <input type="number" value={form.annualLeaveDuration} onChange={(e) => setFormField('annualLeaveDuration', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">ANNUAL LEAVE BALANCE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">İLLİK MƏZUNİYYƏT BALANSI</label>
                   <input type="number" value={form.annualLeaveBalance} onChange={(e) => setFormField('annualLeaveBalance', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMPLOYMENT STATUS</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">MƏŞĞULLUQ STATUSU</label>
                   <select value={form.employmentStatus} onChange={(e) => setFormField('employmentStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
                     <option value="ACTIVE">Aktiv</option>
                     <option value="INACTIVE">Deaktiv</option>
@@ -910,7 +904,7 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">TIMETABLE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">İŞ CƏDVƏLİ</label>
                   <select
                     value={form.timetableId}
                     onChange={(e) => {
@@ -937,16 +931,12 @@ export default function EmployeesPage() {
             {currentStep === 3 && (
               <div className="flex flex-col items-center gap-4">
                 <div className="w-64 aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
-                  {wizardImagePreview ? (
-                   <img src={safeSrc(wizardImagePreview)} alt="Employee" className="w-full h-full object-cover" />
-                  ) : (
-                    <div className="text-center text-gray-400">
-                      <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
-                      </svg>
-                      <p>Şəkil seçilməyib</p>
-                    </div>
-                  )}
+                  <div className="text-center text-gray-400">
+                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                    </svg>
+                    <p>{wizardImagePreview && wizardImageFile ? 'Şəkil seçildi' : 'Şəkil seçilməyib'}</p>
+                  </div>
                 </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={captureFromCamera} className="px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2" style={{ background: '#a855f7' }}>
@@ -965,31 +955,31 @@ export default function EmployeesPage() {
             {currentStep === 4 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">SALARY</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">MƏVACİB</label>
                   <input type="number" value={form.salary} onChange={(e) => setFormField('salary', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">HOURLY RATE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">SAATLIQ DƏRƏCƏ</label>
                   <input type="number" value={form.hourlyRate} onChange={(e) => setFormField('hourlyRate', e.target.value ? Number(e.target.value) : '')} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">OPTIONAL ALLOWANCE</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ƏLAVƏ MÜAVİNƏT</label>
                   <input value={form.allowance} onChange={(e) => setFormField('allowance', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">EMERGENCY CONTACT</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">TƏCİLİ ƏLAQƏ</label>
                   <input value={form.emergencyContact} onChange={(e) => setFormField('emergencyContact', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">PHONE NUMBER</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">TELEFON NÖMRƏSİ</label>
                   <input value={form.mobilePhone} onChange={(e) => setFormField('mobilePhone', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">ADDRESS</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ÜNVAN</label>
                   <input value={form.address} onChange={(e) => setFormField('address', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-gray-500 mb-1">OPTIONAL NOTES</label>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1">ƏLAVƏ QEYDLƏR</label>
                   <textarea value={form.notes} onChange={(e) => setFormField('notes', e.target.value)} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm h-24 resize-none" />
                 </div>
               </div>

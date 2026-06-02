@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { lazy, Suspense } from 'react'
 import { useAuthStore } from './store/authStore.ts'
+import { t } from './i18n/index.ts'
 
 const LoginPage = lazy(() => import('./pages/LoginPage.tsx'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
@@ -35,7 +36,7 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<div className="flex items-center justify-center h-screen">Loading...</div>}>
+      <Suspense fallback={<div className="flex items-center justify-center h-screen">{t('app.loading')}</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
 import { useAttendanceReportStore } from '../store/attendanceReportStore.ts'
+import { t } from '../i18n/index.ts'
 
 const SHIFT_TABS = [
   { label: 'Sərbəst növbə', value: 'FIRST_ENTRY' },
@@ -38,7 +39,7 @@ export default function ReportsPage() {
       <div className="p-8 space-y-5">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-900">Davamiyyət hesabatları</h1>
-          <button onClick={exportExcel} className="bg-emerald-600 text-white px-4 py-2 rounded-lg">Excel Export</button>
+          <button onClick={exportExcel} className="bg-emerald-600 text-white px-4 py-2 rounded-lg">{t('reports.excelExport')}</button>
         </div>
 
         <div className="flex gap-2 bg-white p-2 rounded-xl shadow-sm">
@@ -61,7 +62,7 @@ export default function ReportsPage() {
           <input placeholder="FIN" value={filters.fin ?? ''} onChange={(e) => updateFilter('fin', e.target.value)} className="border rounded-lg px-3 py-2" />
           <input placeholder="Vəzifə" value={filters.position ?? ''} onChange={(e) => updateFilter('position', e.target.value)} className="border rounded-lg px-3 py-2" />
           <input placeholder="Departament" value={filters.department ?? ''} onChange={(e) => updateFilter('department', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="Area" value={filters.area ?? ''} onChange={(e) => updateFilter('area', e.target.value)} className="border rounded-lg px-3 py-2" />
+          <input placeholder={t('reports.area')} value={filters.area ?? ''} onChange={(e) => updateFilter('area', e.target.value)} className="border rounded-lg px-3 py-2" />
         </div>
 
         <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
@@ -94,7 +95,7 @@ export default function ReportsPage() {
                   <td className="px-4 py-3">{row.position ?? '-'}</td>
                   <td className="px-4 py-3">{row.area ?? '-'}</td>
                   <td className="px-4 py-3">{row.date}</td>
-                  <td className="px-4 py-3">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td className="px-4 py-3">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -104,9 +105,9 @@ export default function ReportsPage() {
         <div className="flex items-center justify-between">
           <span className="text-sm text-gray-500">{totalElements} nəticə</span>
           <div className="flex gap-2">
-            <button disabled={page <= 0} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded disabled:opacity-50">Prev</button>
+            <button disabled={page <= 0} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded disabled:opacity-50">{t('reports.prev')}</button>
             <span className="px-2 py-1 text-sm">{page + 1} / {Math.max(totalPages, 1)}</span>
-            <button disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded disabled:opacity-50">Next</button>
+            <button disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded disabled:opacity-50">{t('reports.next')}</button>
           </div>
         </div>
       </div>

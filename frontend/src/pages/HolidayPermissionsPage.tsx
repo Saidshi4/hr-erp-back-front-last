@@ -274,8 +274,8 @@ export default function HolidayPermissionsPage() {
                   </label>
                   <label className="text-sm">Status
                     <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'ACTIVE' | 'INACTIVE' })} className="mt-1 w-full border rounded-lg px-3 py-2">
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
+                      <option value="ACTIVE">Aktiv</option>
+                      <option value="INACTIVE">Deaktiv</option>
                     </select>
                   </label>
                   <label className="text-sm">Başlanğıc
@@ -286,10 +286,10 @@ export default function HolidayPermissionsPage() {
                   </label>
                   <label className="text-sm md:col-span-2">Tətbiq sahəsi
                     <select value={form.applyScope} onChange={(e) => setForm({ ...form, applyScope: e.target.value as Scope, targetIds: [], employeeIds: [] })} className="mt-1 w-full border rounded-lg px-3 py-2">
-                      <option value="COMPANY">Company</option>
-                      <option value="DEPARTMENT">Dept</option>
-                      <option value="BRANCH">Branch</option>
-                      <option value="EMPLOYEE">Employee</option>
+                      <option value="COMPANY">Şirkət</option>
+                      <option value="DEPARTMENT">Departament</option>
+                      <option value="BRANCH">Filial</option>
+                      <option value="EMPLOYEE">Əməkdaş</option>
                     </select>
                   </label>
                 </div>

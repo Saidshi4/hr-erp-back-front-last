@@ -250,12 +250,12 @@ export default function DepartmentsPage() {
         {!loading && !error && filteredDepartments.length > 0 && (
           <div className="flex items-center px-5 mb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide">
             <div className="flex-1 min-w-0">Departament</div>
-            <div className="w-32 text-center">Parent</div>
-            <div className="w-36 text-center">Assigned Employees</div>
-            <div className="w-44 text-center">Rules</div>
-            <div className="w-40 text-center">Assign</div>
-            <div className="w-24 text-center">Area</div>
-            <div className="w-20 text-center">Actions</div>
+            <div className="w-32 text-center">Valideyn</div>
+            <div className="w-36 text-center">Təyin edilmiş əməkdaşlar</div>
+            <div className="w-44 text-center">Qaydalar</div>
+            <div className="w-40 text-center">Təyin et</div>
+            <div className="w-24 text-center">Ərazi</div>
+            <div className="w-20 text-center">Əməliyyatlar</div>
           </div>
         )}
 
@@ -293,22 +293,22 @@ export default function DepartmentsPage() {
 
                 {/* Parent */}
                 <div className="w-32 text-center text-sm text-gray-600">
-                  {dept.parentDepartmentName || <span className="text-gray-400 text-xs">Top Level</span>}
+                  {dept.parentDepartmentName || <span className="text-gray-400 text-xs">Ən üst səviyyə</span>}
                 </div>
 
                 {/* Assigned Employees */}
                 <div className="w-36 text-center">
                   <span className="text-sm font-semibold" style={{ color: '#1e2a4a' }}>{dept.employeeCount ?? 0}</span>
-                  <span className="text-xs text-gray-400 ml-1">members</span>
+                  <span className="text-xs text-gray-400 ml-1">nəfər</span>
                 </div>
 
                 {/* Rules */}
                 <div className="w-44 text-center">
                   <div className="text-xs text-gray-600">
-                    {dept.calculateOvertime ? 'Overtime On' : 'Overtime Off'}
+                    {dept.calculateOvertime ? 'Əlavə iş aktiv' : 'Əlavə iş deaktiv'}
                   </div>
                   <div className="text-xs text-gray-600">
-                    {dept.flexShift ? 'Flex Shift' : 'Office Standard'}
+                    {dept.flexShift ? 'Çevik növbə' : 'Standart ofis'}
                   </div>
                 </div>
 
@@ -322,7 +322,7 @@ export default function DepartmentsPage() {
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    Assign Employees
+                    Əməkdaşları təyin et
                   </button>
                 </div>
 
@@ -394,37 +394,37 @@ export default function DepartmentsPage() {
 
               {/* Department Name */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Department Name *</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Departament adı *</label>
                 <input
                   type="text"
                   value={form.departmentName}
                   onChange={(e) => setForm({ ...form, departmentName: e.target.value })}
-                  placeholder="e.g. Engineering"
+                  placeholder="məs., Mühəndislik"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 text-sm"
                 />
               </div>
 
               {/* Description */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Təsvir</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   rows={3}
-                  placeholder="Brief description of this department..."
+                  placeholder="Departament üçün qısa təsvir..."
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 text-sm resize-none"
                 />
               </div>
 
               {/* Parent Department */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Parent Department</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Valideyn departament</label>
                 <div className="relative">
                   <input
                     type="text"
                     value={parentSearch}
                     onChange={e => { setParentSearch(e.target.value); if (!e.target.value) setForm({ ...form, parentDepartmentId: '' }) }}
-                    placeholder="Search or select parent..."
+                    placeholder="Axtarın və ya valideyn seçin..."
                     className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2"
                   />
                   {parentSearch && filteredParents.length > 0 && (
@@ -433,7 +433,7 @@ export default function DepartmentsPage() {
                         className="px-3 py-2 text-sm text-gray-400 hover:bg-gray-50 cursor-pointer"
                         onClick={() => { setParentSearch(''); setForm({ ...form, parentDepartmentId: '' }) }}
                       >
-                        No parent (Top Level)
+                        Valideyn yoxdur (ən üst səviyyə)
                       </div>
                       {filteredParents.map(d => (
                         <div
@@ -456,7 +456,7 @@ export default function DepartmentsPage() {
                 onClick={() => setShowModal(false)}
                 className="px-5 py-2.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 font-medium text-gray-700"
               >
-                Cancel
+                Ləğv et
               </button>
               <button
                 onClick={handleSave}
@@ -464,7 +464,7 @@ export default function DepartmentsPage() {
                 className="px-5 py-2.5 text-sm text-white rounded-lg disabled:opacity-50 font-medium"
                 style={{ background: '#a855f7' }}
               >
-                {saving ? 'Saving...' : 'Save Department'}
+                {saving ? 'Yadda saxlanılır...' : 'Departamenti yadda saxla'}
               </button>
             </div>
           </div>
@@ -479,8 +479,8 @@ export default function DepartmentsPage() {
             <div className="px-6 py-5 border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold" style={{ color: '#1e2a4a' }}>Assign to {assignDept.departmentName}</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Select employees to assign to this department</p>
+                  <h2 className="text-lg font-bold" style={{ color: '#1e2a4a' }}>{assignDept.departmentName} üçün təyinat</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Bu departamentə təyin etmək üçün əməkdaşları seçin</p>
                 </div>
                 <button onClick={() => setAssignDept(null)} className="text-gray-400 hover:text-gray-600">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -496,7 +496,7 @@ export default function DepartmentsPage() {
                   type="text"
                   value={assignSearch}
                   onChange={e => setAssignSearch(e.target.value)}
-                  placeholder="Search employees..."
+                  placeholder="Əməkdaş axtar..."
                   className="w-full border border-gray-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2"
                 />
               </div>
@@ -510,7 +510,7 @@ export default function DepartmentsPage() {
                   Yüklənir...
                 </div>
               ) : filteredEmployees.length === 0 ? (
-                <div className="text-center py-8 text-gray-400 text-sm">No employees found</div>
+                <div className="text-center py-8 text-gray-400 text-sm">Əməkdaş tapılmadı</div>
               ) : (
                 filteredEmployees.map(emp => {
                   const isSelected = selectedEmployeeIds.has(emp.id)
@@ -535,7 +535,7 @@ export default function DepartmentsPage() {
                       <div className="min-w-0">
                         <div className="text-sm font-medium text-gray-800">{emp.firstName} {emp.lastName}</div>
                         <div className="text-xs text-gray-400 truncate">
-                          {emp.positionName || 'No position'}{emp.departmentName ? ` • ${emp.departmentName}` : ''}
+                          {emp.positionName || 'Vəzifə yoxdur'}{emp.departmentName ? ` • ${emp.departmentName}` : ''}
                         </div>
                       </div>
                     </label>
@@ -549,7 +549,7 @@ export default function DepartmentsPage() {
               <span className="text-sm text-gray-500">{selectedEmployeeIds.size} employee{selectedEmployeeIds.size !== 1 ? 's' : ''} selected</span>
               <div className="flex gap-3">
                 <button onClick={() => setAssignDept(null)} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 font-medium text-gray-700">
-                  Cancel
+                  Ləğv et
                 </button>
                 <button
                   onClick={handleAssignComplete}
@@ -557,7 +557,7 @@ export default function DepartmentsPage() {
                   className="px-5 py-2 text-sm text-white rounded-lg disabled:opacity-50 font-medium"
                   style={{ background: '#a855f7' }}
                 >
-                  {assignSaving ? 'Saving...' : 'Complete'}
+                  {assignSaving ? 'Yadda saxlanılır...' : 'Tamamla'}
                 </button>
               </div>
             </div>

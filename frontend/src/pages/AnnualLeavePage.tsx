@@ -178,10 +178,10 @@ export default function AnnualLeavePage() {
             <thead className="bg-gray-50 text-gray-600">
               <tr>
                 <th className="px-3 py-2 text-left">İşçi</th>
-                <th className="px-3 py-2 text-left">Entitlement</th>
-                <th className="px-3 py-2 text-left">Used</th>
-                <th className="px-3 py-2 text-left">Carryover</th>
-                <th className="px-3 py-2 text-left">Remaining</th>
+                <th className="px-3 py-2 text-left">Hüquq</th>
+                <th className="px-3 py-2 text-left">İstifadə</th>
+                <th className="px-3 py-2 text-left">Köçürülən</th>
+                <th className="px-3 py-2 text-left">Qalıq</th>
                 <th className="px-3 py-2 text-left">Status</th>
                 <th className="px-3 py-2 text-right">Əməliyyat</th>
               </tr>
@@ -225,19 +225,19 @@ export default function AnnualLeavePage() {
                   </select>
                 </label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <label className="text-sm">Entitlement gün
+                  <label className="text-sm">Hüquq gün
                     <input type="number" min={0} value={form.entitlementDays} onChange={(e) => setForm({ ...form, entitlementDays: Number(e.target.value) })} className="mt-1 w-full border rounded-lg px-3 py-2" />
                   </label>
-                  <label className="text-sm">Used gün
+                  <label className="text-sm">İstifadə gün
                     <input type="number" min={0} value={form.usedDays} onChange={(e) => setForm({ ...form, usedDays: Number(e.target.value) })} className="mt-1 w-full border rounded-lg px-3 py-2" />
                   </label>
-                  <label className="text-sm">Carryover gün
+                  <label className="text-sm">Köçürülən gün
                     <input type="number" min={0} value={form.carryoverDays} onChange={(e) => setForm({ ...form, carryoverDays: Number(e.target.value) })} className="mt-1 w-full border rounded-lg px-3 py-2" />
                   </label>
                   <label className="text-sm">Status
                     <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'ACTIVE' | 'INACTIVE' })} className="mt-1 w-full border rounded-lg px-3 py-2">
-                      <option value="ACTIVE">ACTIVE</option>
-                      <option value="INACTIVE">INACTIVE</option>
+                      <option value="ACTIVE">Aktiv</option>
+                      <option value="INACTIVE">Deaktiv</option>
                     </select>
                   </label>
                 </div>

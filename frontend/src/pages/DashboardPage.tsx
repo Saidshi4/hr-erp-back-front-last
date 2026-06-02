@@ -172,7 +172,7 @@ export default function DashboardPage() {
                 <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Online cihaz</p>
+                <p className="text-xs text-gray-400">Onlayn cihaz</p>
                 <p className="text-xl font-bold text-green-600">{loading ? '—' : (deviceStatus?.onlineDevices ?? 0)}</p>
               </div>
             </div>
@@ -181,7 +181,7 @@ export default function DashboardPage() {
                 <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Offline cihaz</p>
+                <p className="text-xs text-gray-400">Oflayn cihaz</p>
                 <p className="text-xl font-bold text-red-500">{loading ? '—' : (deviceStatus?.offlineDevices ?? 0)}</p>
               </div>
             </div>

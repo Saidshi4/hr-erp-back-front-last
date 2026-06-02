@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useDeviceStore } from '../store/deviceStore.ts'
-import { DeviceConfig, Branch } from '../types'
+import { DeviceConfig, Branch, Door } from '../types'
 import { branchApi } from '../api/branchApi.ts'
+import { doorApi } from '../api/doorApi.ts'
+import { deviceApi } from '../api/deviceApi.ts'
 
 interface DeviceFormData {
   deviceName: string
@@ -34,6 +36,15 @@ export default function DevicesPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<DeviceConfig | null>(null)
   const [syncingId, setSyncingId] = useState<number | null>(null)
+  const [doors, setDoors] = useState<Door[]>([])
+  const [selectedDoorId, setSelectedDoorId] = useState<number | '' | 'new'>('')
+  const [doorRole, setDoorRole] = useState<'ENTRY' | 'EXIT' | ''>('')
+  const [newDoorName, setNewDoorName] = useState('')
+  const [showDoorManager, setShowDoorManager] = useState(false)
+  const [managerBranchId, setManagerBranchId] = useState<number | ''>('')
+  const [managerDoors, setManagerDoors] = useState<Door[]>([])
+  const [managerLoading, setManagerLoading] = useState(false)
+  const [doorDeleteConfirm, setDoorDeleteConfirm] = useState<Door | null>(null)
 
   useEffect(() => {
     fetchDevices()
@@ -41,9 +52,49 @@ export default function DevicesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const loadDoors = async (branchId: number) => {
+    try {
+      const res = await doorApi.getByBranch(branchId)
+      setDoors(res.data?.data ?? [])
+    } catch {
+      setDoors([])
+    }
+  }
+
+  const loadManagerDoors = async (branchId: number) => {
+    setManagerLoading(true)
+    try {
+      const res = await doorApi.getByBranch(branchId)
+      setManagerDoors(res.data?.data ?? [])
+    } catch {
+      setManagerDoors([])
+    } finally {
+      setManagerLoading(false)
+    }
+  }
+
+  const handleDeleteDoor = async () => {
+    if (!doorDeleteConfirm) return
+    try {
+      await doorApi.delete(doorDeleteConfirm.id)
+      setDoorDeleteConfirm(null)
+      if (managerBranchId) {
+        await loadManagerDoors(Number(managerBranchId))
+      }
+      // Also refresh device list since devices may have been unassigned
+      await fetchDevices()
+    } catch (e: any) {
+      alert(e?.response?.data?.message || 'Failed to delete door')
+    }
+  }
+
   const openCreate = () => {
     setEditingDevice(null)
     setForm(defaultForm)
+    setSelectedDoorId('')
+    setDoorRole('')
+    setNewDoorName('')
+    setDoors([])
     setFormError(null)
     setShowModal(true)
   }
@@ -59,7 +110,13 @@ export default function DevicesPage() {
       branchId: device.branchId || '',
       status: device.status || 'ACTIVE',
     })
+    setSelectedDoorId(device.doorId ?? '')
+    setDoorRole((device.doorRole as 'ENTRY' | 'EXIT') ?? '')
+    setNewDoorName('')
     setFormError(null)
+    if (device.branchId) {
+      loadDoors(device.branchId)
+    }
     setShowModal(true)
   }
 
@@ -67,6 +124,10 @@ export default function DevicesPage() {
     if (!form.deviceIp.trim()) { setFormError('Device IP is required.'); return }
     if (!form.username.trim()) { setFormError('Username is required.'); return }
     if (!editingDevice && !form.password.trim()) { setFormError('Password is required.'); return }
+    if (form.branchId && selectedDoorId === 'new' && !newDoorName.trim()) {
+      setFormError('Door name is required when creating a new door.')
+      return
+    }
     setSaving(true)
     setFormError(null)
     try {
@@ -75,11 +136,36 @@ export default function DevicesPage() {
         devicePort: form.devicePort ? Number(form.devicePort) : 80,
         branchId: form.branchId ? Number(form.branchId) : undefined,
       }
+      let deviceId = editingDevice?.id
       if (editingDevice) {
         await updateDevice(editingDevice.id, payload)
+        deviceId = editingDevice.id
       } else {
-        await createDevice(payload)
+        const createRes = await deviceApi.create(payload)
+        const created = Array.isArray(createRes.data) ? createRes.data[0] : createRes.data?.data ?? createRes.data
+        deviceId = typeof created?.id === 'number' ? created.id : undefined
       }
+
+      // Door assignment
+      if (deviceId && form.branchId && selectedDoorId) {
+        let doorId = selectedDoorId === 'new' ? undefined : Number(selectedDoorId)
+        if (selectedDoorId === 'new') {
+          const createDoorRes = await doorApi.create({
+            branchId: Number(form.branchId),
+            name: newDoorName.trim(),
+            status: 'ACTIVE',
+          })
+          doorId = createDoorRes.data?.data?.id
+        }
+        if (doorId && doorRole) {
+          await deviceApi.assignDoor(deviceId, { doorId, role: doorRole })
+        }
+      } else if (deviceId && selectedDoorId === '') {
+        // Unassign door if cleared
+        await deviceApi.assignDoor(deviceId, {})
+      }
+
+      await fetchDevices()
       setShowModal(false)
     } catch (e: unknown) {
       setFormError((e as Error).message || 'Failed to save device')
@@ -137,6 +223,15 @@ export default function DevicesPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
               Refresh
+            </button>
+            <button
+              onClick={() => { setShowDoorManager(true); setManagerBranchId(''); setManagerDoors([]) }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+              Manage Doors
             </button>
             <button
               onClick={openCreate}
@@ -228,6 +323,14 @@ export default function DevicesPage() {
                       <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${device.status === 'ACTIVE' ? 'bg-green-500' : 'bg-red-400'}`}></span>
                       {device.status === 'ACTIVE' ? 'Online' : 'Offline'}
                     </span>
+                    {device.doorRole && (
+                      <span
+                        className="px-2 py-0.5 rounded-full text-xs font-medium"
+                        style={{ background: '#e0e7ff', color: '#3730a3' }}
+                      >
+                        {device.doorRole}
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-gray-400 font-mono">{device.deviceId}</p>
                 </div>
@@ -347,7 +450,17 @@ export default function DevicesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
                 <select
                   value={form.branchId}
-                  onChange={(e) => setForm({ ...form, branchId: e.target.value ? Number(e.target.value) : '' })}
+                  onChange={(e) => {
+                    const branchId = e.target.value ? Number(e.target.value) : ''
+                    setForm({ ...form, branchId })
+                    setSelectedDoorId('')
+                    setDoorRole('')
+                    if (branchId) {
+                      loadDoors(branchId)
+                    } else {
+                      setDoors([])
+                    }
+                  }}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
                   <option value="">Select branch...</option>
@@ -356,6 +469,54 @@ export default function DevicesPage() {
                   ))}
                 </select>
               </div>
+              {form.branchId && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Door</label>
+                    <select
+                      value={selectedDoorId}
+                      onChange={(e) => {
+                        const val = e.target.value
+                        setSelectedDoorId(val === 'new' ? 'new' : val ? Number(val) : '')
+                        if (val === '') setDoorRole('')
+                      }}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    >
+                      <option value="">None</option>
+                      {doors.map((d) => (
+                        <option key={d.id} value={d.id}>{d.name}</option>
+                      ))}
+                      <option value="new">+ Create new door...</option>
+                    </select>
+                  </div>
+                  {selectedDoorId === 'new' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">New Door Name</label>
+                      <input
+                        type="text"
+                        value={newDoorName}
+                        onChange={(e) => setNewDoorName(e.target.value)}
+                        placeholder="e.g., Main Gate"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      />
+                    </div>
+                  )}
+                  {selectedDoorId && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                      <select
+                        value={doorRole}
+                        onChange={(e) => setDoorRole(e.target.value as 'ENTRY' | 'EXIT' | '')}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                      >
+                        <option value="">Select role...</option>
+                        <option value="ENTRY">Entry</option>
+                        <option value="EXIT">Exit</option>
+                      </select>
+                    </div>
+                  )}
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                 <select
@@ -388,7 +549,92 @@ export default function DevicesPage() {
         </div>
       )}
 
-      {/* Delete Confirmation */}
+      {/* Door Manager Modal */}
+      {showDoorManager && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Manage Doors</h2>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+              <select
+                value={managerBranchId}
+                onChange={(e) => {
+                  const val = e.target.value ? Number(e.target.value) : ''
+                  setManagerBranchId(val)
+                  if (val) loadManagerDoors(Number(val))
+                  else setManagerDoors([])
+                }}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+              >
+                <option value="">Select branch...</option>
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {managerLoading ? (
+                <div className="text-center text-gray-400 text-sm py-4">Loading...</div>
+              ) : managerDoors.length === 0 ? (
+                <div className="text-center text-gray-400 text-sm py-4">
+                  {managerBranchId ? 'No doors found for this branch.' : 'Select a branch to view doors.'}
+                </div>
+              ) : (
+                managerDoors.map((door) => (
+                  <div key={door.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{door.name}</p>
+                      <p className="text-xs text-gray-400">{door.status}</p>
+                    </div>
+                    <button
+                      onClick={() => setDoorDeleteConfirm(door)}
+                      className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded hover:bg-red-100 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end mt-5">
+              <button
+                onClick={() => setShowDoorManager(false)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Door Delete Confirmation */}
+      {doorDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Delete Door</h2>
+            <p className="text-gray-600 mb-6 text-sm">
+              Are you sure you want to delete <strong>{doorDeleteConfirm.name}</strong>? All linked devices will be unassigned. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDoorDeleteConfirm(null)}
+                className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteDoor}
+                className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Device Delete Confirmation */}
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">

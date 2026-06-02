@@ -45,6 +45,7 @@ public class EmployeeResponseDTO {
     private String shiftType;
     private Long timetableId;
     private List<Long> deviceIds;
+    private List<String> doorAccess;
     private EmploymentStatus employmentStatus;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;

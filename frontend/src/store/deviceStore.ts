@@ -28,6 +28,8 @@ const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
   const devicePort = typeof item.devicePort === 'number' ? item.devicePort : undefined
   const username = typeof item.username === 'string' ? item.username : undefined
   const branchId = typeof item.branchId === 'number' ? item.branchId : undefined
+  const doorId = typeof item.doorId === 'number' ? item.doorId : undefined
+  const doorRole = typeof item.doorRole === 'string' ? item.doorRole : undefined
   let status = 'INACTIVE'
   if (typeof item.status === 'string' && DEVICE_STATUSES.has(item.status)) {
     status = item.status
@@ -46,6 +48,8 @@ const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
     devicePort,
     username,
     branchId,
+    doorId,
+    doorRole,
     // Prefer explicit runtime state first, then fallback to enabled flag.
     status,
     lastSyncTime,

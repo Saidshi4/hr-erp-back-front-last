@@ -79,6 +79,7 @@ export interface Employee {
   shiftType?: string
   timetableId?: number
   deviceIds?: number[]
+  doorAccess?: string[]
   employmentStatus: 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE'
   createdAt?: string
   updatedAt?: string
@@ -336,6 +337,16 @@ export interface TabelMonthlyData {
   rows: TabelRow[]
 }
 
+export interface Door {
+  id: number
+  tenantId?: number
+  branchId: number
+  name: string
+  status: string
+  createdAt?: string
+  updatedAt?: string
+}
+
 export interface DeviceConfig {
   id: number
   deviceId: string
@@ -344,6 +355,8 @@ export interface DeviceConfig {
   devicePort?: number
   username?: string
   branchId?: number
+  doorId?: number
+  doorRole?: string
   status?: string
   lastSyncTime?: string
 }

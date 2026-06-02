@@ -4,7 +4,7 @@ import Layout from '../components/Layout.tsx'
 import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
 import { useBranchStore } from '../store/branchStore.ts'
-import { Department, DeviceConfig, Employee, Position, Timetable } from '../types'
+import { Department, Employee, Position, Timetable } from '../types'
 import { employeeApi } from '../api/employeeApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
 import { positionApi } from '../api/positionApi.ts'
@@ -51,48 +51,6 @@ const extractStatusCode = (value: unknown): number | undefined => {
   const response = value.response
   if (!isRecord(response)) return undefined
   return typeof response.status === 'number' ? response.status : undefined
-}
-
-const normalizeDevice = (item: Record<string, unknown>): DeviceConfig => {
-  const parsedId = typeof item.id === 'number' ? item.id : Number(item.id)
-  const id = Number.isFinite(parsedId) ? parsedId : 0
-  const fallbackDeviceId = id > 0 ? String(id) : 'unknown'
-  const deviceId = typeof item.deviceId === 'string' && item.deviceId.trim() !== '' ? item.deviceId : fallbackDeviceId
-  const deviceName = typeof item.deviceName === 'string' ? item.deviceName : typeof item.name === 'string' ? item.name : undefined
-  const deviceIp = typeof item.deviceIp === 'string' ? item.deviceIp : typeof item.ip === 'string' ? item.ip : ''
-  const devicePort = typeof item.devicePort === 'number' ? item.devicePort : undefined
-  const username = typeof item.username === 'string' ? item.username : undefined
-  const branchId = typeof item.branchId === 'number' ? item.branchId : undefined
-  const status = typeof item.status === 'string'
-    ? item.status
-    : typeof item.running === 'boolean'
-      ? (item.running ? 'ACTIVE' : 'INACTIVE')
-      : typeof item.enabled === 'boolean'
-        ? (item.enabled ? 'ACTIVE' : 'INACTIVE')
-        : undefined
-  const lastSyncTime = typeof item.lastSyncTime === 'string' ? item.lastSyncTime : undefined
-
-  return {
-    id,
-    deviceId,
-    deviceName,
-    deviceIp,
-    devicePort,
-    username,
-    branchId,
-    status,
-    lastSyncTime,
-  }
-}
-
-const extractDevices = (payload: unknown): DeviceConfig[] => {
-  const list = Array.isArray(payload)
-    ? payload
-    : isRecord(payload)
-      ? payload.data
-      : undefined
-
-  return Array.isArray(list) ? list.filter(isRecord).map(normalizeDevice).filter((d) => d.id > 0) : []
 }
 
 const defaultForm: EmployeeFormData = {
@@ -145,9 +103,7 @@ export default function EmployeesPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [positions, setPositions] = useState<Position[]>([])
   const [timetables, setTimetables] = useState<Timetable[]>([])
-  const [devices, setDevices] = useState<DeviceConfig[]>([])
-  const [deviceSearch, setDeviceSearch] = useState('')
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
+  const [employeeDoors, setEmployeeDoors] = useState<string[]>([])
   const [filterDept, setFilterDept] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterShift, setFilterShift] = useState<string>('')
@@ -179,7 +135,6 @@ export default function EmployeesPage() {
     positionApi.getAll().then((res) => setPositions(res.data?.data ?? []))
     fetchBranches()
     timetableApi.getAll().then((res) => setTimetables(res.data?.data ?? []))
-    deviceApi.getAll().then((res) => setDevices(extractDevices(res.data)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -216,24 +171,25 @@ export default function EmployeesPage() {
     return branches.find((b) => b.id === branchId)?.name || '—'
   }
 
-  const filteredDevices = devices.filter((d) => {
-    const label = `${d.deviceName || ''} ${d.deviceId || ''}`.toLowerCase()
-    return label.includes(deviceSearch.toLowerCase())
-  })
-
-  const selectedDeviceLabels = selectedDeviceIds
-    .map((id) => {
-      const device = devices.find((d) => d.id === id)
-      return device ? (device.deviceName || device.deviceId) : ''
-    })
-    .filter(Boolean)
+  const loadEmployeeDoors = async (employeeId?: number) => {
+    if (!employeeId) {
+      setEmployeeDoors([])
+      return
+    }
+    try {
+      const res = await employeeApi.getDoors(employeeId)
+      setEmployeeDoors(res.data?.data ?? [])
+    } catch {
+      setEmployeeDoors([])
+    }
+  }
 
   const openCreate = () => {
     setEditingEmployee(null)
     setForm(defaultForm)
     setDepartmentQuery('')
     setPositionQuery('')
-    setSelectedDeviceIds([])
+    setEmployeeDoors([])
     setCurrentStep(1)
     setFormError(null)
     setShowWizard(true)
@@ -275,16 +231,12 @@ export default function EmployeesPage() {
     })
     setDepartmentQuery(emp.departmentName || '')
     setPositionQuery(emp.positionName || '')
-    const areaParts = (emp.area || '')
-      .split(',')
-      .map((x) => x.trim())
-      .filter(Boolean)
-    const matched = emp.deviceIds?.length
-      ? emp.deviceIds
-      : devices
-          .filter((d) => areaParts.includes(d.deviceName || '') || areaParts.includes(d.deviceId || ''))
-          .map((d) => d.id)
-    setSelectedDeviceIds(matched)
+    loadEmployeeDoors(emp.id)
+    setWizardImageFile(null)
+    if (wizardImagePreview) {
+      URL.revokeObjectURL(wizardImagePreview)
+    }
+    setWizardImagePreview(emp.faceImageUrl || null)
     setCurrentStep(1)
     setFormError(null)
     setShowWizard(true)
@@ -305,13 +257,33 @@ export default function EmployeesPage() {
       let res = await employeeApi.getById(employee.id)
       if (res.data?.data) {
         let details = res.data.data
-        if (!details.faceImageUrl) {
-          const usersRes = await deviceUserApi.getAll(defaultDeviceId)
-          const deviceUser = usersRes.data.find((u) => u.employeeNo === details.employeeId)
-          if (deviceUser) {
-            await deviceUserApi.syncFaceFromDevice(defaultDeviceId, deviceUser.id, details.id)
-            res = await employeeApi.getById(employee.id)
-            details = res.data?.data || details
+        if (!details.faceImageUrl && details.deviceIds && details.deviceIds.length > 0) {
+          const devicesRes = await deviceApi.getAll()
+          const devicesList = (devicesRes.data as any)?.data ?? (Array.isArray(devicesRes.data) ? devicesRes.data : [])
+          const deviceMap = new Map<number, number>()
+          for (const d of devicesList) {
+            if (d.id != null && d.deviceId != null) {
+              deviceMap.set(Number(d.id), Number(d.deviceId))
+            }
+          }
+          for (const backendDeviceId of details.deviceIds) {
+            const isapiDeviceId = deviceMap.get(Number(backendDeviceId))
+            if (!isapiDeviceId) continue
+            try {
+              const usersRes = await deviceUserApi.getAll(isapiDeviceId)
+              const users = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data as any)?.data ?? []
+              const deviceUser = users.find((u: any) => u.employeeNo === details.employeeId)
+              if (deviceUser) {
+                const syncRes = await deviceUserApi.syncFaceFromDevice(isapiDeviceId, deviceUser.id, details.id)
+                if (syncRes.data?.status === 'SUCCESS' || (syncRes.data as any)?.status === 'SUCCESS') {
+                  res = await employeeApi.getById(employee.id)
+                  details = res.data?.data || details
+                  break
+                }
+              }
+            } catch {
+              // Try next device
+            }
           }
         }
         if (profileImageSrc) {
@@ -406,8 +378,7 @@ export default function EmployeesPage() {
         emergencyContact: form.emergencyContact,
         address: form.address,
         notes: form.notes,
-        area: selectedDeviceLabels.length ? selectedDeviceLabels.join(', ') : form.area,
-        ...(editingEmployee || selectedDeviceIds.length > 0 ? { deviceIds: selectedDeviceIds } : {}),
+        area: form.area,
       }
 
       let savedEmployee: Employee | undefined
@@ -1009,34 +980,22 @@ export default function EmployeesPage() {
                   </div>
 
                   <div className="mt-5">
-                    <h4 className="text-sm font-bold text-gray-700 mb-2">Area / Device Assignment</h4>
+                    <h4 className="text-sm font-bold text-gray-700 mb-2">Door Access</h4>
                     <p className="text-xs text-gray-500 mb-2">
-                      Seçilməsə, işçinin şöbəsinin (branch) cihazlarına avtomatik əlavə olunacaq.
+                      İşçi filialın door-larına avtomatik əlavə olunur. Branch dəyişəndə door access avtomatik yenilənir.
                     </p>
-                    <input
-                      value={deviceSearch}
-                      onChange={(e) => setDeviceSearch(e.target.value)}
-                      placeholder="Device axtar..."
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-2"
-                    />
-                    <div className="h-44 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                      {filteredDevices.map((d) => (
-                        <label key={d.id} className="flex items-center gap-2 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={selectedDeviceIds.includes(d.id)}
-                            onChange={(e) => {
-                              setSelectedDeviceIds((prev) =>
-                                e.target.checked ? [...prev, d.id] : prev.filter((id) => id !== d.id),
-                              )
-                            }}
-                          />
-                          <span>{d.deviceName || d.deviceId}</span>
-                        </label>
-                      ))}
-                      {!filteredDevices.length && <p className="text-xs text-gray-500 px-1 py-2">No devices found.</p>}
+                    <div className="border border-gray-200 rounded-lg p-3 space-y-1 bg-gray-50">
+                      {employeeDoors.length === 0 ? (
+                        <p className="text-xs text-gray-500">Hələ door access təyin olunmayıb. Employee-yə branch təyin etdikdən sonra avtomatik əlavə olunacaq.</p>
+                      ) : (
+                        employeeDoors.map((door) => (
+                          <div key={door} className="flex items-center gap-2 text-sm text-gray-700">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block"></span>
+                            <span>{door}</span>
+                          </div>
+                        ))
+                      )}
                     </div>
-                    <p className="text-xs text-gray-500 mt-2">{selectedDeviceIds.length} devices selected</p>
                   </div>
                 </div>
 

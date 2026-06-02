@@ -21,4 +21,9 @@ public interface DeviceConfigRepository extends JpaRepository<DeviceConfig, Long
     List<DeviceConfig> findByStatus(String status);
     Optional<DeviceConfig> findByDeviceId(String deviceId);
     long countByStatus(String status);
+
+    // Door-related methods
+    List<DeviceConfig> findByDoorId(Long doorId);
+    Optional<DeviceConfig> findByDoorIdAndDoorRole(Long doorId, String doorRole);
+    boolean existsByDoorIdAndDoorRole(Long doorId, String doorRole);
 }

@@ -2,9 +2,12 @@ package com.hic.service;
 
 import com.hic.dto.AttendanceLogSyncDTO;
 import com.hic.dto.DoorAttendanceSyncResultDTO;
+import com.hic.exception.BadRequestException;
 import com.hic.model.AttendanceLog;
+import com.hic.model.DeviceConfig;
 import com.hic.model.Employee;
 import com.hic.repository.AttendanceLogRepository;
+import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +38,7 @@ public class DoorAttendanceSyncService {
     private final AttendanceLogSyncService attendanceLogSyncService;
     private final AttendanceLogRepository attendanceLogRepository;
     private final EmployeeRepository employeeRepository;
+    private final DeviceConfigRepository deviceConfigRepository;
     private final AttendanceCalculationService attendanceCalculationService;
     private final AttendanceService attendanceService;
 
@@ -168,6 +172,20 @@ public class DoorAttendanceSyncService {
                 recalculatedDays,
                 unresolvedEmployeeNos.stream().sorted().toList()
         );
+    }
+
+    @Transactional
+    public DoorAttendanceSyncResultDTO syncDoorAttendanceByDoorId(
+            Long doorId,
+            LocalDateTime start,
+            LocalDateTime end,
+            Integer limit
+    ) {
+        DeviceConfig entryDevice = deviceConfigRepository.findByDoorIdAndDoorRole(doorId, "ENTRY")
+                .orElseThrow(() -> new BadRequestException("Door has no ENTRY device assigned"));
+        DeviceConfig exitDevice = deviceConfigRepository.findByDoorIdAndDoorRole(doorId, "EXIT")
+                .orElseThrow(() -> new BadRequestException("Door has no EXIT device assigned"));
+        return syncDoorAttendance(entryDevice.getId(), exitDevice.getId(), start, end, limit);
     }
 
     private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> fetchPunchesInRange(

@@ -1,10 +1,13 @@
 package com.hic.service;
 
 import com.hic.dto.DeviceSyncDTO;
+import com.hic.dto.DoorDTO;
 import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.DeviceConfig;
+import com.hic.model.Door;
 import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.DoorRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,6 +24,7 @@ public class DeviceService {
 
     private final DeviceConfigRepository deviceConfigRepository;
     private final DeviceSyncService deviceSyncService;
+    private final DoorRepository doorRepository;
 
     public List<DeviceSyncDTO.DeviceConfigDTO> getAll() {
         Long tenantId = TenantContext.getTenantId();
@@ -88,6 +92,45 @@ public class DeviceService {
         }
     }
 
+    @Transactional
+    public DeviceSyncDTO.DeviceConfigDTO assignDoor(Long deviceConfigId, DoorDTO.AssignDoorRequest dto) {
+        Long tenantId = TenantContext.getTenantId();
+        DeviceConfig device = deviceConfigRepository.findById(deviceConfigId)
+                .orElseThrow(() -> new ResourceNotFoundException("DeviceConfig", deviceConfigId));
+        if (tenantId != null && device.getTenantId() != null && !tenantId.equals(device.getTenantId())) {
+            throw new BadRequestException("Device does not belong to your tenant");
+        }
+        if (dto.getDoorId() == null) {
+            device.setDoorId(null);
+            device.setDoorRole(null);
+            deviceConfigRepository.save(device);
+            return toDTO(device);
+        }
+        Door door = doorRepository.findById(dto.getDoorId())
+                .orElseThrow(() -> new ResourceNotFoundException("Door", dto.getDoorId()));
+        if (tenantId != null && !tenantId.equals(door.getTenantId())) {
+            throw new BadRequestException("Door does not belong to your tenant");
+        }
+        if (device.getBranchId() != null && !device.getBranchId().equals(door.getBranchId())) {
+            throw new BadRequestException("Device branch does not match door branch");
+        }
+        String role = dto.getRole() != null ? dto.getRole().trim().toUpperCase() : null;
+        if (!"ENTRY".equals(role) && !"EXIT".equals(role)) {
+            throw new BadRequestException("Role must be ENTRY or EXIT");
+        }
+        // Check if another device already has this role on the same door
+        deviceConfigRepository.findByDoorIdAndDoorRole(dto.getDoorId(), role)
+                .ifPresent(existing -> {
+                    if (!existing.getId().equals(deviceConfigId)) {
+                        throw new BadRequestException("Door already has a " + role + " device assigned");
+                    }
+                });
+        device.setDoorId(dto.getDoorId());
+        device.setDoorRole(role);
+        DeviceConfig saved = deviceConfigRepository.save(device);
+        return toDTO(saved);
+    }
+
     private DeviceSyncDTO.DeviceConfigDTO toDTO(DeviceConfig device) {
         DeviceSyncDTO.DeviceConfigDTO dto = new DeviceSyncDTO.DeviceConfigDTO();
         dto.setId(device.getId());
@@ -98,6 +141,8 @@ public class DeviceService {
         dto.setUsername(device.getUsername());
         dto.setPassword(null);
         dto.setBranchId(device.getBranchId());
+        dto.setDoorId(device.getDoorId());
+        dto.setDoorRole(device.getDoorRole());
         dto.setStatus(device.getStatus());
         dto.setLastSyncTime(device.getLastSyncTime());
         return dto;

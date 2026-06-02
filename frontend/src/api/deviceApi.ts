@@ -14,6 +14,7 @@ const toIsapiUpsertPayload = (data: DeviceWritePayload) => ({
   password: data.password,
   name: data.deviceName,
   enabled: data.status ? data.status === 'ACTIVE' : undefined,
+  branchId: data.branchId,
 })
 
 export const deviceApi = {
@@ -23,4 +24,6 @@ export const deviceApi = {
   delete: (id: number) => client.delete(`/devices/${id}`),
   sync: (id: number) => client.post(`/devices/${id}/sync`),
   getHistory: (id: number) => client.get(`/devices/${id}/history`),
+  assignDoor: (id: number, data: { doorId?: number; role?: string }) =>
+    client.post<{ data: DeviceConfig }>(`/devices/${id}/assign-door`, data),
 }

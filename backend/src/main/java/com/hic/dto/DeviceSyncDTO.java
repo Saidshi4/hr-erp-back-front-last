@@ -22,6 +22,8 @@ public class DeviceSyncDTO {
         private String username;
         private String password;
         private Long branchId;
+        private Long doorId;
+        private String doorRole;
         private String status;
         private LocalDateTime lastSyncTime;
     }
@@ -86,6 +88,19 @@ public class DeviceSyncDTO {
         private boolean enabled;
         private boolean running;
         private OffsetDateTime lastSyncTime;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class DeviceUpsertRequest {
+        private String ip;
+        private String username;
+        private String password;
+        private String name;
+        private Boolean enabled;
+        private Long branchId;
     }
 
     @Data

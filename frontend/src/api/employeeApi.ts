@@ -18,4 +18,6 @@ export const employeeApi = {
     client.get<PaginatedResponse<Employee>>(`/employees/branch/${branchId}?page=${page}&size=${size}`),
   getByDepartment: (departmentId: number) =>
     client.get<{ data: Employee[] }>(`/employees/department/${departmentId}`),
+  getDoors: (id: number) =>
+    client.get<{ data: string[] }>(`/employees/${id}/doors`),
 }

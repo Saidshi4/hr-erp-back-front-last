@@ -38,6 +38,12 @@ public class DeviceConfig {
     @Column(name = "branch_id")
     private Long branchId;
 
+    @Column(name = "door_id")
+    private Long doorId;
+
+    @Column(name = "door_role")
+    private String doorRole;
+
     @Column(name = "status")
     private String status;
 

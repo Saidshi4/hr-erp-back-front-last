@@ -8,12 +8,14 @@ import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Department;
 import com.hic.model.DeviceConfig;
+import com.hic.model.Door;
 import com.hic.model.Employee;
 import com.hic.model.Employee.EmploymentStatus;
 import com.hic.model.EmployeeDeviceAccess;
 import com.hic.model.Position;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.DoorRepository;
 import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
@@ -47,6 +49,7 @@ public class EmployeeService {
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
     private final DeviceConfigRepository deviceConfigRepository;
+    private final DoorRepository doorRepository;
     private final EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
     private final UserScopeService userScopeService;
@@ -183,9 +186,7 @@ public class EmployeeService {
         }
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> deviceIdsToAssign = dto.getDeviceIds() != null
-                ? dto.getDeviceIds()
-                : resolveDeviceIdsByBranch(saved, tenantId);
+        List<Long> deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
@@ -198,24 +199,36 @@ public class EmployeeService {
 
         validateDepartmentExists(dto.getDepartmentId());
         Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : TenantContext.getTenantId();
-        Long oldBranchId = employee.getBranchId();
         mapDtoToEmployee(dto, employee);
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> deviceIdsToAssign;
-        if (dto.getDeviceIds() != null) {
-            deviceIdsToAssign = dto.getDeviceIds();
-        } else {
-            List<Long> existingDeviceIds = getEmployeeDeviceIds(saved.getId());
-            if (!java.util.Objects.equals(oldBranchId, saved.getBranchId()) || existingDeviceIds.isEmpty()) {
-                deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
-            } else {
-                deviceIdsToAssign = existingDeviceIds;
-            }
-        }
+        List<Long> deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
+    }
+
+    public List<String> getEmployeeDoorAccess(Long employeeId) {
+        if (employeeId == null) {
+            return Collections.emptyList();
+        }
+        List<Long> deviceIds = getEmployeeDeviceIds(employeeId);
+        if (deviceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<DeviceConfig> devices = deviceConfigRepository.findAllById(deviceIds);
+        List<Long> doorIds = devices.stream()
+                .map(DeviceConfig::getDoorId)
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+        if (doorIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return doorRepository.findAllById(doorIds).stream()
+                .map(d -> d.getName() + " (" + d.getStatus() + ")")
+                .sorted()
+                .toList();
     }
 
     @Transactional
@@ -306,6 +319,7 @@ public class EmployeeService {
         dto.setDeviceIds(employeeDeviceIds != null
                 ? employeeDeviceIds.getOrDefault(employee.getId(), List.of())
                 : getEmployeeDeviceIds(employee.getId()));
+        dto.setDoorAccess(getEmployeeDoorAccess(employee.getId()));
         dto.setEmploymentStatus(employee.getEmploymentStatus());
         dto.setCreatedAt(employee.getCreatedAt());
         dto.setUpdatedAt(employee.getUpdatedAt());
@@ -363,6 +377,7 @@ public class EmployeeService {
         List<Long> validDeviceIds = validateDeviceIds(requestedDeviceIds, tenantId);
         validateDeviceIdsBelongToBranch(validDeviceIds, employee.getBranchId());
         employeeDeviceAccessRepository.deleteByEmployeeId(employee.getId());
+        employeeDeviceAccessRepository.flush();
         if (validDeviceIds.isEmpty()) {
             return List.of();
         }
@@ -426,8 +441,22 @@ public class EmployeeService {
         if (branchId == null) {
             return List.of();
         }
-        List<DeviceConfig> branchDevices = deviceConfigRepository.findByBranchId(branchId);
-        return branchDevices.stream()
+        // Get doors for this branch
+        List<Door> doors = tenantId != null
+                ? doorRepository.findByTenantIdAndBranchId(tenantId, branchId)
+                : doorRepository.findByBranchId(branchId);
+        if (doors.isEmpty()) {
+            return List.of();
+        }
+        // Get devices linked to those doors
+        Set<Long> doorIdSet = doors.stream().map(Door::getId).collect(Collectors.toSet());
+        List<DeviceConfig> doorDevices = deviceConfigRepository.findAllById(
+                deviceConfigRepository.findAll().stream()
+                        .filter(d -> d.getDoorId() != null && doorIdSet.contains(d.getDoorId()))
+                        .map(DeviceConfig::getId)
+                        .toList()
+        );
+        return doorDevices.stream()
                 .filter(d -> tenantId == null || d.getTenantId() == null || tenantId.equals(d.getTenantId()))
                 .map(DeviceConfig::getId)
                 .distinct()
@@ -460,7 +489,18 @@ public class EmployeeService {
 
     private void syncEmployeeToDevicesSafely(Employee employee, List<Long> assignedDeviceIds) {
         try {
-            isapiEmployeeUserSyncService.syncEmployee(employee, assignedDeviceIds);
+            if (assignedDeviceIds == null || assignedDeviceIds.isEmpty()) {
+                isapiEmployeeUserSyncService.syncEmployee(employee, List.of());
+                return;
+            }
+            List<DeviceConfig> devices = deviceConfigRepository.findAllById(assignedDeviceIds);
+            List<Long> isapiDeviceIds = devices.stream()
+                    .map(DeviceConfig::getDeviceId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .map(Long::valueOf)
+                    .distinct()
+                    .toList();
+            isapiEmployeeUserSyncService.syncEmployee(employee, isapiDeviceIds);
         } catch (RuntimeException ex) {
             log.warn("Employee {} was saved but device sync failed: {}", employee.getEmployeeId(), ex.getMessage());
         }

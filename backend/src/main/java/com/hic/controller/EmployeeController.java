@@ -77,4 +77,9 @@ public class EmployeeController {
         employeeService.delete(id);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
+
+    @GetMapping("/{id}/doors")
+    public ResponseEntity<ApiResponse<List<String>>> getEmployeeDoors(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(employeeService.getEmployeeDoorAccess(id)));
+    }
 }

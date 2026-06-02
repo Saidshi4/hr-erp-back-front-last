@@ -50,6 +50,12 @@ const extractStatusCode = (value: unknown): number | undefined => {
   return typeof response.status === 'number' ? response.status : undefined
 }
 
+const safeSrc = (url: string | null): string | undefined => {
+  if (!url) return undefined
+  if (/^(blob:|data:image\/|https?:\/\/|\/)/i.test(url)) return url
+  return undefined
+}
+
 const defaultForm: EmployeeFormData = {
   firstName: '',
   lastName: '',
@@ -932,7 +938,7 @@ export default function EmployeesPage() {
               <div className="flex flex-col items-center gap-4">
                 <div className="w-64 aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
                   {wizardImagePreview ? (
-                    <img src={wizardImagePreview} alt="Employee" className="w-full h-full object-cover" />
+                   <img src={safeSrc(wizardImagePreview)} alt="Employee" className="w-full h-full object-cover" />
                   ) : (
                     <div className="text-center text-gray-400">
                       <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

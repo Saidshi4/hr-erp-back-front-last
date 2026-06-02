@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore.ts'
 import { t } from './i18n/index.ts'
 
 const LoginPage = lazy(() => import('./pages/LoginPage.tsx'))
+const SignupPage = lazy(() => import('./pages/SignupPage.tsx'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage.tsx'))
 const EmployeesPage = lazy(() => import('./pages/EmployeesPage.tsx'))
 const BranchesPage = lazy(() => import('./pages/BranchesPage.tsx'))
@@ -39,6 +40,7 @@ export default function App() {
       <Suspense fallback={<div className="flex items-center justify-center h-screen">{t('app.loading')}</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><AppLayout><BranchesPage /></AppLayout></ProtectedRoute>} />

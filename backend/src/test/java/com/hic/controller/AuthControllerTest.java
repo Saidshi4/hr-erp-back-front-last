@@ -3,7 +3,9 @@ package com.hic.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hic.dto.LoginRequest;
 import com.hic.dto.LoginResponse;
+import com.hic.dto.SignupRequest;
 import com.hic.dto.UserDTO;
+import com.hic.exception.BadRequestException;
 import com.hic.exception.UnauthorizedException;
 import com.hic.model.User.UserType;
 import com.hic.service.AuthService;
@@ -43,6 +45,51 @@ class AuthControllerTest {
 
     @MockBean
     private AuthService authService;
+
+    @Test
+    void signup_validRequest_returns201WithTokens() throws Exception {
+        SignupRequest request = new SignupRequest();
+        request.setUsername("newuser");
+        request.setPassword("password123");
+
+        UserDTO userDTO = new UserDTO(2L, "newuser", null, UserType.HEAD_OFFICE_HR, null, null, 1L);
+        LoginResponse response = new LoginResponse("access-token", "refresh-token", userDTO);
+
+        when(authService.signup(any(SignupRequest.class))).thenReturn(response);
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.token").value("access-token"))
+                .andExpect(jsonPath("$.user.username").value("newuser"))
+                .andExpect(jsonPath("$.user.userType").value("HEAD_OFFICE_HR"));
+    }
+
+    @Test
+    void signup_duplicateUsername_returns400() throws Exception {
+        SignupRequest request = new SignupRequest();
+        request.setUsername("existing");
+        request.setPassword("password123");
+
+        when(authService.signup(any(SignupRequest.class)))
+                .thenThrow(new BadRequestException("Username already taken"));
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void signup_shortPassword_returns400() throws Exception {
+        String body = "{\"username\": \"newuser\", \"password\": \"12\"}";
+
+        mockMvc.perform(post("/api/auth/signup")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest());
+    }
 
     @Test
     void login_validCredentials_returns200WithTokens() throws Exception {

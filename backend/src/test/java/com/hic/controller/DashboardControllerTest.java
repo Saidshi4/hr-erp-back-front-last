@@ -45,9 +45,9 @@ class DashboardControllerTest {
     @Test
     void getDeviceStatus_usesIsapiDeviceStatuses() {
         when(deviceSyncService.getAllDevices(null)).thenReturn(List.of(
-                new DeviceSyncDTO.DeviceConfigDTO(1L, "1", "A", "10.0.0.1", 80, "admin", null, null, "ACTIVE", null),
-                new DeviceSyncDTO.DeviceConfigDTO(2L, "2", "B", "10.0.0.2", 80, "admin", null, null, "INACTIVE", null),
-                new DeviceSyncDTO.DeviceConfigDTO(3L, "3", "C", "10.0.0.3", 80, "admin", null, null, "ACTIVE", null)
+                new DeviceSyncDTO.DeviceConfigDTO(1L, "1", "A", "10.0.0.1", 80, "admin", null, null, null, null, "ACTIVE", null),
+                new DeviceSyncDTO.DeviceConfigDTO(2L, "2", "B", "10.0.0.2", 80, "admin", null, null, null, null, "INACTIVE", null),
+                new DeviceSyncDTO.DeviceConfigDTO(3L, "3", "C", "10.0.0.3", 80, "admin", null, null, null, null, "ACTIVE", null)
         ));
 
         ResponseEntity<ApiResponse<Map<String, Object>>> response = dashboardController.getDeviceStatus();

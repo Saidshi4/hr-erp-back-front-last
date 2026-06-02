@@ -130,7 +130,7 @@ export default function TabelPage() {
             </div>
           </aside>
 
-          <section className="space-y-4">
+          <section className="space-y-4 min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Tabel</h1>
@@ -162,7 +162,7 @@ export default function TabelPage() {
               </select>
             </div>
 
-            <div className="overflow-auto rounded-2xl bg-white shadow-sm">
+            <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
               <table className="min-w-max border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-xs uppercase text-slate-500">

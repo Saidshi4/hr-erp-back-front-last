@@ -1,30 +1,23 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
-import { Department, Employee, DeviceConfig } from '../types'
+import { Department, Employee } from '../types'
 import { departmentApi } from '../api/departmentApi.ts'
 import { employeeApi } from '../api/employeeApi.ts'
-import { deviceApi } from '../api/deviceApi.ts'
 import { useDebounce } from '../hooks/useSearch.ts'
 import { useBranchStore } from '../store/branchStore.ts'
 
 interface DepartmentFormData {
   departmentName: string
   description: string
+  branchId: number | ''
   parentDepartmentId: number | ''
-  calculateOvertime: boolean
-  flexShift: boolean
-  timetable: string
-  deviceIds: number[]
 }
 
 const defaultForm: DepartmentFormData = {
   departmentName: '',
   description: '',
+  branchId: '',
   parentDepartmentId: '',
-  calculateOvertime: false,
-  flexShift: false,
-  timetable: '',
-  deviceIds: [],
 }
 
 export default function DepartmentsPage() {
@@ -40,8 +33,6 @@ export default function DepartmentsPage() {
   const [search, setSearch] = useState('')
   const debouncedSearch = useDebounce(search, 300)
   const [parentSearch, setParentSearch] = useState('')
-  const [deviceSearch, setDeviceSearch] = useState('')
-  const [devices, setDevices] = useState<DeviceConfig[]>([])
   const [selectedBranchId, setSelectedBranchId] = useState<number | ''>('')
   const { branches, fetchBranches } = useBranchStore()
 
@@ -69,7 +60,6 @@ export default function DepartmentsPage() {
   useEffect(() => {
     fetchDepartments()
     fetchBranches()
-    deviceApi.getAll().then(res => setDevices(res.data?.data ?? [])).catch(() => {})
   }, [fetchBranches])
 
   useEffect(() => {
@@ -78,9 +68,8 @@ export default function DepartmentsPage() {
 
   const openCreate = () => {
     setEditingDept(null)
-    setForm(defaultForm)
+    setForm({ ...defaultForm, branchId: selectedBranchId })
     setParentSearch('')
-    setDeviceSearch('')
     setFormError(null)
     setShowModal(true)
   }
@@ -90,14 +79,10 @@ export default function DepartmentsPage() {
     setForm({
       departmentName: dept.departmentName,
       description: dept.description || '',
+      branchId: dept.branchId || '',
       parentDepartmentId: dept.parentDepartmentId || '',
-      calculateOvertime: dept.calculateOvertime ?? false,
-      flexShift: dept.flexShift ?? false,
-      timetable: dept.timetable || '',
-      deviceIds: [],
     })
     setParentSearch(dept.parentDepartmentName || '')
-    setDeviceSearch('')
     setFormError(null)
     setShowModal(true)
   }
@@ -107,16 +92,18 @@ export default function DepartmentsPage() {
       setFormError('Departament adı mütləqdir.')
       return
     }
+    if (!form.branchId) {
+      setFormError('Filial seçilməsi mütləqdir.')
+      return
+    }
     setSaving(true)
     setFormError(null)
     try {
       const payload = {
         departmentName: form.departmentName,
         description: form.description,
+        branchId: Number(form.branchId),
         parentDepartmentId: form.parentDepartmentId ? Number(form.parentDepartmentId) : undefined,
-        calculateOvertime: form.calculateOvertime,
-        flexShift: form.flexShift,
-        timetable: form.timetable || undefined,
       }
       if (editingDept) {
         await departmentApi.update(editingDept.id, payload)
@@ -124,7 +111,7 @@ export default function DepartmentsPage() {
         await departmentApi.create(payload)
       }
       setShowModal(false)
-      await fetchDepartments()
+      await fetchDepartments(selectedBranchId === '' ? undefined : selectedBranchId)
     } catch (e: unknown) {
       setFormError((e as Error).message || 'Saxlamaq alınmadı')
     } finally {
@@ -191,10 +178,6 @@ export default function DepartmentsPage() {
   const filteredParents = departments.filter(d =>
     (!editingDept || d.id !== editingDept.id) &&
     d.departmentName.toLowerCase().includes(parentSearch.toLowerCase())
-  )
-
-  const filteredDevices = devices.filter(d =>
-    (d.deviceName || d.deviceId || '').toLowerCase().includes(deviceSearch.toLowerCase())
   )
 
   const filteredEmployees = allEmployees.filter(e =>
@@ -394,16 +377,30 @@ export default function DepartmentsPage() {
                 <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm">{formError}</div>
               )}
 
+              {/* Branch */}
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Filial *</label>
+                <select
+                  value={form.branchId}
+                  onChange={(e) => setForm({ ...form, branchId: e.target.value ? Number(e.target.value) : '' })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 text-sm"
+                >
+                  <option value="">Seçin...</option>
+                  {branches.map(b => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Department Name */}
               <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Department Name</label>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Department Name *</label>
                 <input
                   type="text"
                   value={form.departmentName}
                   onChange={(e) => setForm({ ...form, departmentName: e.target.value })}
                   placeholder="e.g. Engineering"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 text-sm"
-                  style={{ focusRingColor: '#a855f7' } as React.CSSProperties}
                 />
               </div>
 
@@ -450,77 +447,6 @@ export default function DepartmentsPage() {
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Rules Section */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Rules &amp; Schedule</label>
-                <div className="space-y-3">
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.calculateOvertime}
-                      onChange={e => setForm({ ...form, calculateOvertime: e.target.checked })}
-                      className="w-4 h-4 rounded accent-purple-600"
-                    />
-                    <span className="text-sm text-gray-700 font-medium">Calculate Overtime</span>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={form.flexShift}
-                      onChange={e => setForm({ ...form, flexShift: e.target.checked })}
-                      className="w-4 h-4 rounded accent-purple-600"
-                    />
-                    <span className="text-sm text-gray-700 font-medium">Flex Shift</span>
-                  </label>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Timetable</label>
-                    <input
-                      type="text"
-                      value={form.timetable}
-                      onChange={e => setForm({ ...form, timetable: e.target.value })}
-                      placeholder="Search or enter timetable..."
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Area / Device Assignment */}
-              <div>
-                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Area / Device Assignment</label>
-                <input
-                  type="text"
-                  value={deviceSearch}
-                  onChange={e => setDeviceSearch(e.target.value)}
-                  placeholder="Search devices..."
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 mb-2"
-                />
-                <div className="max-h-36 overflow-y-auto border border-gray-100 rounded-lg">
-                  {filteredDevices.length === 0 ? (
-                    <div className="px-3 py-3 text-xs text-gray-400 text-center">No devices found</div>
-                  ) : (
-                    filteredDevices.map(device => (
-                      <label key={device.id} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={form.deviceIds.includes(device.id)}
-                          onChange={e => {
-                            if (e.target.checked) setForm({ ...form, deviceIds: [...form.deviceIds, device.id] })
-                            else setForm({ ...form, deviceIds: form.deviceIds.filter(id => id !== device.id) })
-                          }}
-                          className="w-4 h-4 rounded accent-purple-600"
-                        />
-                        <span className="text-sm text-gray-700">{device.deviceName || device.deviceId}</span>
-                        <span className="text-xs text-gray-400 ml-auto">{device.deviceIp}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-                {form.deviceIds.length > 0 && (
-                  <div className="text-xs text-purple-600 mt-1">{form.deviceIds.length} device{form.deviceIds.length > 1 ? 's' : ''} selected</div>
-                )}
               </div>
             </div>
 

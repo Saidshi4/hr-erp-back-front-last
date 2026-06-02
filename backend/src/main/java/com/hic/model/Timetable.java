@@ -42,6 +42,9 @@ public class Timetable {
     @Column(name = "shift_type")
     private String shiftType;
 
+    @Column(name = "break_minutes", nullable = false)
+    private Integer breakMinutes = 0;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 

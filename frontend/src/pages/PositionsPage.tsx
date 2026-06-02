@@ -3,6 +3,7 @@ import Layout from '../components/Layout.tsx'
 import { Position, Department } from '../types'
 import { positionApi } from '../api/positionApi.ts'
 import { departmentApi } from '../api/departmentApi.ts'
+import { useBranchStore } from '../store/branchStore.ts'
 
 interface PositionFormData {
   positionName: string
@@ -28,6 +29,9 @@ export default function PositionsPage() {
   const [formError, setFormError] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<Position | null>(null)
   const [filterDept, setFilterDept] = useState<string>('')
+  // UI-only: branch filter for department dropdown in modal
+  const [modalBranchId, setModalBranchId] = useState<number | ''>('')
+  const { branches, fetchBranches } = useBranchStore()
 
   const fetchPositions = async () => {
     setLoading(true)
@@ -45,11 +49,13 @@ export default function PositionsPage() {
   useEffect(() => {
     fetchPositions()
     departmentApi.getAll().then(res => setDepartments(res.data?.data ?? []))
-  }, [])
+    fetchBranches()
+  }, [fetchBranches])
 
   const openCreate = () => {
     setEditingPosition(null)
     setForm(defaultForm)
+    setModalBranchId('')
     setFormError(null)
     setShowModal(true)
   }
@@ -61,6 +67,9 @@ export default function PositionsPage() {
       description: pos.description || '',
       departmentId: pos.departmentId || '',
     })
+    // Pre-select branch based on department's branch
+    const dept = departments.find(d => d.id === pos.departmentId)
+    setModalBranchId(dept?.branchId || '')
     setFormError(null)
     setShowModal(true)
   }
@@ -242,6 +251,20 @@ export default function PositionsPage() {
             {formError && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg mb-4 text-sm">{formError}</div>}
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Filial</label>
+                <select
+                  value={modalBranchId}
+                  onChange={(e) => {
+                    setModalBranchId(e.target.value ? Number(e.target.value) : '')
+                    setForm({ ...form, departmentId: '' })
+                  }}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                >
+                  <option value="">Bütün filiallar</option>
+                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Vəzifə adı *</label>
                 <input
                   type="text"
@@ -261,9 +284,15 @@ export default function PositionsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Departament *</label>
-                <select value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value ? Number(e.target.value) : '' })} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm">
+                <select
+                  value={form.departmentId}
+                  onChange={(e) => setForm({ ...form, departmentId: e.target.value ? Number(e.target.value) : '' })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                >
                   <option value="">Seçin...</option>
-                  {departments.map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
+                  {departments
+                    .filter(d => !modalBranchId || d.branchId === Number(modalBranchId))
+                    .map(d => <option key={d.id} value={d.id}>{d.departmentName}</option>)}
                 </select>
               </div>
             </div>

@@ -221,7 +221,7 @@ export default function EmployeesPage() {
     if (wizardImagePreview) {
       URL.revokeObjectURL(wizardImagePreview)
     }
-    setWizardImagePreview(null)
+    setWizardImagePreview(emp.faceImageUrl || null)
     setCurrentStep(1)
     setFormError(null)
     setShowWizard(true)
@@ -307,14 +307,65 @@ export default function EmployeesPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
-  const uploadFaceForEmployee = async (employee: Employee, file: File | null) => {
-    if (!file) return
-    const usersRes = await deviceUserApi.getAll(defaultDeviceId)
-    const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
-    if (!deviceUser) {
-      throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
+  const uploadFaceForEmployee = async (employee: Employee, file: File | null): Promise<string[]> => {
+    if (!file) return []
+
+    const deviceIds = employee.deviceIds && employee.deviceIds.length > 0
+      ? employee.deviceIds
+      : [defaultDeviceId]
+    console.info('[uploadFace] employee.deviceIds:', deviceIds)
+
+    let isapiDeviceIds: number[] = []
+    try {
+      const devicesRes = await deviceApi.getAll()
+      const devicesList = devicesRes.data?.data ?? (Array.isArray(devicesRes.data) ? devicesRes.data : [])
+      console.info('[uploadFace] devicesList:', devicesList)
+      const deviceMap = new Map<number, string>()
+      for (const d of devicesList) {
+        if (d.id != null && d.deviceId != null) {
+          deviceMap.set(d.id, d.deviceId)
+        }
+      }
+      console.info('[uploadFace] deviceMap:', Array.from(deviceMap.entries()))
+      isapiDeviceIds = deviceIds
+        .map((id) => Number(deviceMap.get(Number(id)) ?? id))
+        .filter((id) => !isNaN(id) && id > 0)
+    } catch (e) {
+      console.error('[uploadFace] deviceApi.getAll failed:', e)
+      isapiDeviceIds = deviceIds.map(Number)
     }
-    await deviceUserApi.uploadFace(defaultDeviceId, deviceUser.id, file, employee.id)
+    console.info('[uploadFace] isapiDeviceIds:', isapiDeviceIds)
+
+    const errors: string[] = []
+
+    for (const isapiDeviceId of isapiDeviceIds) {
+      try {
+        console.info('[uploadFace] checking device', isapiDeviceId)
+        const usersRes = await deviceUserApi.getAll(isapiDeviceId)
+        console.info('[uploadFace] usersRes for', isapiDeviceId, ':', usersRes.data)
+        const users = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data as any)?.data ?? []
+        const deviceUser = users.find((u: any) => u.employeeNo === employee.employeeId)
+        console.info('[uploadFace] deviceUser for', isapiDeviceId, ':', deviceUser)
+        if (deviceUser) {
+          console.info('[uploadFace] uploading face to device', isapiDeviceId, 'user', deviceUser.id)
+          await deviceUserApi.uploadFace(isapiDeviceId, deviceUser.id, file, employee.id)
+          console.info('[uploadFace] uploaded face to device', isapiDeviceId)
+        } else {
+          errors.push(`Cihaz ${isapiDeviceId}: user tapılmadı`)
+        }
+      } catch (e) {
+        console.error('[uploadFace] error for device', isapiDeviceId, ':', e)
+        errors.push(`Cihaz ${isapiDeviceId}: ${(e as Error).message}`)
+      }
+    }
+
+    if (errors.length > 0 && errors.length === isapiDeviceIds.length) {
+      throw new Error(`Şəkil yüklənmədi: ${errors.join('; ')}`)
+    }
+    if (errors.length > 0) {
+      console.info('[uploadFace] partial failures:', errors)
+    }
+    return errors
   }
 
   const handleSave = async () => {
@@ -373,7 +424,20 @@ export default function EmployeesPage() {
       }
 
       if (savedEmployee && wizardImageFile) {
-        await uploadFaceForEmployee(savedEmployee, wizardImageFile)
+        try {
+          const freshRes = await employeeApi.getById(savedEmployee.id)
+          if (freshRes.data?.data) {
+            savedEmployee = freshRes.data.data
+          }
+        } catch (e) {
+          console.info('[handleSave] refetch employee failed, using original', e)
+        }
+        const faceErrors = await uploadFaceForEmployee(savedEmployee, wizardImageFile)
+        if (faceErrors.length > 0) {
+          setFormError('Şəkil yüklənmədi: ' + faceErrors.join('; '))
+          setSaving(false)
+          return
+        }
       }
 
       await fetchEmployees(currentPage, 20)
@@ -931,12 +995,16 @@ export default function EmployeesPage() {
             {currentStep === 3 && (
               <div className="flex flex-col items-center gap-4">
                 <div className="w-64 aspect-square border-2 border-dashed border-gray-300 rounded-xl overflow-hidden flex items-center justify-center bg-gray-50">
-                  <div className="text-center text-gray-400">
-                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
-                    </svg>
-                    <p>{wizardImagePreview && wizardImageFile ? 'Şəkil seçildi' : 'Şəkil seçilməyib'}</p>
-                  </div>
+                  {wizardImagePreview ? (
+                    <img src={wizardImagePreview} alt="Employee preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="text-center text-gray-400">
+                      <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h4l2-2h6l2 2h4v12H3V7zm9 3a4 4 0 100 8 4 4 0 000-8z" />
+                      </svg>
+                      <p>Şəkil seçilməyib</p>
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={captureFromCamera} className="px-4 py-2 text-sm text-white rounded-lg flex items-center gap-2" style={{ background: '#a855f7' }}>

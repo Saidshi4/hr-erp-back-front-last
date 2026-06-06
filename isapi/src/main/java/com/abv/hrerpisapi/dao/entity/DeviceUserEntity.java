@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
         name = "device_users",
         uniqueConstraints = @UniqueConstraint(
                 name = "uq_device_user_employee_no",
-                columnNames = {"device_id", "employee_no"}
+                columnNames = {"employee_no"}
         )
 )
 @Getter
@@ -25,9 +25,6 @@ public class DeviceUserEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    @Column(name = "device_id", nullable = false)
-    private Long deviceId;
 
     @Column(name = "employee_no", nullable = false)
     private String employeeNo;

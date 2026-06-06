@@ -392,6 +392,7 @@ public class EmployeeService {
                 })
                 .toList();
         employeeDeviceAccessRepository.saveAll(accessRows);
+        employeeDeviceAccessRepository.flush();
         return validDeviceIds;
     }
 

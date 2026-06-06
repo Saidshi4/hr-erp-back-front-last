@@ -111,7 +111,6 @@ public class DeviceUserController {
 
     public record DeviceUserResponse(
             Long id,
-            Long deviceId,
             String employeeNo,
             String name,
             String userType,
@@ -128,7 +127,6 @@ public class DeviceUserController {
 
     public record DeviceUserSyncResponse(
             Long id,
-            Long deviceId,
             String employeeNo,
             boolean syncedToDevice,
             LocalDateTime lastSyncTime,

@@ -37,13 +37,23 @@ public class DeviceUserService {
         log.info("ActionLog.deviceUser.create.started deviceId={} employeeNo={}", deviceId, request.employeeNo());
         DeviceEntity device = requireDevice(deviceId);
 
-        if (deviceUserRepository.existsByDeviceIdAndEmployeeNo(deviceId, request.employeeNo())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "User already exists on this device");
+        Optional<DeviceUserEntity> existingOpt = deviceUserRepository.findByEmployeeNo(request.employeeNo());
+        if (existingOpt.isPresent()) {
+            DeviceUserEntity existing = existingOpt.get();
+            log.info("ActionLog.deviceUser.create.foundExisting userId={} employeeNo={}", existing.getId(), existing.getEmployeeNo());
+            if (request.name() != null) existing.setName(request.name());
+            if (request.userType() != null) existing.setUserType(request.userType());
+            if (request.gender() != null) existing.setGender(request.gender());
+            if (request.beginTime() != null) existing.setBeginTime(parseDateTime(request.beginTime()));
+            if (request.endTime() != null) existing.setEndTime(parseDateTime(request.endTime()));
+            existing.setSyncedToDevice(false);
+            existing = deviceUserRepository.save(existing);
+            syncUserToDevice(deviceId, existing.getId());
+            return toResponse(existing);
         }
 
         log.info("ActionLog.deviceUser.create.validated deviceId={} employeeNo={}", deviceId, request.employeeNo());
         DeviceUserEntity entity = new DeviceUserEntity();
-        entity.setDeviceId(deviceId);
         entity.setEmployeeNo(request.employeeNo());
         entity.setName(request.name());
         entity.setUserType(request.userType() != null ? request.userType() : "normal");
@@ -84,7 +94,7 @@ public class DeviceUserService {
     public DeviceUserResponse getDeviceUser(Long deviceId, Long userId) {
         requireDevice(deviceId);
         log.info("ActionLog.deviceUser.get.started deviceId={} userId={}", deviceId, userId);
-        DeviceUserResponse response = toResponse(requireDeviceUser(deviceId, userId));
+        DeviceUserResponse response = toResponse(requireDeviceUser(userId));
         log.info("ActionLog.deviceUser.get.validated faceDataUrl={} syncedToDevice={}", response.faceDataUrl(), response.syncedToDevice());
         return response;
     }
@@ -92,7 +102,7 @@ public class DeviceUserService {
     public DeviceUserResponse updateDeviceUser(Long deviceId, Long userId, DeviceUserUpdateRequest request) {
         log.info("ActionLog.deviceUser.update.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         if (request.name() != null) entity.setName(request.name());
         if (request.userType() != null) entity.setUserType(request.userType());
@@ -104,9 +114,24 @@ public class DeviceUserService {
         DeviceUserEntity saved = deviceUserRepository.save(entity);
 
         try {
-            UserOperationResult result = isapiClient.updateDeviceUser(
-                    device, saved.getEmployeeNo(), saved.getName(), saved.getUserType(),
-                    saved.getGender(), saved.getBeginTime(), saved.getEndTime());
+            boolean exists = isapiClient.deviceUserExists(device, saved.getEmployeeNo());
+            UserOperationResult result;
+            if (exists) {
+                result = isapiClient.updateDeviceUser(
+                        device, saved.getEmployeeNo(), saved.getName(), saved.getUserType(),
+                        saved.getGender(), saved.getBeginTime(), saved.getEndTime());
+                if (!result.success() && isEmployeeNoNotExist(result)) {
+                    log.info("ActionLog.deviceUser.update.retryAdd deviceId={} userId={} employeeNo={}",
+                            deviceId, saved.getId(), saved.getEmployeeNo());
+                    result = isapiClient.addDeviceUser(
+                            device, saved.getEmployeeNo(), saved.getName(), saved.getUserType(),
+                            saved.getGender(), saved.getBeginTime(), saved.getEndTime());
+                }
+            } else {
+                result = isapiClient.addDeviceUser(
+                        device, saved.getEmployeeNo(), saved.getName(), saved.getUserType(),
+                        saved.getGender(), saved.getBeginTime(), saved.getEndTime());
+            }
             if (result.success()) {
                 saved.setSyncedToDevice(true);
                 saved.setLastSyncTime(LocalDateTime.now());
@@ -133,7 +158,7 @@ public class DeviceUserService {
     public void deleteDeviceUser(Long deviceId, Long userId) {
         log.info("ActionLog.deviceUser.delete.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         try {
             UserOperationResult result = isapiClient.deleteDeviceUser(device, entity.getEmployeeNo());
@@ -154,7 +179,7 @@ public class DeviceUserService {
 
     public List<DeviceUserResponse> listDeviceUsers(Long deviceId) {
         requireDevice(deviceId);
-        return deviceUserRepository.findByDeviceId(deviceId).stream()
+        return deviceUserRepository.findAll().stream()
                 .map(this::toResponse)
                 .toList();
     }
@@ -162,15 +187,24 @@ public class DeviceUserService {
     public DeviceUserSyncResponse syncUserToDevice(Long deviceId, Long userId) {
         log.info("ActionLog.deviceUser.sync.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         try {
             boolean exists = isapiClient.deviceUserExists(device, entity.getEmployeeNo());
-            UserOperationResult result = exists
-                    ? isapiClient.updateDeviceUser(device, entity.getEmployeeNo(), entity.getName(),
-                            entity.getUserType(), entity.getGender(), entity.getBeginTime(), entity.getEndTime())
-                    : isapiClient.addDeviceUser(device, entity.getEmployeeNo(), entity.getName(),
+            UserOperationResult result;
+            if (exists) {
+                result = isapiClient.updateDeviceUser(device, entity.getEmployeeNo(), entity.getName(),
+                        entity.getUserType(), entity.getGender(), entity.getBeginTime(), entity.getEndTime());
+                if (!result.success() && isEmployeeNoNotExist(result)) {
+                    log.info("ActionLog.deviceUser.sync.retryAdd deviceId={} userId={} employeeNo={}",
+                            deviceId, entity.getId(), entity.getEmployeeNo());
+                    result = isapiClient.addDeviceUser(device, entity.getEmployeeNo(), entity.getName(),
                             entity.getUserType(), entity.getGender(), entity.getBeginTime(), entity.getEndTime());
+                }
+            } else {
+                result = isapiClient.addDeviceUser(device, entity.getEmployeeNo(), entity.getName(),
+                        entity.getUserType(), entity.getGender(), entity.getBeginTime(), entity.getEndTime());
+            }
 
             if (result.success()) {
                 entity.setSyncedToDevice(true);
@@ -182,20 +216,28 @@ public class DeviceUserService {
             } else {
                 log.warn("ActionLog.deviceUser.sync.failed deviceId={} userId={} employeeNo={} statusCode={} response={}",
                         deviceId, entity.getId(), entity.getEmployeeNo(), result.statusCode(), result.responseSnippet());
-                return toSyncResponse(entity, "FAILED", "Sync failed: " + result.responseSnippet());
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Sync failed for device " + deviceId + ": " + result.responseSnippet());
             }
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("ActionLog.deviceUser.sync.error deviceId={} userId={} employeeNo={} error={}",
                     deviceId, entity.getId(), entity.getEmployeeNo(), e.getMessage());
-            return toSyncResponse(entity, "FAILED", "Sync error: " + e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Sync error for device " + deviceId + ": " + e.getMessage());
         }
+    }
+
+    private boolean isEmployeeNoNotExist(UserOperationResult result) {
+        if (result.responseSnippet() == null) return false;
+        String snippet = result.responseSnippet().toLowerCase();
+        return snippet.contains("employeenonotexist") || snippet.contains("employeeNoNotExist".toLowerCase());
     }
 
     public DeviceUserResponse uploadFaceData(Long deviceId, Long userId, MultipartFile file) {
         log.info("ActionLog.deviceUser.face.upload.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         try {
             byte[] imageBytes = file.getBytes();
@@ -222,7 +264,7 @@ public class DeviceUserService {
     public DeviceUserFaceDeleteResponse deleteFaceData(Long deviceId, Long userId) {
         log.info("ActionLog.deviceUser.face.delete.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         try {
             UserOperationResult result = isapiClient.deleteFaceFromFDLib(device, entity.getEmployeeNo());
@@ -234,7 +276,6 @@ public class DeviceUserService {
                         deviceId, userId, entity.getEmployeeNo(), result.statusCode());
                 return new DeviceUserFaceDeleteResponse(
                         entity.getId(),
-                        entity.getDeviceId(),
                         entity.getEmployeeNo(),
                         "SUCCESS",
                         result.statusCode() == 404 ? "Face data already missing on device" : "Face data deleted"
@@ -253,14 +294,13 @@ public class DeviceUserService {
 
     public DeviceUserFaceSyncResponse syncFaceFromDevice(Long deviceId, Long userId) {
         DeviceEntity device = requireDevice(deviceId);
-        DeviceUserEntity entity = requireDeviceUser(deviceId, userId);
+        DeviceUserEntity entity = requireDeviceUser(userId);
 
         try {
             Optional<String> faceUrlOpt = isapiClient.findFaceUrlByEmployeeNo(device, entity.getEmployeeNo());
             if (faceUrlOpt.isEmpty()) {
                 return new DeviceUserFaceSyncResponse(
                         entity.getId(),
-                        entity.getDeviceId(),
                         entity.getEmployeeNo(),
                         "NOT_FOUND",
                         "No face image found in device FDLib",
@@ -277,7 +317,6 @@ public class DeviceUserService {
             if (imageOpt.isEmpty()) {
                 return new DeviceUserFaceSyncResponse(
                         entity.getId(),
-                        entity.getDeviceId(),
                         entity.getEmployeeNo(),
                         "FAILED",
                         "Face URL found but image could not be downloaded",
@@ -289,7 +328,6 @@ public class DeviceUserService {
             String base64Image = Base64.getEncoder().encodeToString(imageOpt.get());
             return new DeviceUserFaceSyncResponse(
                     entity.getId(),
-                    entity.getDeviceId(),
                     entity.getEmployeeNo(),
                     "SUCCESS",
                     "Face image downloaded from device",
@@ -300,7 +338,6 @@ public class DeviceUserService {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             return new DeviceUserFaceSyncResponse(
                     entity.getId(),
-                    entity.getDeviceId(),
                     entity.getEmployeeNo(),
                     "FAILED",
                     "Face sync error: " + e.getMessage(),
@@ -316,16 +353,16 @@ public class DeviceUserService {
                     device, entity.getEmployeeNo(), entity.getFaceDataUrl());
             if (faceResult.success()) {
                 log.info("ActionLog.deviceUser.face.url.upload.ended deviceId={} userId={} employeeNo={}",
-                        entity.getDeviceId(), entity.getId(), entity.getEmployeeNo());
+                        device.getId(), entity.getId(), entity.getEmployeeNo());
             } else {
                 log.warn("ActionLog.deviceUser.face.url.upload.failed deviceId={} userId={} employeeNo={} statusCode={} response={}",
-                        entity.getDeviceId(), entity.getId(), entity.getEmployeeNo(),
+                        device.getId(), entity.getId(), entity.getEmployeeNo(),
                         faceResult.statusCode(), faceResult.responseSnippet());
             }
         } catch (IOException | InterruptedException e) {
             if (e instanceof InterruptedException) Thread.currentThread().interrupt();
             log.warn("ActionLog.deviceUser.face.url.upload.error deviceId={} userId={} employeeNo={} error={}",
-                    entity.getDeviceId(), entity.getId(), entity.getEmployeeNo(), e.getMessage());
+                    device.getId(), entity.getId(), entity.getEmployeeNo(), e.getMessage());
         }
     }
 
@@ -344,15 +381,14 @@ public class DeviceUserService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
     }
 
-    private DeviceUserEntity requireDeviceUser(Long deviceId, Long userId) {
-        return deviceUserRepository.findByDeviceIdAndId(deviceId, userId)
+    private DeviceUserEntity requireDeviceUser(Long userId) {
+        return deviceUserRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device user not found"));
     }
 
     private DeviceUserResponse toResponse(DeviceUserEntity entity) {
         return new DeviceUserResponse(
                 entity.getId(),
-                entity.getDeviceId(),
                 entity.getEmployeeNo(),
                 entity.getName(),
                 entity.getUserType(),
@@ -369,7 +405,6 @@ public class DeviceUserService {
     private DeviceUserSyncResponse toSyncResponse(DeviceUserEntity entity, String status, String message) {
         return new DeviceUserSyncResponse(
                 entity.getId(),
-                entity.getDeviceId(),
                 entity.getEmployeeNo(),
                 entity.isSyncedToDevice(),
                 entity.getLastSyncTime(),
@@ -379,7 +414,6 @@ public class DeviceUserService {
 
     public record DeviceUserFaceSyncResponse(
             Long id,
-            Long deviceId,
             String employeeNo,
             String status,
             String message,
@@ -390,7 +424,6 @@ public class DeviceUserService {
 
     public record DeviceUserFaceDeleteResponse(
             Long id,
-            Long deviceId,
             String employeeNo,
             String status,
             String message

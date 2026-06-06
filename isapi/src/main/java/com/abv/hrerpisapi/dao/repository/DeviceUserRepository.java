@@ -8,11 +8,7 @@ import java.util.Optional;
 
 public interface DeviceUserRepository extends JpaRepository<DeviceUserEntity, Long> {
 
-    List<DeviceUserEntity> findByDeviceId(Long deviceId);
+    Optional<DeviceUserEntity> findByEmployeeNo(String employeeNo);
 
-    Optional<DeviceUserEntity> findByDeviceIdAndId(Long deviceId, Long id);
-
-    boolean existsByDeviceIdAndEmployeeNo(Long deviceId, String employeeNo);
-
-    Optional<DeviceUserEntity> findByDeviceIdAndEmployeeNo(Long deviceId, String employeeNo);
+    boolean existsByEmployeeNo(String employeeNo);
 }

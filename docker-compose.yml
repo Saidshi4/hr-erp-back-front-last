@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: hic_postgres
+    restart: always
     environment:
       POSTGRES_DB: hic_backend
       POSTGRES_USER: hic_user
@@ -26,6 +27,7 @@ services:
   pgadmin:
     image: dpage/pgadmin4:latest
     container_name: hic_pgadmin
+    restart: unless-stopped
     environment:
       PGADMIN_DEFAULT_EMAIL: admin@pgadmin.com
       PGADMIN_DEFAULT_PASSWORD: admin
@@ -49,14 +51,16 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: hic_backend
+    restart: always
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hic_backend
       SPRING_DATASOURCE_USERNAME: hic_user
       SPRING_DATASOURCE_PASSWORD: hic_password
       JWT_SECRET: ${JWT_SECRET:-HicCentralJwtSecretKey2024AzerbaijanHRERPSystemSecretKeyMustBe64CharsLong!!}
-      CORS_ALLOWED_ORIGINS: http://localhost:3000
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://${COMPUTER_IP:-192.168.0.186}:3000}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       ISAPI_BASE_URL: http://isapi:8081
+      COMPUTER_IP: ${COMPUTER_IP:-192.168.0.186}
     ports:
       - "8080:8080"
     depends_on:
@@ -72,11 +76,12 @@ services:
       context: ./isapi
       dockerfile: Dockerfile
     container_name: hic_isapi
+    restart: always
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/hic_isapi
       DB_USERNAME: hic_user
       DB_PASSWORD: hic_password
-      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
     ports:
       - "8081:8081"
     depends_on:
@@ -92,6 +97,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: hic_frontend
+    restart: always
     ports:
       - "3000:80"
     depends_on:

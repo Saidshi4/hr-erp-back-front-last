@@ -5,15 +5,16 @@ services:
     image: postgres:15-alpine
     container_name: hic_postgres
     environment:
-      POSTGRES_DB: hic_central
+      POSTGRES_DB: hic_backend
       POSTGRES_USER: hic_user
       POSTGRES_PASSWORD: hic_password
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hic_user -d hic_central"]
+      test: ["CMD-SHELL", "pg_isready -U hic_user -d hic_backend"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -49,7 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: hic_backend
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hic_central
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hic_backend
       SPRING_DATASOURCE_USERNAME: hic_user
       SPRING_DATASOURCE_PASSWORD: hic_password
       JWT_SECRET: ${JWT_SECRET:-HicCentralJwtSecretKey2024AzerbaijanHRERPSystemSecretKeyMustBe64CharsLong!!}
@@ -72,7 +73,7 @@ services:
       dockerfile: Dockerfile
     container_name: hic_isapi
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/hic_central
+      DB_URL: jdbc:postgresql://postgres:5432/hic_isapi
       DB_USERNAME: hic_user
       DB_PASSWORD: hic_password
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}

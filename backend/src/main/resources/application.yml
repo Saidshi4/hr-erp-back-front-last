@@ -3,7 +3,7 @@ server:
 
 spring:
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hic_central}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/hic_backend}
     username: ${SPRING_DATASOURCE_USERNAME:hic_user}
     password: ${SPRING_DATASOURCE_PASSWORD:hic_password}
     driver-class-name: org.postgresql.Driver
@@ -18,7 +18,8 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    baseline-on-migrate: true
+    baseline-on-migrate: false
+    table: flyway_schema_history_backend
 
 jwt:
   secret: ${JWT_SECRET:HicCentralJwtSecretKey2024AzerbaijanHRERPSystemSecretKeyMustBe64CharsLong!!}

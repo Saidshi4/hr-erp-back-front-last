@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
 public class DailyAttendanceSummary {
 
     public enum AttendanceStatus {
-        PRESENT, ABSENT, LATE, EARLY_LEAVE, ON_LEAVE
+        PRESENT, ABSENT, LATE, EARLY_LEAVE, ON_LEAVE, WORKDAY_COMPLETE
     }
 
     @Id

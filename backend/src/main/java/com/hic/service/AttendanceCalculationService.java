@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,6 +23,7 @@ public class AttendanceCalculationService {
     private final EmployeeRepository employeeRepository;
     private final HolidayService holidayService;
     private final LeaveService leaveService;
+    private final AttendanceInferenceService attendanceInferenceService;
 
     @Transactional
     public AttendanceRecord calculateForDay(Long employeeId, LocalDate workDate) {
@@ -44,16 +44,15 @@ public class AttendanceCalculationService {
             record.setTimetableId(employee.getTimetableId());
         }
 
-        LocalDateTime firstEntry = getFirstEntry(employeeId, workDate);
-        LocalDateTime lastExit = getLastExit(employeeId, workDate);
+        List<AttendanceLog> logs = findDayLogs(employeeId, workDate);
+        AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs);
+        LocalDateTime firstEntry = inference.firstEntry();
+        LocalDateTime lastExit = inference.lastExit();
         record.setEntryTime(firstEntry);
         record.setExitTime(lastExit);
 
-        int workedMinutes = 0;
-        if (firstEntry != null && lastExit != null && !lastExit.isBefore(firstEntry)) {
-            workedMinutes = (int) Duration.between(firstEntry, lastExit).toMinutes();
-        }
-        record.setWorkedMinutes(workedMinutes);
+        record.setWorkedMinutes(inference.workedMinutes());
+        int workedMinutes = inference.workedMinutes();
         record.setOvertimeMinutes(Math.max(workedMinutes - 8 * 60, 0));
         record.setLateMinutes(0);
         record.setEarlyLeaveMinutes(0);
@@ -72,29 +71,11 @@ public class AttendanceCalculationService {
     }
 
     public LocalDateTime getFirstEntry(Long employeeId, LocalDate workDate) {
-        List<AttendanceLog> logs = attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
-                employeeId,
-                workDate.atStartOfDay(),
-                workDate.plusDays(1).atStartOfDay().minusNanos(1)
-        );
-        return logs.stream()
-                .map(AttendanceLog::getCheckInTime)
-                .filter(java.util.Objects::nonNull)
-                .min(LocalDateTime::compareTo)
-                .orElse(null);
+        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate)).firstEntry();
     }
 
     public LocalDateTime getLastExit(Long employeeId, LocalDate workDate) {
-        List<AttendanceLog> logs = attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
-                employeeId,
-                workDate.atStartOfDay(),
-                workDate.plusDays(1).atStartOfDay().minusNanos(1)
-        );
-        return logs.stream()
-                .map(AttendanceLog::getCheckOutTime)
-                .filter(java.util.Objects::nonNull)
-                .max(LocalDateTime::compareTo)
-                .orElse(null);
+        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate)).lastExit();
     }
 
     @Transactional
@@ -116,5 +97,13 @@ public class AttendanceCalculationService {
                 date = date.plusDays(1);
             }
         }
+    }
+
+    private List<AttendanceLog> findDayLogs(Long employeeId, LocalDate workDate) {
+        return attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
+                employeeId,
+                workDate.atStartOfDay(),
+                workDate.plusDays(1).atStartOfDay().minusNanos(1)
+        );
     }
 }

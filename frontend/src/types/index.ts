@@ -112,7 +112,7 @@ export interface EmployeeAttendanceRow {
   checkInTime?: string
   checkOutTime?: string
   hoursWorked?: number
-  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE'
+  status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE' | 'WORKDAY_COMPLETE'
   notes?: string
 }
 
@@ -150,7 +150,7 @@ export interface DailyAttendanceSummary {
   checkInTime?: string
   checkOutTime?: string
   hoursWorked?: number
-  attendanceStatus?: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE'
+  attendanceStatus?: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE' | 'WORKDAY_COMPLETE'
 }
 
 export interface LeaveRequest {

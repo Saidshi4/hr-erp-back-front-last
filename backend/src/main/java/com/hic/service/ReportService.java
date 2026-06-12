@@ -30,7 +30,11 @@ public class ReportService {
 
         for (Employee emp : employees) {
             List<DailyAttendanceSummary> summaries = summaryRepository.findByEmployeeIdAndAttendanceDateBetween(emp.getId(), start, end);
-            long presentDays = summaries.stream().filter(s -> s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.PRESENT || s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.LATE).count();
+            long presentDays = summaries.stream()
+                    .filter(s -> s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.PRESENT
+                            || s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.LATE
+                            || s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.WORKDAY_COMPLETE)
+                    .count();
             long absentDays = summaries.stream().filter(s -> s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.ABSENT).count();
             long lateDays = summaries.stream().filter(s -> s.getAttendanceStatus() == DailyAttendanceSummary.AttendanceStatus.LATE).count();
             double totalHours = summaries.stream().mapToDouble(s -> s.getHoursWorked() != null ? s.getHoursWorked() : 0.0).sum();

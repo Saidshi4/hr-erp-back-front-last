@@ -34,6 +34,7 @@ const statusStyles: Record<EmployeeAttendanceRow['status'], string> = {
   ABSENT: 'bg-red-100 text-red-700',
   ON_LEAVE: 'bg-blue-100 text-blue-700',
   EARLY_LEAVE: 'bg-purple-100 text-purple-700',
+  WORKDAY_COMPLETE: 'bg-slate-200 text-slate-700',
 }
 
 const defaultSummary: EmployeeAttendanceSummary = {
@@ -48,9 +49,10 @@ const defaultSummary: EmployeeAttendanceSummary = {
 const statusLabels: Record<EmployeeAttendanceRow['status'], string> = {
   PRESENT: 'İşdə',
   LATE: 'Gecikib',
-  ABSENT: 'Qayıb',
+  ABSENT: 'İşdə deyil',
   ON_LEAVE: 'Məzuniyyətdə',
   EARLY_LEAVE: 'Erkən çıxış',
+  WORKDAY_COMPLETE: 'İş saatı bitib',
 }
 
 function formatEmployeeLabel(employee: EmployeeSearchResult) {

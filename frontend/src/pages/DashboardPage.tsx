@@ -28,6 +28,8 @@ interface AccessLog {
   deviceId?: string | number
   eventType?: string
   status?: string
+  firstName?: string
+  lastName?: string
 }
 
 interface CurrentTime {
@@ -72,6 +74,12 @@ export default function DashboardPage() {
     const timer = setInterval(updateTime, 1000)
     return () => clearInterval(timer)
   }, [])
+
+  const sortedLogs = [...accessLogs].sort((a, b) => {
+    const timeA = new Date(a.checkInTime ?? a.punchTime ?? 0).getTime()
+    const timeB = new Date(b.checkInTime ?? b.punchTime ?? 0).getTime()
+    return timeB - timeA
+  })
 
   const summaryCards = [
     {
@@ -196,7 +204,7 @@ export default function DashboardPage() {
               <div className="w-7 h-7 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-2"></div>
               Yüklənir...
             </div>
-          ) : accessLogs.length === 0 ? (
+          ) : sortedLogs.length === 0 ? (
             <div className="text-center text-gray-400 py-8">
               <svg className="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -205,7 +213,7 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {accessLogs.map((log) => {
+              {sortedLogs.map((log) => {
                 const eventTime = log.checkInTime ?? log.punchTime
                 return (
                   <div key={log.id} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
@@ -216,7 +224,9 @@ export default function DashboardPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-800">
-                      Əməkdaş #{log.employeeNo ?? log.employeeId ?? '—'}
+                      {log.firstName || log.lastName
+                        ? `${log.firstName ?? ''} ${log.lastName ?? ''}`.trim()
+                        : `Əməkdaş #${log.employeeNo ?? log.employeeId ?? '—'}`}
                     </p>
                     <p className="text-xs text-gray-400">
                       {log.deviceId !== undefined ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}

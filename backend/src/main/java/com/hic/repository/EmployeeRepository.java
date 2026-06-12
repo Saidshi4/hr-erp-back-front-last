@@ -29,6 +29,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     Optional<Employee> findByTenantIdAndEmployeeId(Long tenantId, String employeeId);
     Optional<Employee> findByTenantIdAndEmployeeIdIgnoreCase(Long tenantId, String employeeId);
+    List<Employee> findByEmployeeIdIn(Collection<String> employeeIds);
+    List<Employee> findByTenantIdAndEmployeeIdIn(Long tenantId, Collection<String> employeeIds);
 
     Optional<Employee> findByTenantIdAndId(Long tenantId, Long id);
 

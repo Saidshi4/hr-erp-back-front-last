@@ -133,7 +133,9 @@ public class DashboardController {
                         log.getPunchTime(),
                         log.getDeviceId(),
                         log.getRawEventId(),
-                        DEFAULT_LOG_STATUS
+                        DEFAULT_LOG_STATUS,
+                        log.getFirstName(),
+                        log.getLastName()
                 ))
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(latest));
@@ -154,7 +156,9 @@ public class DashboardController {
             java.time.OffsetDateTime punchTime,
             Long deviceId,
             Long rawEventId,
-            String status
+            String status,
+            String firstName,
+            String lastName
     ) {
     }
 }

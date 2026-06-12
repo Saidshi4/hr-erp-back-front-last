@@ -42,9 +42,17 @@ export default function AccessLogsPage() {
     const normalizedSearch = search.trim().toLowerCase()
     const matchesSearch = !normalizedSearch || (
       String(log.employeeNo ?? '').toLowerCase().includes(normalizedSearch) ||
-      String(log.deviceId ?? '').toLowerCase().includes(normalizedSearch)
+      String(log.deviceId ?? '').toLowerCase().includes(normalizedSearch) ||
+      String(log.firstName ?? '').toLowerCase().includes(normalizedSearch) ||
+      String(log.lastName ?? '').toLowerCase().includes(normalizedSearch)
     )
     return matchesSearch
+  })
+
+  const sortedLogs = [...filteredLogs].sort((a, b) => {
+    const timeA = a.punchTime ? new Date(a.punchTime).getTime() : 0
+    const timeB = b.punchTime ? new Date(b.punchTime).getTime() : 0
+    return timeB - timeA
   })
 
   const uniqueEmployees = new Set(filteredLogs.map(l => l.employeeNo).filter(Boolean)).size
@@ -142,13 +150,13 @@ export default function AccessLogsPage() {
               </div>
             </div>
 
-            {filteredLogs.length === 0 ? (
+            {sortedLogs.length === 0 ? (
               <div className="bg-white rounded-xl shadow-sm p-12 text-center text-gray-400">
                 {t('accessLogs.noResults')}
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredLogs.map((log) => {
+                {sortedLogs.map((log) => {
                   return (
                     <div key={log.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
                       {/* Status indicator */}
@@ -163,7 +171,11 @@ export default function AccessLogsPage() {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">{t('accessLogs.employeeLabel', { employeeNo: log.employeeNo || '—' })}</p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {log.firstName || log.lastName
+                            ? `${log.firstName ?? ''} ${log.lastName ?? ''}`.trim()
+                            : t('accessLogs.employeeLabel', { employeeNo: log.employeeNo || '—' })}
+                        </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {t('accessLogs.accessEvent')} {log.deviceId ? `· ${t('accessLogs.device')}: ${log.deviceId}` : ''}
                         </p>

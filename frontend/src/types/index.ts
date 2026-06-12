@@ -141,6 +141,8 @@ export interface AccessLog {
   employeeNo?: string
   punchTime?: string
   rawEventId?: number
+  firstName?: string
+  lastName?: string
 }
 
 export interface DailyAttendanceSummary {

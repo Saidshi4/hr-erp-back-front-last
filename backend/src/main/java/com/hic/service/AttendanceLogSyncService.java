@@ -18,17 +18,23 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
+import com.hic.repository.EmployeeRepository;
+import com.hic.model.Employee;
+import com.hic.util.TenantContext;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
 
 @Service
 @RequiredArgsConstructor
 public class AttendanceLogSyncService {
 
     private final RestTemplate restTemplate;
+    private final EmployeeRepository employeeRepository;
 
     @Value("${isapi.base-url}")
     private String isapiBaseUrl;
@@ -46,9 +52,7 @@ public class AttendanceLogSyncService {
                 .toUriString();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
-        return punches.stream()
-                .map(this::toAttendanceLogEntry)
-                .toList();
+        return mapPunches(punches);
     }
 
     public List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> getAttendanceLogs(
@@ -70,20 +74,54 @@ public class AttendanceLogSyncService {
                 .toUriString();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
+        return mapPunches(punches);
+    }
+
+    private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> mapPunches(List<IsapiPunchResponse> punches) {
+        if (punches == null || punches.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        List<String> employeeNos = punches.stream()
+                .map(IsapiPunchResponse::getEmployeeNo)
+                .filter(org.springframework.util.StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+
+        Map<String, Employee> employeeMap = new HashMap<>();
+        if (!employeeNos.isEmpty()) {
+            Long tenantId = TenantContext.getTenantId();
+            List<Employee> employees = tenantId != null
+                    ? employeeRepository.findByTenantIdAndEmployeeIdIn(tenantId, employeeNos)
+                    : employeeRepository.findByEmployeeIdIn(employeeNos);
+            for (Employee emp : employees) {
+                if (emp.getEmployeeId() != null) {
+                    employeeMap.put(emp.getEmployeeId().trim().toLowerCase(), emp);
+                }
+            }
+        }
+
         return punches.stream()
-                .map(this::toAttendanceLogEntry)
+                .map(response -> {
+                    String key = response.getEmployeeNo() != null ? response.getEmployeeNo().trim().toLowerCase() : null;
+                    Employee emp = key != null ? employeeMap.get(key) : null;
+                    String firstName = emp != null ? emp.getFirstName() : null;
+                    String lastName = emp != null ? emp.getLastName() : null;
+                    return new AttendanceLogSyncDTO.AttendanceLogEntryDTO(
+                            response.getId(),
+                            response.getDeviceId(),
+                            response.getEmployeeNo(),
+                            response.getPunchTime(),
+                            response.getRawEventId(),
+                            firstName,
+                            lastName
+                    );
+                })
                 .toList();
     }
 
-    private AttendanceLogSyncDTO.AttendanceLogEntryDTO toAttendanceLogEntry(IsapiPunchResponse response) {
-        return new AttendanceLogSyncDTO.AttendanceLogEntryDTO(
-                response.getId(),
-                response.getDeviceId(),
-                response.getEmployeeNo(),
-                response.getPunchTime(),
-                response.getRawEventId()
-        );
-    }
+
 
     private String basePunchesUrl() {
         return trimTrailingSlash(isapiBaseUrl) + "/api/punches";

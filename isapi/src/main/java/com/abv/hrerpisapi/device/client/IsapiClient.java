@@ -622,7 +622,11 @@ public class IsapiClient {
     }
 
     static String formatIsapiDateTime(OffsetDateTime value) {
-        return value.truncatedTo(ChronoUnit.SECONDS).format(ISAPI_DT);
+        String formatted = value.truncatedTo(ChronoUnit.SECONDS).format(ISAPI_DT);
+        if (formatted.endsWith("Z")) {
+            formatted = formatted.substring(0, formatted.length() - 1) + "+00:00";
+        }
+        return formatted;
     }
 
 

@@ -442,23 +442,15 @@ public class EmployeeService {
         if (branchId == null) {
             return List.of();
         }
-        // Get doors for this branch
         List<Door> doors = tenantId != null
                 ? doorRepository.findByTenantIdAndBranchId(tenantId, branchId)
                 : doorRepository.findByBranchId(branchId);
-        if (doors.isEmpty()) {
-            return List.of();
-        }
-        // Get devices linked to those doors
         Set<Long> doorIdSet = doors.stream().map(Door::getId).collect(Collectors.toSet());
-        List<DeviceConfig> doorDevices = deviceConfigRepository.findAllById(
-                deviceConfigRepository.findAll().stream()
-                        .filter(d -> d.getDoorId() != null && doorIdSet.contains(d.getDoorId()))
-                        .map(DeviceConfig::getId)
-                        .toList()
-        );
-        return doorDevices.stream()
+
+        List<DeviceConfig> allDevices = deviceConfigRepository.findAll();
+        return allDevices.stream()
                 .filter(d -> tenantId == null || d.getTenantId() == null || tenantId.equals(d.getTenantId()))
+                .filter(d -> branchId.equals(d.getBranchId()) || (d.getDoorId() != null && doorIdSet.contains(d.getDoorId())))
                 .map(DeviceConfig::getId)
                 .distinct()
                 .sorted()

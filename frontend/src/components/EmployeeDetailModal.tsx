@@ -72,7 +72,7 @@ export default function EmployeeDetailModal({
         ) : error ? (
           <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[420px_1fr] gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] xl:grid-cols-[420px_1fr] gap-5">
             {/* Left card: photo + personal info */}
             <div className="bg-white rounded-3xl p-5">
               {profileImageSrc ? (

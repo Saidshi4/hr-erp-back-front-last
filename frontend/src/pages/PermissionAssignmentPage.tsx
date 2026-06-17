@@ -239,7 +239,7 @@ export default function PermissionAssignmentPage() {
         </select>
       </div>
 
-      <div className="bg-white border rounded-xl overflow-hidden">
+      <div className="bg-white border rounded-xl overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr>

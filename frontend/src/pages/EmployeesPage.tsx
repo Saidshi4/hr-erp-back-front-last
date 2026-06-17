@@ -668,7 +668,7 @@ export default function EmployeesPage() {
             {search ? 'Axtarışa uyğun əməkdaş tapılmadı.' : 'Hələ heç bir əməkdaş yoxdur.'}
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr style={{ background: '#f9fafb' }}>

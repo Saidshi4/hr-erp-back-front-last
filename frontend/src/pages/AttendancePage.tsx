@@ -278,7 +278,7 @@ export default function AttendancePage() {
           <p className="mt-1 text-sm text-slate-500">{t('attendance.subtitle')}</p>
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[2fr,1fr]">
+        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="space-y-6">
             <div className="rounded-2xl bg-white p-5 shadow-sm">
               <div className="grid gap-4 lg:grid-cols-2">
@@ -432,7 +432,7 @@ export default function AttendancePage() {
               </div>
             )}
 
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-3 lg:grid-cols-5">
               {summaryCards.map((card) => (
                 <div key={card.label} className="rounded-2xl bg-white p-4 shadow-sm">
                   <div className="text-xs text-slate-400">{card.label}</div>

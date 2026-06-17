@@ -113,7 +113,7 @@ export default function BranchesPage() {
 
         {error && <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">{error}</div>}
 
-        <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-xl shadow-sm overflow-x-auto border border-gray-200">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-600">
               <tr>

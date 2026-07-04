@@ -1,8 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
+import { positionApi } from '../api/positionApi.ts'
+import { departmentApi } from '../api/departmentApi.ts'
+import { employeeApi } from '../api/employeeApi.ts'
 import { useAttendanceReportStore } from '../store/attendanceReportStore.ts'
 import { t } from '../i18n/index.ts'
+import { Position, Department } from '../types'
 
 const SHIFT_TABS = [
   { label: 'Sərbəst növbə', value: 'FIRST_ENTRY' },
@@ -15,9 +19,27 @@ export default function ReportsPage() {
     rows, filters, page, totalPages, loading, totalElements, setFilters, setPage, fetchReport,
   } = useAttendanceReportStore()
 
+  const [positions, setPositions] = useState<Position[]>([])
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [areas, setAreas] = useState<string[]>([])
+
   useEffect(() => {
     void fetchReport()
   }, [filters, page, fetchReport])
+
+  useEffect(() => {
+    const loadLookups = async () => {
+      const [posRes, deptRes, areaRes] = await Promise.allSettled([
+        positionApi.getAll(),
+        departmentApi.getAll(),
+        employeeApi.getDistinctAreas(),
+      ])
+      if (posRes.status === 'fulfilled') setPositions(posRes.value.data.data ?? [])
+      if (deptRes.status === 'fulfilled') setDepartments(deptRes.value.data.data ?? [])
+      if (areaRes.status === 'fulfilled') setAreas(areaRes.value.data.data ?? [])
+    }
+    void loadLookups()
+  }, [])
 
   const updateFilter = (name: string, value: string) => {
     setFilters({ ...filters, [name]: value })
@@ -60,9 +82,39 @@ export default function ReportsPage() {
           <input placeholder="ID axtar" value={filters.employeeId ?? ''} onChange={(e) => updateFilter('employeeId', e.target.value)} className="border rounded-lg px-3 py-2" />
           <input placeholder="Ad soyad" value={filters.name ?? ''} onChange={(e) => updateFilter('name', e.target.value)} className="border rounded-lg px-3 py-2" />
           <input placeholder="FIN" value={filters.fin ?? ''} onChange={(e) => updateFilter('fin', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="Vəzifə" value={filters.position ?? ''} onChange={(e) => updateFilter('position', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="Departament" value={filters.department ?? ''} onChange={(e) => updateFilter('department', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder={t('reports.area')} value={filters.area ?? ''} onChange={(e) => updateFilter('area', e.target.value)} className="border rounded-lg px-3 py-2" />
+
+          <select
+            value={filters.position ?? ''}
+            onChange={(e) => updateFilter('position', e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          >
+            <option value="">Hamısı (Vəzifə)</option>
+            {positions.map((p) => (
+              <option key={p.id} value={p.positionName}>{p.positionName}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.department ?? ''}
+            onChange={(e) => updateFilter('department', e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          >
+            <option value="">Hamısı (Departament)</option>
+            {departments.map((d) => (
+              <option key={d.id} value={d.departmentName}>{d.departmentName}</option>
+            ))}
+          </select>
+
+          <select
+            value={filters.area ?? ''}
+            onChange={(e) => updateFilter('area', e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          >
+            <option value="">Hamısı (Ərazi)</option>
+            {areas.map((a) => (
+              <option key={a} value={a}>{a}</option>
+            ))}
+          </select>
         </div>
 
         <div className="bg-white rounded-xl shadow-sm overflow-x-auto">

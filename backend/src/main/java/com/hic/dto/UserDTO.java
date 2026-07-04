@@ -12,6 +12,8 @@ public class UserDTO {
     private Long id;
     private String username;
     private String email;
+    private String firstName;
+    private String lastName;
     private UserType userType;
     private Long branchId;
     private Long departmentId;

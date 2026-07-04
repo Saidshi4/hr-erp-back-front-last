@@ -105,4 +105,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     long countByDepartmentId(Long departmentId);
 
     long countByPositionId(Long positionId);
+
+    @Query("SELECT DISTINCT e.area FROM Employee e WHERE e.tenantId = :tenantId AND e.area IS NOT NULL AND e.area <> '' ORDER BY e.area")
+    List<String> findDistinctAreasByTenantId(@Param("tenantId") Long tenantId);
 }

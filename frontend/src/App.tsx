@@ -21,9 +21,18 @@ const DevicesPage = lazy(() => import('./pages/DevicesPage.tsx'))
 const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage.tsx'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'))
 
+const HR_ROLES = ['HEAD_OFFICE_HR', 'OFFICE_HR', 'DEPARTMENT_HR']
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore()
   return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />
+}
+
+function HrRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore()
+  if (!isAuthenticated) return <Navigate to="/login" replace />
+  if (!user || !HR_ROLES.includes(user.userType)) return <Navigate to="/" replace />
+  return <>{children}</>
 }
 
 function AppLayout({ children }: { children: React.ReactNode }) {
@@ -40,7 +49,7 @@ export default function App() {
       <Suspense fallback={<div className="flex items-center justify-center h-screen">{t('app.loading')}</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/signup" element={<HrRoute><AppLayout><SignupPage /></AppLayout></HrRoute>} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><AppLayout><BranchesPage /></AppLayout></ProtectedRoute>} />

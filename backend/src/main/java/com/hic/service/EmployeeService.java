@@ -503,4 +503,12 @@ public class EmployeeService {
         long count = tenantId != null ? employeeRepository.countByTenantId(tenantId) + 1 : employeeRepository.count() + 1;
         return String.format("EMP%04d", count);
     }
+
+    public List<String> getDistinctAreas() {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null) {
+            return java.util.Collections.emptyList();
+        }
+        return employeeRepository.findDistinctAreasByTenantId(tenantId);
+    }
 }

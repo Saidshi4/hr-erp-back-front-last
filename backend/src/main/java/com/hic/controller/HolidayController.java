@@ -4,6 +4,7 @@ import com.hic.dto.ApiResponse;
 import com.hic.dto.HolidayDTO;
 import com.hic.service.HolidayService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,6 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/holidays")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class HolidayController {
     private final HolidayService holidayService;
 

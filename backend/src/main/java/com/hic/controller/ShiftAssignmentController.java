@@ -5,6 +5,7 @@ import com.hic.dto.EmployeeShiftAssignmentDTO;
 import com.hic.dto.ShiftAssignmentBulkRequest;
 import com.hic.service.ShiftAssignmentService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -15,6 +16,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/shift-assignments")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class ShiftAssignmentController {
 
     private final ShiftAssignmentService shiftAssignmentService;

@@ -20,4 +20,6 @@ export const employeeApi = {
     client.get<{ data: Employee[] }>(`/employees/department/${departmentId}`),
   getDoors: (id: number) =>
     client.get<{ data: string[] }>(`/employees/${id}/doors`),
+  getDistinctAreas: () =>
+    client.get<{ data: string[] }>('/employees/areas'),
 }

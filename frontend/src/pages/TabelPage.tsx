@@ -6,6 +6,10 @@ import { tabelApi } from '../api/tabelApi.ts'
 import { Branch, Department, TabelMonthlyData } from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
 
+/** Sidebar Tailwind width classes */
+const SIDEBAR_OPEN = 'w-64'
+const SIDEBAR_CLOSED = 'w-10'
+
 const monthOptions = [
   'Yanvar',
   'Fevral',
@@ -32,6 +36,7 @@ export default function TabelPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [data, setData] = useState<TabelMonthlyData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const debouncedSearch = useDebounce(search, 300)
 
   const years = useMemo(() => {
@@ -101,36 +106,68 @@ export default function TabelPage() {
   return (
     <Layout>
       <div className="p-6 lg:p-8">
-        <div className="grid gap-6 lg:grid-cols-[280px,1fr]">
-          <aside className="space-y-4 rounded-2xl bg-white p-4 shadow-sm h-fit">
-            <h2 className="text-sm font-semibold text-slate-700">Arxiv</h2>
+        <div className="flex gap-4">
+          {/* Collapsible sidebar */}
+          <div className={`flex-shrink-0 transition-all duration-200 ${sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED}`}>
+            {sidebarOpen ? (
+              <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm h-fit">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-slate-700">Arxiv</h2>
+                  <button
+                    onClick={() => setSidebarOpen(false)}
+                    className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                    title="Gizlət"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                  </button>
+                </div>
 
-            <div>
-              <label className="mb-1 block text-xs text-slate-500">İl</label>
-              <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2">
-                {years.map((item) => (
-                  <option key={item} value={item}>{item}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500">İl</label>
+                  <select value={year} onChange={(e) => setYear(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2">
+                    {years.map((item) => (
+                      <option key={item} value={item}>{item}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div>
-              <label className="mb-1 block text-xs text-slate-500">Ay</label>
-              <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2">
-                {monthOptions.map((label, index) => (
-                  <option key={label} value={index + 1}>{label}</option>
-                ))}
-              </select>
-            </div>
+                <div>
+                  <label className="mb-1 block text-xs text-slate-500">Ay</label>
+                  <select value={month} onChange={(e) => setMonth(Number(e.target.value))} className="w-full rounded-lg border px-3 py-2">
+                    {monthOptions.map((label, index) => (
+                      <option key={label} value={index + 1}>{label}</option>
+                    ))}
+                  </select>
+                </div>
 
-            <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
-              <p className="text-sm font-semibold text-indigo-700">{monthOptions[month - 1]} {year}</p>
-              <p className="mt-1 text-xs text-indigo-600">İşçi sayı: {data?.employees ?? 0}</p>
-              <p className="text-xs text-indigo-600">Gün sayı: {data?.daysInMonth ?? 0}</p>
-            </div>
-          </aside>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50 p-3">
+                  <p className="text-sm font-semibold text-indigo-700">{monthOptions[month - 1]} {year}</p>
+                  <p className="mt-1 text-xs text-indigo-600">İşçi sayı: {data?.employees ?? 0}</p>
+                  <p className="text-xs text-indigo-600">Gün sayı: {data?.daysInMonth ?? 0}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-white p-2 shadow-sm flex flex-col items-center gap-2">
+                <button
+                  onClick={() => setSidebarOpen(true)}
+                  className="p-1 rounded hover:bg-slate-100 text-slate-500"
+                  title="Arxivi aç"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                  </svg>
+                </button>
+                <span className="text-xs text-slate-400 [writing-mode:vertical-lr] rotate-180 select-none">
+                  {monthOptions[month - 1]} {year}
+                </span>
+              </div>
+            )}
+          </div>
 
-          <section className="space-y-4 min-w-0">
+          {/* Main content */}
+          <section className="flex-1 min-w-0 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h1 className="text-2xl font-bold text-slate-900">Tabel</h1>
@@ -166,15 +203,15 @@ export default function TabelPage() {
               <table className="min-w-max border-collapse text-sm">
                 <thead>
                   <tr className="bg-slate-50 text-xs uppercase text-slate-500">
-                    <th className="sticky left-0 top-0 z-30 min-w-[60px] border-b bg-slate-50 px-3 py-3 text-left">s/s</th>
-                    <th className="sticky left-[60px] top-0 z-30 min-w-[120px] border-b bg-slate-50 px-3 py-3 text-left">FIN kod</th>
-                    <th className="sticky left-[180px] top-0 z-30 min-w-[280px] border-b bg-slate-50 px-3 py-3 text-left">Soyadı, adı, atasının adı</th>
-                    <th className="sticky left-[460px] top-0 z-30 min-w-[180px] border-b bg-slate-50 px-3 py-3 text-left">Vəzifəsi</th>
+                    <th className="sticky left-0 z-30 min-w-[50px] max-w-[50px] border-b bg-slate-50 px-3 py-3 text-left truncate">s/s</th>
+                    <th className="sticky left-[50px] z-30 min-w-[110px] max-w-[110px] border-b bg-slate-50 px-3 py-3 text-left truncate">FIN kod</th>
+                    <th className="sticky left-[160px] z-30 min-w-[200px] max-w-[200px] border-b bg-slate-50 px-3 py-3 text-left truncate">Soyadı, adı</th>
+                    <th className="sticky left-[360px] z-30 min-w-[140px] max-w-[140px] border-b bg-slate-50 px-3 py-3 text-left truncate">Vəzifəsi</th>
                     {Array.from({ length: data?.daysInMonth ?? 0 }, (_, day) => (
-                      <th key={day + 1} className="sticky top-0 min-w-[70px] border-b bg-slate-50 px-2 py-3 text-center">{day + 1}</th>
+                      <th key={day + 1} className="sticky top-0 min-w-[52px] border-b bg-slate-50 px-2 py-3 text-center">{day + 1}</th>
                     ))}
-                    <th className="sticky top-0 min-w-[130px] border-b bg-slate-50 px-3 py-3 text-center">İş günlərinin sayı</th>
-                    <th className="sticky top-0 min-w-[140px] border-b bg-slate-50 px-3 py-3 text-center">İş saatlarının cəmi</th>
+                    <th className="sticky top-0 min-w-[100px] border-b bg-slate-50 px-3 py-3 text-center">İş günü</th>
+                    <th className="sticky top-0 min-w-[100px] border-b bg-slate-50 px-3 py-3 text-center">Cəmi saat</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -184,10 +221,10 @@ export default function TabelPage() {
                     <tr><td colSpan={(data?.daysInMonth ?? 0) + 6} className="px-4 py-8 text-center text-slate-400">Məlumat tapılmadı</td></tr>
                   ) : data?.rows.map((row, index) => (
                     <tr key={row.employeePk} className="border-b border-slate-100 text-slate-700">
-                      <td className="sticky left-0 z-20 bg-white px-3 py-2">{index + 1}</td>
-                      <td className="sticky left-[60px] z-20 bg-white px-3 py-2">{row.fin ?? '-'}</td>
-                      <td className="sticky left-[180px] z-20 bg-white px-3 py-2">{row.fullName}</td>
-                      <td className="sticky left-[460px] z-20 bg-white px-3 py-2">{row.position}</td>
+                      <td className="sticky left-0 z-20 bg-white px-3 py-2 min-w-[50px] max-w-[50px]">{index + 1}</td>
+                      <td className="sticky left-[50px] z-20 bg-white px-3 py-2 min-w-[110px] max-w-[110px] truncate" title={row.fin ?? '-'}>{row.fin ?? '-'}</td>
+                      <td className="sticky left-[160px] z-20 bg-white px-3 py-2 min-w-[200px] max-w-[200px] truncate" title={row.fullName}>{row.fullName}</td>
+                      <td className="sticky left-[360px] z-20 bg-white px-3 py-2 min-w-[140px] max-w-[140px] truncate" title={row.position}>{row.position}</td>
                       {Array.from({ length: data.daysInMonth }, (_, day) => {
                         const value = row.daily[String(day + 1)]
                         const isAbsent = value === 0

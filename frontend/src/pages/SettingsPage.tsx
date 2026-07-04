@@ -34,22 +34,22 @@ export default function SettingsPage() {
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+      <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">{t('settings.title')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('settings.subtitle')}</p>
         </div>
 
-        <div className="flex gap-6">
+        <div className="flex flex-col sm:flex-row gap-6">
           {/* Sidebar Tabs */}
-          <div className="w-52 flex-shrink-0">
-            <div className="bg-white rounded-xl shadow-sm p-2">
+          <div className="w-full sm:w-52 sm:flex-shrink-0">
+            <div className="bg-white rounded-xl shadow-sm p-2 flex sm:flex-col gap-1 overflow-x-auto sm:overflow-visible">
               {tabs.map((tab) => (
                 <button
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left mb-0.5"
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all text-left flex-shrink-0 sm:flex-shrink sm:w-full"
                   style={activeTab === tab.key
                     ? { background: '#a855f7', color: '#fff' }
                     : { color: '#6b7280' }}
@@ -62,7 +62,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             {activeTab === 'profile' && (
               <div className="bg-white rounded-xl shadow-sm p-6">
                 <h2 className="text-base font-semibold text-gray-800 mb-5">{t('settings.userProfile')}</h2>
@@ -87,7 +87,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.username')}</label>
                     <input

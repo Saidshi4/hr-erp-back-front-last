@@ -58,35 +58,35 @@ export default function ReportsPage() {
 
   return (
     <Layout>
-      <div className="p-8 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="p-4 sm:p-8 space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900">Davamiyyət hesabatları</h1>
-          <button onClick={exportExcel} className="bg-emerald-600 text-white px-4 py-2 rounded-lg">{t('reports.excelExport')}</button>
+          <button onClick={exportExcel} className="bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium">{t('reports.excelExport')}</button>
         </div>
 
-        <div className="flex gap-2 bg-white p-2 rounded-xl shadow-sm">
+        <div className="flex flex-wrap gap-2 bg-white p-2 rounded-xl shadow-sm">
           {SHIFT_TABS.map((tab) => (
             <button
               key={tab.value}
               onClick={() => setFilters({ ...filters, shiftType: tab.value })}
-              className={`px-4 py-2 rounded-lg text-sm ${filters.shiftType === tab.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${filters.shiftType === tab.value ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-700'}`}
             >
               {tab.label}
             </button>
           ))}
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm p-4 grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-3">
-          <input type="date" value={filters.start} onChange={(e) => updateFilter('start', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input type="date" value={filters.end} onChange={(e) => updateFilter('end', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="ID axtar" value={filters.employeeId ?? ''} onChange={(e) => updateFilter('employeeId', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="Ad soyad" value={filters.name ?? ''} onChange={(e) => updateFilter('name', e.target.value)} className="border rounded-lg px-3 py-2" />
-          <input placeholder="FIN" value={filters.fin ?? ''} onChange={(e) => updateFilter('fin', e.target.value)} className="border rounded-lg px-3 py-2" />
+        <div className="bg-white rounded-xl shadow-sm p-4 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+          <input type="date" value={filters.start} onChange={(e) => updateFilter('start', e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full" />
+          <input type="date" value={filters.end} onChange={(e) => updateFilter('end', e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full" />
+          <input placeholder="ID axtar" value={filters.employeeId ?? ''} onChange={(e) => updateFilter('employeeId', e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full" />
+          <input placeholder="Ad soyad" value={filters.name ?? ''} onChange={(e) => updateFilter('name', e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full" />
+          <input placeholder="FIN" value={filters.fin ?? ''} onChange={(e) => updateFilter('fin', e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full" />
 
           <select
             value={filters.position ?? ''}
             onChange={(e) => updateFilter('position', e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full"
           >
             <option value="">Hamısı (Vəzifə)</option>
             {positions.map((p) => (
@@ -97,7 +97,7 @@ export default function ReportsPage() {
           <select
             value={filters.department ?? ''}
             onChange={(e) => updateFilter('department', e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full"
           >
             <option value="">Hamısı (Departament)</option>
             {departments.map((d) => (
@@ -108,7 +108,7 @@ export default function ReportsPage() {
           <select
             value={filters.area ?? ''}
             onChange={(e) => updateFilter('area', e.target.value)}
-            className="border rounded-lg px-3 py-2"
+            className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 w-full"
           >
             <option value="">Hamısı (Ərazi)</option>
             {areas.map((a) => (
@@ -118,22 +118,22 @@ export default function ReportsPage() {
         </div>
 
         <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
-          <table className="w-full">
+          <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 {['ID', 'Şəkil', 'Ad Soyad', 'FIN', 'Depart', 'Vəzifə', 'Area', 'Tarix', 'Giriş'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-sm text-gray-500">{h}</th>
+                  <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-6 text-sm text-gray-500">Yüklənir...</td></tr>
+                <tr><td colSpan={9} className="px-4 py-6 text-sm text-gray-500 text-center">Yüklənir...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-6 text-sm text-gray-500">Məlumat tapılmadı</td></tr>
+                <tr><td colSpan={9} className="px-4 py-6 text-sm text-gray-500 text-center">Məlumat tapılmadı</td></tr>
               ) : rows.map((row) => (
-                <tr key={`${row.employeePk}-${row.date}-${row.checkInTime}`} className="border-t">
-                  <td className="px-4 py-3">{row.employeeId}</td>
+                <tr key={`${row.employeePk}-${row.date}-${row.checkInTime}`} className="border-t border-gray-100 hover:bg-gray-50">
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.employeeId}</td>
                   <td className="px-4 py-3">
                     {row.photoUrl ? (
                       <img src={row.photoUrl} alt={row.fullName} className="w-8 h-8 rounded-full object-cover" />
@@ -141,25 +141,25 @@ export default function ReportsPage() {
                       <div className="w-8 h-8 rounded-full bg-pink-200" />
                     )}
                   </td>
-                  <td className="px-4 py-3">{row.fullName}</td>
-                  <td className="px-4 py-3">{row.fin ?? '-'}</td>
-                  <td className="px-4 py-3">{row.department ?? '-'}</td>
-                  <td className="px-4 py-3">{row.position ?? '-'}</td>
-                  <td className="px-4 py-3">{row.area ?? '-'}</td>
-                  <td className="px-4 py-3">{row.date}</td>
-                  <td className="px-4 py-3">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{row.fullName}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.fin ?? '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.department ?? '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.position ?? '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.area ?? '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.date}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-gray-500">{totalElements} nəticə</span>
-          <div className="flex gap-2">
-            <button disabled={page <= 0} onClick={() => setPage(page - 1)} className="px-3 py-1 border rounded disabled:opacity-50">{t('reports.prev')}</button>
-            <span className="px-2 py-1 text-sm">{page + 1} / {Math.max(totalPages, 1)}</span>
-            <button disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1 border rounded disabled:opacity-50">{t('reports.next')}</button>
+          <div className="flex items-center gap-2">
+            <button disabled={page <= 0} onClick={() => setPage(page - 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50">{t('reports.prev')}</button>
+            <span className="px-2 py-1 text-sm text-gray-600">{page + 1} / {Math.max(totalPages, 1)}</span>
+            <button disabled={page + 1 >= totalPages} onClick={() => setPage(page + 1)} className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm disabled:opacity-50 hover:bg-gray-50">{t('reports.next')}</button>
           </div>
         </div>
       </div>

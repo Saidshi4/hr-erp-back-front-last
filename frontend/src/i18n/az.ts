@@ -34,6 +34,8 @@ export const az = {
     brandSubtitle: 'İdarəetmə sistemi',
     logout: 'Çıxış',
     createUser: 'Yeni İstifadəçi',
+    collapseSidebar: 'Menyu daralt',
+    expandSidebar: 'Menyu genişlət',
   },
   login: {
     subtitle: 'Azərbaycan İnsan Resursları Sistemi',
@@ -43,6 +45,9 @@ export const az = {
     signingIn: 'Daxil olunur...',
     invalidCredentials: 'E-poçt və ya şifrə yanlışdır',
     hrNote: 'HR istifadəçisi yaratmaq üçün daxil olub "Yeni İstifadəçi" bölməsinə keçin.',
+    createAccountTitle: 'HR Administratoru?',
+    createAccountNote: 'Yeni istifadəçi yaratmaq üçün HR hesabınıza daxil olun.',
+    createAccountBtn: 'Yeni istifadəçi yarat',
   },
   signup: {
     title: 'Yeni İstifadəçi',

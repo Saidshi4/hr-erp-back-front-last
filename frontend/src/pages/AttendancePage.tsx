@@ -272,7 +272,7 @@ export default function AttendancePage() {
 
   return (
     <Layout>
-      <div className="p-8 min-h-screen bg-slate-50">
+      <div className="p-4 sm:p-8 min-h-screen bg-slate-50">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-slate-900">{t('attendance.title')}</h1>
           <p className="mt-1 text-sm text-slate-500">{t('attendance.subtitle')}</p>

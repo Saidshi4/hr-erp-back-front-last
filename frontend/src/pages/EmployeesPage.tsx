@@ -572,9 +572,9 @@ export default function EmployeesPage() {
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+      <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Bütün əməkdaşlar</h1>
             <p className="text-sm text-gray-500 mt-1">
@@ -669,7 +669,7 @@ export default function EmployeesPage() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-sm overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="min-w-full text-sm">
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ƏMƏLİYYATLAR</th>

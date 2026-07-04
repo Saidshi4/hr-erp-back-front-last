@@ -130,9 +130,9 @@ export default function DashboardPage() {
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+      <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">İdare paneli</h1>
             <p className="text-sm text-gray-500 mt-1">Canlı HR və cihaz metrikalarının bir baxışda izləyin</p>
@@ -150,7 +150,7 @@ export default function DashboardPage() {
               <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: card.bg }}>
                 {card.icon}
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-gray-500">{card.label}</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {loading ? <span className="text-gray-300">—</span> : card.value}
@@ -163,9 +163,9 @@ export default function DashboardPage() {
         {/* Device Status */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
           <h2 className="text-base font-semibold text-gray-800 mb-4">Cihaz status xülasəsi</h2>
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#f3f4f6' }}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: '#e5e7eb' }}>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#e5e7eb' }}>
                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                 </svg>
@@ -176,7 +176,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#f0fdf4' }}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-green-100">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-green-100">
                 <span className="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
               </div>
               <div>
@@ -185,7 +185,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#fef2f2' }}>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-red-100">
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 bg-red-100">
                 <span className="w-3 h-3 rounded-full bg-red-400 inline-block"></span>
               </div>
               <div>
@@ -216,19 +216,19 @@ export default function DashboardPage() {
               {sortedLogs.map((log) => {
                 const eventTime = log.checkInTime ?? log.punchTime
                 return (
-                  <div key={log.id} className="flex items-center gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
+                  <div key={log.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe' }}>
                     <svg className="w-4 h-4" style={{ color: '#a855f7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                     </svg>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800">
+                    <p className="text-sm font-medium text-gray-800 truncate">
                       {log.firstName || log.lastName
                         ? `${log.firstName ?? ''} ${log.lastName ?? ''}`.trim()
                         : `Əməkdaş #${log.employeeNo ?? log.employeeId ?? '—'}`}
                     </p>
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-gray-400 truncate">
                       {log.deviceId !== undefined ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
                     </p>
                   </div>

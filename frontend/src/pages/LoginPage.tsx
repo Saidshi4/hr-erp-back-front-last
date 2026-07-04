@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi.ts'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
@@ -50,7 +50,7 @@ export default function LoginPage() {
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Top accent bar */}
-        <div className="h-1 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
+        <div className="h-1.5 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
 
         <div className="p-8 pt-7">
           {/* Brand */}
@@ -135,9 +135,30 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className="text-center text-xs text-gray-400 mt-6">
-            {t('login.hrNote')}
-          </p>
+          {/* HR Admin CTA */}
+          <div className="mt-6 rounded-xl border border-purple-100 bg-purple-50 p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe' }}>
+                <svg className="w-4 h-4" style={{ color: '#7c3aed' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold" style={{ color: '#5b21b6' }}>{t('login.createAccountTitle')}</p>
+                <p className="text-xs text-purple-600 mt-0.5">{t('login.createAccountNote')}</p>
+                <Link
+                  to="/signup"
+                  className="inline-flex items-center gap-1 mt-2 text-xs font-semibold rounded-lg px-3 py-1.5 transition-all hover:shadow-sm active:scale-95 text-white"
+                  style={{ background: BUTTON_GRADIENT }}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  {t('login.createAccountBtn')}
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

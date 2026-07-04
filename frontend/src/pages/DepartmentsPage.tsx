@@ -191,9 +191,9 @@ export default function DepartmentsPage() {
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f4f5fb', minHeight: '100vh' }}>
+      <div className="p-4 sm:p-8" style={{ background: '#f4f5fb', minHeight: '100vh' }}>
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: '#1e2a4a' }}>Bütün departamentlər</h1>
             <p className="text-sm text-gray-500 mt-1">

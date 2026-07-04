@@ -60,7 +60,7 @@ export default function AccessLogsPage() {
 
   return (
     <Layout>
-      <div className="p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
+      <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">{t('accessLogs.title')}</h1>
@@ -69,14 +69,14 @@ export default function AccessLogsPage() {
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-          <div className="flex flex-wrap gap-4 items-end">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.fromDate')}</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
             <div>
@@ -85,10 +85,10 @@ export default function AccessLogsPage() {
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
-            <div className="flex-1 min-w-[200px]">
+            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.deviceId')}</label>
               <input
                 type="text"
@@ -98,7 +98,7 @@ export default function AccessLogsPage() {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
             </div>
-            <div className="flex-1 min-w-[200px]">
+            <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('common.search')}</label>
               <input
                 type="text"
@@ -111,7 +111,7 @@ export default function AccessLogsPage() {
             <button
               onClick={fetchLogs}
               disabled={loading}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
+              className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 transition-colors"
               style={{ background: '#a855f7' }}
             >
               {loading ? (
@@ -135,7 +135,7 @@ export default function AccessLogsPage() {
         {fetched && (
           <>
             {/* Summary */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl p-4 shadow-sm">
                 <p className="text-xs text-gray-400">{t('accessLogs.totalEvents')}</p>
                 <p className="text-xl font-bold text-gray-900 mt-1">{filteredLogs.length}</p>

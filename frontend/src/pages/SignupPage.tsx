@@ -5,8 +5,8 @@ import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
 
 const HR_ROLES = [
-  { value: 'OFFICE_HR', label: 'Office HR' },
-  { value: 'DEPARTMENT_HR', label: 'Department HR' },
+  { value: 'OFFICE_HR', label: 'Ofis HR' },
+  { value: 'DEPARTMENT_HR', label: 'Departament HR' },
   { value: 'EMPLOYEE', label: 'Əməkdaş' },
 ]
 

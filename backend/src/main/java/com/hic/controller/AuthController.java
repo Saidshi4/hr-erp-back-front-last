@@ -9,13 +9,15 @@ import com.hic.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -24,10 +26,8 @@ public class AuthController {
 
     @PostMapping("/signup")
     @PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
-    public ResponseEntity<LoginResponse> signup(
-            @Valid @RequestBody SignupRequest request,
-            Authentication authentication) {
-        User.UserType callerRole = extractRole(authentication);
+    public ResponseEntity<LoginResponse> signup(@Valid @RequestBody SignupRequest request) {
+        User.UserType callerRole = extractRole();
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request, callerRole));
     }
 
@@ -55,8 +55,17 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(authService.getUserFromToken(token)));
     }
 
-    private User.UserType extractRole(Authentication authentication) {
-        if (authentication == null) {
+    /**
+     * Extracts the caller's role from the security context.
+     * The @PreAuthorize annotation on signup() guarantees authentication is present in production.
+     * If the security context is unexpectedly empty (security misconfiguration), a warning is logged
+     * and EMPLOYEE is returned — this causes AuthService to reject the creation since EMPLOYEE
+     * cannot create any user roles.
+     */
+    private User.UserType extractRole() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            log.warn("extractRole called without an authenticated security context — security misconfiguration suspected");
             return User.UserType.EMPLOYEE;
         }
         return authentication.getAuthorities().stream()
@@ -67,10 +76,14 @@ public class AuthController {
                     try {
                         return User.UserType.valueOf(r);
                     } catch (IllegalArgumentException e) {
+                        log.warn("Unknown role authority '{}' in security context, defaulting to EMPLOYEE", r);
                         return User.UserType.EMPLOYEE;
                     }
                 })
-                .orElse(User.UserType.EMPLOYEE);
+                .orElseGet(() -> {
+                    log.warn("Authenticated user has no granted authorities, defaulting to EMPLOYEE");
+                    return User.UserType.EMPLOYEE;
+                });
     }
 
     @Data

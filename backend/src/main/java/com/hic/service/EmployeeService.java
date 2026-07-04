@@ -507,7 +507,7 @@ public class EmployeeService {
     public List<String> getDistinctAreas() {
         Long tenantId = TenantContext.getTenantId();
         if (tenantId == null) {
-            return employeeRepository.findDistinctAreasByTenantId(-1L);
+            return java.util.Collections.emptyList();
         }
         return employeeRepository.findDistinctAreasByTenantId(tenantId);
     }

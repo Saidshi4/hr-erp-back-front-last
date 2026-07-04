@@ -6,6 +6,10 @@ import { tabelApi } from '../api/tabelApi.ts'
 import { Branch, Department, TabelMonthlyData } from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
 
+/** Sidebar Tailwind width classes */
+const SIDEBAR_OPEN = 'w-64'
+const SIDEBAR_CLOSED = 'w-10'
+
 const monthOptions = [
   'Yanvar',
   'Fevral',
@@ -104,7 +108,7 @@ export default function TabelPage() {
       <div className="p-6 lg:p-8">
         <div className="flex gap-4">
           {/* Collapsible sidebar */}
-          <div className={`flex-shrink-0 transition-all duration-200 ${sidebarOpen ? 'w-64' : 'w-10'}`}>
+          <div className={`flex-shrink-0 transition-all duration-200 ${sidebarOpen ? SIDEBAR_OPEN : SIDEBAR_CLOSED}`}>
             {sidebarOpen ? (
               <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm h-fit">
                 <div className="flex items-center justify-between">

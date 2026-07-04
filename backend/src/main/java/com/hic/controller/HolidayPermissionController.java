@@ -15,7 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/holiday-permissions")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','HR')")
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class HolidayPermissionController {
 
     private final HolidayPermissionService holidayPermissionService;

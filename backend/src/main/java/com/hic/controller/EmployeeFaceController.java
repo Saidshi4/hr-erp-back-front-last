@@ -2,6 +2,7 @@ package com.hic.controller;
 
 import com.hic.service.EmployeeFaceImageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/faces")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class EmployeeFaceController {
 
     private final EmployeeFaceImageService employeeFaceImageService;

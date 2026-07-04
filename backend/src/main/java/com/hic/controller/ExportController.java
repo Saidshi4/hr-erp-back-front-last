@@ -2,6 +2,7 @@ package com.hic.controller;
 
 import com.hic.service.ExportService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 @RestController
 @RequestMapping("/api/export")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class ExportController {
     private final ExportService exportService;
 

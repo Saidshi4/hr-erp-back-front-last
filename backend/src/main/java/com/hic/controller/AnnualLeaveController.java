@@ -13,7 +13,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/annual-leave")
 @RequiredArgsConstructor
-@PreAuthorize("hasAnyRole('ADMIN','HR')")
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class AnnualLeaveController {
 
     private final AnnualLeaveService annualLeaveService;

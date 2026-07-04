@@ -2,6 +2,8 @@ export interface User {
   id: number
   username: string
   email: string
+  firstName?: string
+  lastName?: string
   userType: 'HEAD_OFFICE_HR' | 'OFFICE_HR' | 'DEPARTMENT_HR' | 'EMPLOYEE'
   branchId?: number
   departmentId?: number

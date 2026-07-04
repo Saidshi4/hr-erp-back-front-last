@@ -8,6 +8,7 @@ import com.hic.model.Employee.EmploymentStatus;
 import com.hic.service.EmployeeService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/employees")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class EmployeeController {
     private final EmployeeService employeeService;
 
@@ -81,5 +83,10 @@ public class EmployeeController {
     @GetMapping("/{id}/doors")
     public ResponseEntity<ApiResponse<List<String>>> getEmployeeDoors(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(employeeService.getEmployeeDoorAccess(id)));
+    }
+
+    @GetMapping("/areas")
+    public ResponseEntity<ApiResponse<List<String>>> getDistinctAreas() {
+        return ResponseEntity.ok(ApiResponse.success(employeeService.getDistinctAreas()));
     }
 }

@@ -4,6 +4,7 @@ import com.hic.dto.ApiResponse;
 import com.hic.dto.TabelMonthlyDTO;
 import com.hic.service.TabelService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/tabel")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class TabelController {
 
     private final TabelService tabelService;

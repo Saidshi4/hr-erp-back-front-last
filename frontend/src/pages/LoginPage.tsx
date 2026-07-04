@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi.ts'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
 
 export default function LoginPage() {
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -17,7 +17,7 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await authApi.login(username, password)
+      const res = await authApi.login(email, password)
       setAuth(res.data.token, res.data.user)
       navigate('/')
     } catch {
@@ -28,38 +28,43 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">HR ERP</h1>
-          <p className="text-gray-500 mt-2">{t('login.subtitle')}</p>
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-indigo-600 mb-4">
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">HR ERP</h1>
+          <p className="text-gray-500 mt-1 text-sm">{t('login.subtitle')}</p>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6 text-sm">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-6">
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t('login.username')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.email')}</label>
             <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="admin"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              placeholder="admin@company.az"
               required
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t('login.password')}</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('login.password')}</label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               placeholder="••••••••"
               required
             />
@@ -67,17 +72,11 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-indigo-600 text-white py-2.5 px-4 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? t('login.signingIn') : t('login.signIn')}
           </button>
         </form>
-        <p className="text-center text-sm text-gray-500 mt-6">
-          {t('login.noAccount')}{' '}
-          <Link to="/signup" className="text-blue-600 hover:text-blue-800 font-medium">
-            {t('login.signUpLink')}
-          </Link>
-        </p>
       </div>
     </div>
   )

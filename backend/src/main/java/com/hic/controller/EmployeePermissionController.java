@@ -6,6 +6,7 @@ import com.hic.dto.EmployeePermissionDTO;
 import com.hic.model.EmployeePermission;
 import com.hic.service.EmployeePermissionService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/employee-permissions")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class EmployeePermissionController {
 
     private final EmployeePermissionService employeePermissionService;

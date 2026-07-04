@@ -15,6 +15,7 @@ import com.hic.service.AttendanceService;
 import com.hic.service.DoorAttendanceSyncService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,6 +30,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/attendance")
 @RequiredArgsConstructor
+@PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
 public class AttendanceController {
     private final AttendanceService attendanceService;
     private final AttendanceCalculationService attendanceCalculationService;

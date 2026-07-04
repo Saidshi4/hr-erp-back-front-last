@@ -16,6 +16,4 @@ CREATE TABLE holiday_targets (
     target_id BIGINT NOT NULL
 );
 
-INSERT INTO holidays (tenant_id, name, description, holiday_date, apply_scope) VALUES
-    (1, 'Novruz Bayramı', 'Bütün şirkət üzrə rəsmi bayram günü.', '2026-03-20', 'ALL'),
-    (1, 'İstehsalat Günü', 'Operations departamenti üçün qeyri-iş günü.', '2026-05-12', 'SPECIFIC');
+-- Seed data removed: holidays are created by administrators via the UI.

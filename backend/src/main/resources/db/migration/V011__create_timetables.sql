@@ -13,18 +13,4 @@ CREATE TABLE timetables (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO timetables (
-    tenant_id,
-    name,
-    description,
-    start_time,
-    end_time,
-    crosses_midnight,
-    allowed_late_minutes,
-    allowed_early_leave_minutes,
-    shift_type
-) VALUES
-    (1, 'Office Standard', 'Core office timetable for headquarters administrative teams.', '09:00', '18:00', FALSE, 10, 15, 'STANDART'),
-    (1, 'Operations Shift', 'Flexible schedule for daily operational coverage.', '08:30', '17:30', FALSE, 20, 10, 'STANDART'),
-    (1, 'Night Monitoring', 'Overnight shift for infrastructure and security monitoring.', '22:00', '07:00', TRUE, 5, 5, 'DEQIQ'),
-    (1, 'Support Rotation', 'Customer support rotation timetable.', '10:00', '19:00', FALSE, 15, 10, 'SERBEST');
+-- Seed data removed: timetables are created by administrators via the UI.

@@ -3,12 +3,14 @@ package com.hic.controller;
 import com.hic.dto.ApiResponse;
 import com.hic.dto.DeviceSyncDTO;
 import com.hic.dto.DoorDTO;
+import com.hic.dto.HikUserInfoSearchDTO;
 import com.hic.exception.BadRequestException;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.DeviceConfig;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.service.DeviceService;
 import com.hic.service.DeviceSyncService;
+import com.hic.service.HikDeviceUserImportService;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +25,7 @@ public class DeviceController {
     private final DeviceService deviceService;
     private final DeviceSyncService deviceSyncService;
     private final DeviceConfigRepository deviceConfigRepository;
+    private final HikDeviceUserImportService hikDeviceUserImportService;
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<DeviceSyncDTO.DeviceConfigDTO>>> getAll() {
@@ -125,6 +128,22 @@ public class DeviceController {
             @PathVariable Long deviceConfigId,
             @RequestBody DoorDTO.AssignDoorRequest dto) {
         return ResponseEntity.ok(ApiResponse.success(deviceService.assignDoor(deviceConfigId, dto)));
+    }
+
+    /**
+     * Pulls all users registered on the physical Hikvision device and imports
+     * them as Employee records into the local database.
+     *
+     * <p>Existing employees (matched by employeeNo) are skipped so that
+     * manually-edited HR data is never overwritten.
+     *
+     * <p>POST /api/devices/{id}/import-users
+     */
+    @PostMapping("/{id}/import-users")
+    public ResponseEntity<ApiResponse<HikUserInfoSearchDTO.ImportResultDTO>> importUsers(
+            @PathVariable Long id) {
+        HikUserInfoSearchDTO.ImportResultDTO result = hikDeviceUserImportService.importUsersFromDevice(id);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     private DeviceSyncDTO.DeviceConfigDTO toConfigDTO(DeviceSyncDTO.DeviceUpsertRequest req) {

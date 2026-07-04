@@ -12,14 +12,4 @@ CREATE TABLE leaves (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO leaves (
-    tenant_id,
-    name,
-    description,
-    leave_type,
-    apply_type,
-    target_id,
-    start_date,
-    end_date
-) VALUES
-    (1, 'Medical Leave', 'Sick leave permission policy for individual employees.', 'Medical', 'EMPLOYEE', 1, '2026-05-01', '2026-05-10');
+-- Seed data removed: leaves are created by administrators via the UI.

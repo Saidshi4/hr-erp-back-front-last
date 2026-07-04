@@ -9,12 +9,4 @@ CREATE TABLE IF NOT EXISTS permission_types (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-INSERT INTO permission_types (tenant_id, code, name, is_custom) VALUES
-    (1, 'MEDICAL_LEAVE', 'Medical Leave', FALSE),
-    (1, 'PREGNANCY_LEAVE', 'Pregnancy Leave', FALSE),
-    (1, 'MATERNITY_LEAVE', 'Maternity Leave', FALSE),
-    (1, 'PARENTAL_LEAVE', 'Parental Leave', FALSE),
-    (1, 'REMOTE_WORK', 'Remote Work Permission', FALSE),
-    (1, 'FLEXIBLE_HOURS', 'Flexible Hours', FALSE),
-    (1, 'UNPAID_LEAVE', 'Unpaid Leave', FALSE),
-    (1, 'SABBATICAL', 'Sabbatical', FALSE);
+-- Seed data removed: permission types are created by administrators via the UI.

@@ -4,6 +4,9 @@ import { authApi } from '../api/authApi.ts'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
 
+const AUTH_BG = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #2d2472 100%)'
+const ACCENT_BAR_GRADIENT = 'linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)'
+const BUTTON_GRADIENT = 'linear-gradient(135deg, #7c3aed, #a855f7)'
 const INPUT_CLS =
   'w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-gray-800 placeholder-gray-400 bg-gray-50 transition-all'
 
@@ -33,7 +36,7 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-4"
-      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #2d2472 100%)' }}
+      style={{ background: AUTH_BG }}
     >
       {/* Decorative blobs */}
       <div
@@ -47,14 +50,14 @@ export default function LoginPage() {
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
         {/* Top accent bar */}
-        <div className="h-1 w-full" style={{ background: 'linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)' }} />
+        <div className="h-1 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
 
         <div className="p-8 pt-7">
           {/* Brand */}
           <div className="text-center mb-8">
             <div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+              style={{ background: BUTTON_GRADIENT }}
             >
               <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
@@ -116,7 +119,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full text-white py-3 px-4 rounded-xl font-semibold text-sm tracking-wide transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg active:scale-95"
-              style={{ background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+              style={{ background: BUTTON_GRADIENT }}
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

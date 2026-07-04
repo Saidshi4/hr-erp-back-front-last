@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
 
+const HR_ROLES = ['HEAD_OFFICE_HR', 'OFFICE_HR', 'DEPARTMENT_HR']
+
 const navItems = [
   {
     path: '/',
@@ -146,6 +148,7 @@ export default function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout } = useAuthStore()
+  const isHr = user?.userType ? HR_ROLES.includes(user.userType) : false
 
   const handleLogout = () => {
     logout()
@@ -200,6 +203,35 @@ export default function Layout({ children }: { children: ReactNode }) {
               </Link>
             )
           })}
+
+          {/* HR-only: Create User */}
+          {isHr && (
+            <Link
+              to="/signup"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all text-sm font-medium"
+              style={{
+                color: location.pathname === '/signup' ? '#fff' : '#a5b4fc',
+                background: location.pathname === '/signup' ? '#a855f7' : 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                if (location.pathname !== '/signup') {
+                  (e.currentTarget as HTMLAnchorElement).style.background = 'rgba(168,85,247,0.15)'
+                  ;(e.currentTarget as HTMLAnchorElement).style.color = '#fff'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (location.pathname !== '/signup') {
+                  (e.currentTarget as HTMLAnchorElement).style.background = 'transparent'
+                  ;(e.currentTarget as HTMLAnchorElement).style.color = '#a5b4fc'
+                }
+              }}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              <span>{t('layout.createUser')}</span>
+            </Link>
+          )}
         </nav>
 
         {/* User */}

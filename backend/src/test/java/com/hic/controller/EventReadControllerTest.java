@@ -70,4 +70,21 @@ class EventReadControllerTest {
 
         verify(isapiProxyService).forward(eq(HttpMethod.POST), eq("/api/acs-events/search"), any(HttpServletRequest.class), eq(body));
     }
+
+    @Test
+    void searchAcsEventImages_proxiesPostBodyToIsapi() throws Exception {
+        String body = "{\"AcsEventCond\":{\"searchID\":\"1\",\"maxResults\":10}}";
+        String upstreamResponse = "{\"AcsEvent\":{\"InfoList\":[{\"serialNo\":9,\"pictureURL\":\"/pic.jpg\"}]}}";
+
+        when(isapiProxyService.forward(eq(HttpMethod.POST), eq("/api/acs-events/image-search"), any(HttpServletRequest.class), eq(body)))
+                .thenReturn(ResponseEntity.ok(upstreamResponse));
+
+        mockMvc.perform(post("/api/acs-events/image-search")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().json(upstreamResponse));
+
+        verify(isapiProxyService).forward(eq(HttpMethod.POST), eq("/api/acs-events/image-search"), any(HttpServletRequest.class), eq(body));
+    }
 }

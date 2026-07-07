@@ -38,4 +38,9 @@ public class EventReadController {
     public ResponseEntity<String> searchAcsEvents(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
         return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/search", request, body == null ? null : body.toString());
     }
+
+    @PostMapping("/acs-events/image-search")
+    public ResponseEntity<String> searchAcsEventImages(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
+        return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/image-search", request, body == null ? null : body.toString());
+    }
 }

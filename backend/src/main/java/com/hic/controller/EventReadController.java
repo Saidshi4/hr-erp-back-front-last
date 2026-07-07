@@ -5,6 +5,7 @@ import com.hic.service.IsapiProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,6 +42,15 @@ public class EventReadController {
 
     @PostMapping("/acs-events/image-search")
     public ResponseEntity<String> searchAcsEventImages(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
-        return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/image-search", request, body == null ? null : body.toString());
+        ResponseEntity<String> response = isapiProxyService.forward(
+                HttpMethod.POST,
+                "/api/acs-events/image-search",
+                request,
+                body == null ? null : body.toString()
+        );
+        return ResponseEntity
+                .status(response.getStatusCode())
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(response.getBody());
     }
 }

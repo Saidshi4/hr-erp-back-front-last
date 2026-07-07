@@ -159,4 +159,15 @@ public class AttendanceController {
                 doorAttendanceSyncService.syncDoorAttendanceByDoorId(doorId, start, end, limit)
         ));
     }
+
+    @PostMapping("/sync")
+    public ResponseEntity<ApiResponse<DoorAttendanceSyncResultDTO>> syncAllDevices(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
+            @RequestParam(required = false) Integer limit
+    ) {
+        return ResponseEntity.ok(ApiResponse.success(
+                doorAttendanceSyncService.syncAllDevices(start, end, limit)
+        ));
+    }
 }

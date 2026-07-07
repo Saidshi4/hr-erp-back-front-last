@@ -146,23 +146,21 @@ export default function DevicesPage() {
         deviceId = typeof created?.id === 'number' ? created.id : undefined
       }
 
-      // Door assignment
-      if (deviceId && form.branchId && selectedDoorId) {
-        let doorId = selectedDoorId === 'new' ? undefined : Number(selectedDoorId)
+      // Door and Role assignment
+      if (deviceId && form.branchId) {
+        let doorId = selectedDoorId && selectedDoorId !== 'new' ? Number(selectedDoorId) : undefined;
         if (selectedDoorId === 'new') {
           const createDoorRes = await doorApi.create({
             branchId: Number(form.branchId),
             name: newDoorName.trim(),
             status: 'ACTIVE',
-          })
-          doorId = createDoorRes.data?.data?.id
+          });
+          doorId = createDoorRes.data?.data?.id;
         }
-        if (doorId && doorRole) {
-          await deviceApi.assignDoor(deviceId, { doorId, role: doorRole })
-        }
-      } else if (deviceId && selectedDoorId === '') {
-        // Unassign door if cleared
-        await deviceApi.assignDoor(deviceId, {})
+        await deviceApi.assignDoor(deviceId, {
+          doorId: doorId || undefined,
+          role: doorRole || undefined
+        });
       }
 
       await fetchDevices()
@@ -478,7 +476,6 @@ export default function DevicesPage() {
                       onChange={(e) => {
                         const val = e.target.value
                         setSelectedDoorId(val === 'new' ? 'new' : val ? Number(val) : '')
-                        if (val === '') setDoorRole('')
                       }}
                       className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                     >
@@ -501,20 +498,18 @@ export default function DevicesPage() {
                       />
                     </div>
                   )}
-                  {selectedDoorId && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
-                      <select
-                        value={doorRole}
-                        onChange={(e) => setDoorRole(e.target.value as 'ENTRY' | 'EXIT' | '')}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                      >
-                        <option value="">Rol seçin...</option>
-                        <option value="ENTRY">Giriş</option>
-                        <option value="EXIT">Çıxış</option>
-                      </select>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                    <select
+                      value={doorRole}
+                      onChange={(e) => setDoorRole(e.target.value as 'ENTRY' | 'EXIT' | '')}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
+                    >
+                      <option value="">Rol seçin...</option>
+                      <option value="ENTRY">Giriş</option>
+                      <option value="EXIT">Çıxış</option>
+                    </select>
+                  </div>
                 </>
               )}
               <div>

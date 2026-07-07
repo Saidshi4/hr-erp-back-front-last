@@ -175,6 +175,179 @@ public class DoorAttendanceSyncService {
     }
 
     @Transactional
+    public DoorAttendanceSyncResultDTO syncAllDevices(
+            LocalDateTime start,
+            LocalDateTime end,
+            Integer limit
+    ) {
+        int effectiveLimit = limit == null || limit <= 0 ? DEFAULT_LIMIT : limit;
+        Long tenantId = TenantContext.getTenantId();
+
+        List<DeviceConfig> devices = tenantId != null
+                ? deviceConfigRepository.findByTenantId(tenantId)
+                : deviceConfigRepository.findAll();
+
+        List<DeviceConfig> activeDevicesWithRoles = devices.stream()
+                .filter(d -> "ACTIVE".equalsIgnoreCase(d.getStatus()))
+                .filter(d -> "ENTRY".equalsIgnoreCase(d.getDoorRole()) || "EXIT".equalsIgnoreCase(d.getDoorRole()))
+                .toList();
+
+        List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> allPunches = new ArrayList<>();
+        for (DeviceConfig device : activeDevicesWithRoles) {
+            allPunches.addAll(fetchPunchesInRange(device.getId(), start, end, effectiveLimit)
+                    .stream()
+                    .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
+                    .toList());
+        }
+
+        Map<Long, String> deviceRoles = activeDevicesWithRoles.stream()
+                .collect(Collectors.toMap(DeviceConfig::getId, DeviceConfig::getDoorRole));
+
+        Set<String> employeeCodes = allPunches.stream()
+                .map(p -> normalizeEmployeeCode(p.getEmployeeNo()))
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        int matchedSessions = 0;
+        int createdLogs = 0;
+        int skippedEmployees = 0;
+        int skippedPunches = 0;
+        Set<String> unresolvedEmployeeNos = new HashSet<>();
+        Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
+
+        for (String employeeCode : employeeCodes) {
+            Employee employee = resolveEmployee(tenantId, employeeCode);
+
+            if (employee == null) {
+                skippedEmployees++;
+                skippedPunches += countPunchesForEmployeeCode(allPunches, employeeCode);
+                unresolvedEmployeeNos.add(employeeCode);
+                continue;
+            }
+
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> employeePunches = allPunches.stream()
+                    .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
+                    .sorted(Comparator.comparing(p -> toLocalDateTime(p.getPunchTime())))
+                    .toList();
+
+            LocalDateTime currentEntryTime = null;
+            Long currentEntryDeviceId = null;
+
+            for (int i = 0; i < employeePunches.size(); i++) {
+                AttendanceLogSyncDTO.AttendanceLogEntryDTO punch = employeePunches.get(i);
+                LocalDateTime punchTime = toLocalDateTime(punch.getPunchTime());
+                String role = deviceRoles.get(punch.getDeviceId());
+
+                if ("ENTRY".equals(role)) {
+                    if (currentEntryTime == null) {
+                        currentEntryTime = punchTime;
+                        currentEntryDeviceId = punch.getDeviceId();
+                    }
+                } else if ("EXIT".equals(role)) {
+                    if (currentEntryTime != null) {
+                        if (punchTime.isAfter(currentEntryTime)) {
+                            LocalDateTime entryTime = currentEntryTime;
+                            LocalDateTime exitTime = punchTime;
+                            Long entryDevId = currentEntryDeviceId;
+                            Long exitDevId = punch.getDeviceId();
+
+                            String doorId = entryDevId + ":" + exitDevId;
+
+                            addRecalcDate(recalcDatesByEmployee, employee.getId(), entryTime.toLocalDate());
+                            addRecalcDate(recalcDatesByEmployee, employee.getId(), exitTime.toLocalDate());
+
+                            Optional<AttendanceLog> existingLogOpt = tenantId != null
+                                    ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTime(tenantId, employee.getId(), entryTime)
+                                    : attendanceLogRepository.findByEmployeeIdAndCheckInTime(employee.getId(), entryTime);
+
+                            if (existingLogOpt.isPresent()) {
+                                AttendanceLog existingLog = existingLogOpt.get();
+                                if (existingLog.getCheckOutTime() == null) {
+                                    existingLog.setCheckOutTime(exitTime);
+                                    existingLog.setDoorId(doorId);
+                                    attendanceLogRepository.save(existingLog);
+                                    createdLogs++;
+                                    matchedSessions++;
+                                }
+                            } else {
+                                AttendanceLog log = new AttendanceLog();
+                                log.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
+                                log.setEmployeeId(employee.getId());
+                                log.setCheckInTime(entryTime);
+                                log.setCheckOutTime(exitTime);
+                                log.setDoorId(doorId);
+                                log.setDeviceId(String.valueOf(entryDevId));
+                                log.setEventType("DOOR_SESSION");
+                                log.setVerificationMethod("ISAPI_PUNCH");
+                                log.setStatus("ACTIVE");
+                                attendanceLogRepository.save(log);
+                                createdLogs++;
+                                matchedSessions++;
+                            }
+
+                            currentEntryTime = null;
+                            currentEntryDeviceId = null;
+                        }
+                    }
+                }
+            }
+
+            if (currentEntryTime != null) {
+                LocalDateTime entryTime = currentEntryTime;
+                Long entryDevId = currentEntryDeviceId;
+                String doorId = entryDevId + ":null";
+
+                addRecalcDate(recalcDatesByEmployee, employee.getId(), entryTime.toLocalDate());
+
+                Optional<AttendanceLog> existingLogOpt = tenantId != null
+                        ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTime(tenantId, employee.getId(), entryTime)
+                        : attendanceLogRepository.findByEmployeeIdAndCheckInTime(employee.getId(), entryTime);
+
+                if (existingLogOpt.isEmpty()) {
+                    AttendanceLog log = new AttendanceLog();
+                    log.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
+                    log.setEmployeeId(employee.getId());
+                    log.setCheckInTime(entryTime);
+                    log.setCheckOutTime(null);
+                    log.setDoorId(doorId);
+                    log.setDeviceId(String.valueOf(entryDevId));
+                    log.setEventType("DOOR_SESSION");
+                    log.setVerificationMethod("ISAPI_PUNCH");
+                    log.setStatus("ACTIVE");
+                    attendanceLogRepository.save(log);
+                    createdLogs++;
+                }
+            }
+        }
+
+        int recalculatedDays = 0;
+        for (Map.Entry<Long, Set<LocalDate>> entry : recalcDatesByEmployee.entrySet()) {
+            List<LocalDate> dates = new ArrayList<>(entry.getValue());
+            dates.sort(Comparator.naturalOrder());
+            for (LocalDate date : dates) {
+                attendanceCalculationService.calculateForDay(entry.getKey(), date);
+                attendanceService.generateDailySummary(entry.getKey(), date);
+                recalculatedDays++;
+            }
+        }
+
+        if (!unresolvedEmployeeNos.isEmpty()) {
+            log.warn("Auto attendance sync unresolved employeeNo values: {} ({} punches skipped)",
+                    unresolvedEmployeeNos, skippedPunches);
+        }
+
+        return new DoorAttendanceSyncResultDTO(
+                allPunches.size(),
+                matchedSessions,
+                createdLogs,
+                skippedEmployees,
+                skippedPunches,
+                recalculatedDays,
+                unresolvedEmployeeNos.stream().sorted().toList()
+        );
+    }
+
+    @Transactional
     public DoorAttendanceSyncResultDTO syncDoorAttendanceByDoorId(
             Long doorId,
             LocalDateTime start,

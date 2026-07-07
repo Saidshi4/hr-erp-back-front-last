@@ -111,9 +111,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [entryDeviceId, setEntryDeviceId] = useState('')
-  const [exitDeviceId, setExitDeviceId] = useState('')
-  const [syncResult, setSyncResult] = useState<DoorAttendanceSyncResult | null>(null)
+  const [syncResult, setSyncResult] = useState<any | null>(null)
   const [syncLoading, setSyncLoading] = useState(false)
 
   useEffect(() => {
@@ -187,21 +185,26 @@ export default function AttendancePage() {
     setLoading(true)
     setError(null)
 
-    Promise.all([
-      attendanceApi.getEmployeeAttendance(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
-      attendanceApi.getEmployeeAttendanceSummary(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
-    ])
-      .then(([attendanceResponse, summaryResponse]) => {
-        if (cancelled) {
-          return
-        }
+    // Automatically sync before fetching
+    attendanceApi.syncAll({
+      start: `${activePeriod.start}T00:00:00`,
+      end: `${activePeriod.end}T23:59:59`,
+    })
+      .then(() => {
+        if (cancelled) return
+        return Promise.all([
+          attendanceApi.getEmployeeAttendance(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+          attendanceApi.getEmployeeAttendanceSummary(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
+        ])
+      })
+      .then((responses) => {
+        if (cancelled || !responses) return
+        const [attendanceResponse, summaryResponse] = responses
         setAttendanceRows(attendanceResponse.data?.data ?? [])
         setSummary(summaryResponse.data?.data ?? defaultSummary)
       })
       .catch((requestError: unknown) => {
-        if (cancelled) {
-          return
-        }
+        if (cancelled) return
         setAttendanceRows([])
         setSummary(defaultSummary)
         setError((requestError as Error).message || 'Failed to fetch attendance data')
@@ -222,24 +225,11 @@ export default function AttendancePage() {
       setError('Please choose a valid period before syncing devices.')
       return
     }
-    if (!entryDeviceId || !exitDeviceId) {
-      setError('Zəhmət olmasa həm giriş, həm çıxış cihaz ID-lərini daxil edin.')
-      return
-    }
-
-    const entryId = Number(entryDeviceId)
-    const exitId = Number(exitDeviceId)
-    if (Number.isNaN(entryId) || Number.isNaN(exitId)) {
-      setError('Cihaz ID-ləri rəqəm olmalıdır.')
-      return
-    }
 
     setSyncLoading(true)
     setError(null)
     try {
-      const response = await attendanceApi.syncDoor({
-        entryDeviceId: entryId,
-        exitDeviceId: exitId,
+      const response = await attendanceApi.syncAll({
         start: `${activePeriod.start}T00:00:00`,
         end: `${activePeriod.end}T23:59:59`,
       })
@@ -493,27 +483,7 @@ export default function AttendancePage() {
               <h2 className="text-lg font-semibold text-slate-900">{t('attendance.doorSync')}</h2>
               <p className="mt-1 text-sm text-slate-500">{t('attendance.doorSyncDesc')}</p>
 
-              <div className="mt-4 space-y-4">
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.entryDeviceId')}</label>
-                  <input
-                    type="number"
-                    value={entryDeviceId}
-                    onChange={(event) => setEntryDeviceId(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={t('attendance.sampleDevice1')}
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-xs font-medium text-slate-500">{t('attendance.exitDeviceId')}</label>
-                  <input
-                    type="number"
-                    value={exitDeviceId}
-                    onChange={(event) => setExitDeviceId(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder={t('attendance.sampleDevice2')}
-                  />
-                </div>
+              <div className="mt-4">
                 <button
                   type="button"
                   onClick={syncDoorAttendance}

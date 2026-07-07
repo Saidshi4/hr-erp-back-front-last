@@ -17,6 +17,8 @@ export const attendanceApi = {
   log: (data: object) => client.post('/attendance/log', data),
   syncDoor: (params: { entryDeviceId: number; exitDeviceId: number; start: string; end: string; limit?: number }) =>
     client.post('/attendance/sync-door', null, { params }),
+  syncAll: (params: { start: string; end: string; limit?: number }) =>
+    client.post('/attendance/sync', null, { params }),
   getReport: (params: AttendanceReportFilters & { page?: number; size?: number }) =>
     client.get('/attendance/report', { params }),
   exportExcel: async (params: AttendanceReportFilters) =>

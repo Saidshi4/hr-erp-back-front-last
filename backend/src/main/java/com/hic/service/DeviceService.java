@@ -100,9 +100,14 @@ public class DeviceService {
         if (tenantId != null && device.getTenantId() != null && !tenantId.equals(device.getTenantId())) {
             throw new BadRequestException("Device does not belong to your tenant");
         }
+        String role = dto.getRole() != null ? dto.getRole().trim().toUpperCase() : null;
+        if (role != null && !"ENTRY".equals(role) && !"EXIT".equals(role)) {
+            throw new BadRequestException("Role must be ENTRY or EXIT");
+        }
+
         if (dto.getDoorId() == null) {
             device.setDoorId(null);
-            device.setDoorRole(null);
+            device.setDoorRole(role);
             deviceConfigRepository.save(device);
             return toDTO(device);
         }
@@ -113,10 +118,6 @@ public class DeviceService {
         }
         if (device.getBranchId() != null && !device.getBranchId().equals(door.getBranchId())) {
             throw new BadRequestException("Device branch does not match door branch");
-        }
-        String role = dto.getRole() != null ? dto.getRole().trim().toUpperCase() : null;
-        if (!"ENTRY".equals(role) && !"EXIT".equals(role)) {
-            throw new BadRequestException("Role must be ENTRY or EXIT");
         }
         // Check if another device already has this role on the same door
         deviceConfigRepository.findByDoorIdAndDoorRole(dto.getDoorId(), role)

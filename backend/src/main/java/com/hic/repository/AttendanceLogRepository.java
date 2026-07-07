@@ -17,6 +17,9 @@ public interface AttendanceLogRepository extends JpaRepository<AttendanceLog, Lo
                                                                           LocalDateTime start, LocalDateTime end);
     long countByTenantIdAndCheckInTimeBetween(Long tenantId, LocalDateTime start, LocalDateTime end);
 
+    java.util.Optional<AttendanceLog> findByTenantIdAndEmployeeIdAndCheckInTime(Long tenantId, Long employeeId, LocalDateTime checkInTime);
+    java.util.Optional<AttendanceLog> findByEmployeeIdAndCheckInTime(Long employeeId, LocalDateTime checkInTime);
+
     // Ordered queries for recent logs
     List<AttendanceLog> findByTenantIdOrderByCheckInTimeDesc(Long tenantId, Pageable pageable);
     List<AttendanceLog> findAllByOrderByCheckInTimeDesc(Pageable pageable);

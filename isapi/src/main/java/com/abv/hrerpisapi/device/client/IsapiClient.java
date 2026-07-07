@@ -186,6 +186,13 @@ public class IsapiClient {
         return result;
     }
 
+    public AcsEventSearchResult searchAcsEventsOnDemand(DeviceEntity device, String requestBody)
+            throws IOException, InterruptedException {
+        HttpResponse<String> response = clientFor(device)
+                .post(ACS_EVENT_ENDPOINT, "application/json", requestBody);
+        return new AcsEventSearchResult(response.statusCode(), response.body());
+    }
+
     // -----------------------------------------------------------------------
     // DS-K1T series device user management
     // -----------------------------------------------------------------------
@@ -775,5 +782,8 @@ public class IsapiClient {
         public AcsEventHistoryNotSupportedException(Long deviceId) {
             super("AcsEvent history is not supported for device " + deviceId);
         }
+    }
+
+    public record AcsEventSearchResult(int statusCode, String body) {
     }
 }

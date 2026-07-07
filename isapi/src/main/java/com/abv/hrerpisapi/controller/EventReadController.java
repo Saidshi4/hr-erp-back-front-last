@@ -3,14 +3,22 @@ package com.abv.hrerpisapi.controller;
 import com.abv.hrerpisapi.dao.entity.AcsFailedAttemptEntity;
 import com.abv.hrerpisapi.dao.entity.AcsRawEventEntity;
 import com.abv.hrerpisapi.dao.entity.AttendancePunchEntity;
+import com.abv.hrerpisapi.dao.entity.DeviceEntity;
 import com.abv.hrerpisapi.dao.repository.AcsFailedAttemptRepository;
 import com.abv.hrerpisapi.dao.repository.AcsRawEventRepository;
 import com.abv.hrerpisapi.dao.repository.AttendancePunchRepository;
+import com.abv.hrerpisapi.dao.repository.DeviceRepository;
+import com.abv.hrerpisapi.device.client.IsapiClient;
+import com.abv.hrerpisapi.model.request.device.AcsEventSearchRequest;
+import com.abv.hrerpisapi.model.response.device.AcsEventSearchResponse;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +38,8 @@ public class EventReadController {
     private final AttendancePunchRepository attendancePunchRepository;
     private final AcsRawEventRepository acsRawEventRepository;
     private final AcsFailedAttemptRepository acsFailedAttemptRepository;
+    private final DeviceRepository deviceRepository;
+    private final IsapiClient isapiClient;
 
     @GetMapping("/punches")
     public List<PunchResponse> getPunches(
@@ -136,6 +146,34 @@ public class EventReadController {
                 .toList();
     }
 
+    @PostMapping("/acs-events/search")
+    public AcsEventSearchResponse searchAcsEvents(
+            @RequestParam Long deviceId,
+            @RequestBody AcsEventSearchBody requestBody
+    ) {
+        DeviceEntity device = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
+
+        AcsEventSearchRequest.AcsEventCondRequest cond = requestBody != null ? requestBody.acsEventCond() : null;
+        if (cond == null || cond.startTime() == null || cond.endTime() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AcsEventCond.startTime and endTime are required");
+        }
+
+        try {
+            String requestJson = AcsEventSearchRequest.fromCondition(cond);
+            IsapiClient.AcsEventSearchResult result = isapiClient.searchAcsEventsOnDemand(device, requestJson);
+            if (result.statusCode() != 200) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Device AcsEvent search failed with status " + result.statusCode());
+            }
+            return AcsEventSearchResponse.fromJson(result.body());
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to search ACS events", e);
+        }
+    }
+
     private static int validateLimit(Integer limit) {
         int resolved = limit == null ? DEFAULT_LIMIT : limit;
         if (resolved < 1 || resolved > MAX_LIMIT) {
@@ -191,6 +229,11 @@ public class EventReadController {
             Integer subEventType,
             OffsetDateTime eventTime,
             Long rawEventId
+    ) {
+    }
+
+    public record AcsEventSearchBody(
+            @JsonProperty("AcsEventCond") AcsEventSearchRequest.AcsEventCondRequest acsEventCond
     ) {
     }
 }

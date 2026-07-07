@@ -151,6 +151,22 @@ public class EventReadController {
             @RequestParam Long deviceId,
             @RequestBody AcsEventSearchBody requestBody
     ) {
+        return doSearchAcsEvents(deviceId, requestBody, false);
+    }
+
+    @PostMapping("/acs-events/image-search")
+    public AcsEventSearchResponse searchAcsEventImages(
+            @RequestParam Long deviceId,
+            @RequestBody AcsEventSearchBody requestBody
+    ) {
+        return doSearchAcsEvents(deviceId, requestBody, true);
+    }
+
+    private AcsEventSearchResponse doSearchAcsEvents(
+            Long deviceId,
+            AcsEventSearchBody requestBody,
+            boolean forcePicEnable
+    ) {
         DeviceEntity device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
 
@@ -160,7 +176,19 @@ public class EventReadController {
         }
 
         try {
-            String requestJson = AcsEventSearchRequest.fromCondition(cond);
+            AcsEventSearchRequest.AcsEventCondRequest requestCondition = forcePicEnable
+                    ? new AcsEventSearchRequest.AcsEventCondRequest(
+                            cond.searchID(),
+                            cond.searchResultPosition(),
+                            cond.maxResults(),
+                            cond.major(),
+                            cond.minor(),
+                            cond.startTime(),
+                            cond.endTime(),
+                            true
+                    )
+                    : cond;
+            String requestJson = AcsEventSearchRequest.fromCondition(requestCondition);
             IsapiClient.AcsEventSearchResult result = isapiClient.searchAcsEventsOnDemand(device, requestJson);
             if (result.statusCode() != 200) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,

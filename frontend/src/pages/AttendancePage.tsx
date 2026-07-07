@@ -111,8 +111,7 @@ export default function AttendancePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const [syncResult, setSyncResult] = useState<any | null>(null)
-  const [syncLoading, setSyncLoading] = useState(false)
+
 
   useEffect(() => {
     if (periodType === 'THIS_MONTH') {
@@ -220,35 +219,7 @@ export default function AttendancePage() {
     }
   }, [activePeriod, selectedEmployee])
 
-  const syncDoorAttendance = async () => {
-    if (!activePeriod?.start || !activePeriod?.end) {
-      setError('Please choose a valid period before syncing devices.')
-      return
-    }
 
-    setSyncLoading(true)
-    setError(null)
-    try {
-      const response = await attendanceApi.syncAll({
-        start: `${activePeriod.start}T00:00:00`,
-        end: `${activePeriod.end}T23:59:59`,
-      })
-      setSyncResult(response.data?.data ?? null)
-
-      if (selectedEmployee) {
-        const [attendanceResponse, summaryResponse] = await Promise.all([
-          attendanceApi.getEmployeeAttendance(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
-          attendanceApi.getEmployeeAttendanceSummary(selectedEmployee.employeePk, activePeriod.start, activePeriod.end),
-        ])
-        setAttendanceRows(attendanceResponse.data?.data ?? [])
-        setSummary(summaryResponse.data?.data ?? defaultSummary)
-      }
-    } catch (syncError: unknown) {
-      setError((syncError as Error).message || t('attendance.syncFailed'))
-    } finally {
-      setSyncLoading(false)
-    }
-  }
 
   const summaryCards = [
     { label: t('attendance.totalWorkingDays'), value: summary.workingDays, accent: 'text-slate-900' },
@@ -400,21 +371,7 @@ export default function AttendancePage() {
               )}
             </div>
 
-            {syncResult && (
-              <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-                {t('attendance.syncSummary', {
-                  totalPunches: syncResult.totalPunches,
-                  matchedSessions: syncResult.matchedSessions,
-                  createdLogs: syncResult.createdLogs,
-                  recalculatedDays: syncResult.recalculatedDays,
-                })}
-                {syncResult.skippedEmployees > 0 ? ` · ${t('attendance.skippedEmployees', { count: syncResult.skippedEmployees })}` : ''}
-                {(syncResult.skippedPunches ?? 0) > 0 ? ` · ${t('attendance.skippedPunches', { count: syncResult.skippedPunches ?? 0 })}` : ''}
-                {(syncResult.unresolvedEmployeeNos?.length ?? 0) > 0
-                  ? ` · ${t('attendance.unresolvedEmployeeNo', { value: syncResult.unresolvedEmployeeNos?.slice(0, 10).join(', ') ?? '' })}`
-                  : ''}
-              </div>
-            )}
+
 
             {error && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -479,22 +436,6 @@ export default function AttendancePage() {
           </div>
 
           <div className="space-y-6">
-            <div className="rounded-2xl bg-white p-5 shadow-sm">
-              <h2 className="text-lg font-semibold text-slate-900">{t('attendance.doorSync')}</h2>
-              <p className="mt-1 text-sm text-slate-500">{t('attendance.doorSyncDesc')}</p>
-
-              <div className="mt-4">
-                <button
-                  type="button"
-                  onClick={syncDoorAttendance}
-                  disabled={syncLoading}
-                  className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {syncLoading ? t('attendance.syncing') : t('attendance.syncDoorAttendance')}
-                </button>
-              </div>
-            </div>
-
             <div className="rounded-2xl bg-white p-5 shadow-sm">
               <h2 className="text-lg font-semibold text-slate-900">{t('attendance.overview')}</h2>
               <div className="mt-4 space-y-3 text-sm text-slate-600">

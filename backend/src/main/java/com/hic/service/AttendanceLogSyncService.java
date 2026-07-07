@@ -44,12 +44,12 @@ public class AttendanceLogSyncService {
             String employeeNo,
             Integer limit
     ) {
-        String url = UriComponentsBuilder
+        java.net.URI url = UriComponentsBuilder
                 .fromHttpUrl(basePunchesUrl())
                 .queryParamIfPresent("deviceId", Optional.ofNullable(deviceId))
                 .queryParamIfPresent("employeeNo", Optional.ofNullable(normalizeToNull(employeeNo)))
                 .queryParamIfPresent("limit", Optional.ofNullable(limit))
-                .toUriString();
+                .build().toUri();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
         return mapPunches(punches);
@@ -63,15 +63,15 @@ public class AttendanceLogSyncService {
             Integer page,
             Integer size
     ) {
-        String url = UriComponentsBuilder
+        java.net.URI url = UriComponentsBuilder
                 .fromHttpUrl(basePunchesUrl())
                 .queryParamIfPresent("deviceId", Optional.ofNullable(deviceId))
                 .queryParamIfPresent("employeeNo", Optional.ofNullable(normalizeToNull(employeeNo)))
-                .queryParamIfPresent("start", Optional.ofNullable(start))
-                .queryParamIfPresent("end", Optional.ofNullable(end))
+                .queryParam("start", start != null ? start.toInstant().toString() : null)
+                .queryParam("end", end != null ? end.toInstant().toString() : null)
                 .queryParamIfPresent("page", Optional.ofNullable(page))
                 .queryParamIfPresent("size", Optional.ofNullable(size))
-                .toUriString();
+                .build().toUri();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
         return mapPunches(punches);
@@ -138,7 +138,7 @@ public class AttendanceLogSyncService {
         return value.trim();
     }
 
-    private List<IsapiPunchResponse> exchangeForList(String url) {
+    private List<IsapiPunchResponse> exchangeForList(java.net.URI url) {
         try {
             ResponseEntity<List<IsapiPunchResponse>> response = restTemplate.exchange(
                     url,

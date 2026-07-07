@@ -32,7 +32,7 @@ public class AttendanceSyncScheduler {
             try {
                 TenantContext.setTenantId(tenant.getId());
                 log.debug("Syncing attendance devices for tenant: {} ({})", tenant.getCompanyName(), tenant.getId());
-                doorAttendanceSyncService.syncAllDevices(start, end, 1000);
+                doorAttendanceSyncService.syncAllDevices(start, end, 500);
             } catch (Exception e) {
                 log.error("Failed to sync attendance for tenant id: " + tenant.getId(), e);
             } finally {

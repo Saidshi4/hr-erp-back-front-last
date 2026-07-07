@@ -46,8 +46,8 @@ public class EventReadController {
             @RequestParam(required = false) Long deviceId,
             @RequestParam(required = false) String employeeNo,
             @RequestParam(required = false) Integer limit,
-            @RequestParam(required = false) OffsetDateTime start,
-            @RequestParam(required = false) OffsetDateTime end,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) OffsetDateTime start,
+            @RequestParam(required = false) @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME) OffsetDateTime end,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {

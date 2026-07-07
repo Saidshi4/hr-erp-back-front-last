@@ -15,8 +15,7 @@ export const attendanceApi = {
   getEmployeeAttendanceSummary: (employeePk: number, start: string, end: string) =>
     client.get<ApiResponse<EmployeeAttendanceSummary>>(`/attendance/employee/${employeePk}/summary?start=${start}&end=${end}`),
   log: (data: object) => client.post('/attendance/log', data),
-  syncDoor: (params: { entryDeviceId: number; exitDeviceId: number; start: string; end: string; limit?: number }) =>
-    client.post('/attendance/sync-door', null, { params }),
+
   syncAll: (params: { start: string; end: string; limit?: number }) =>
     client.post('/attendance/sync', null, { params }),
   getReport: (params: AttendanceReportFilters & { page?: number; size?: number }) =>

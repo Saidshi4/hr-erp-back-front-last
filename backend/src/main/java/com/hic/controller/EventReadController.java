@@ -1,5 +1,6 @@
 package com.hic.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.hic.service.IsapiProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +35,7 @@ public class EventReadController {
     }
 
     @PostMapping("/acs-events/search")
-    public ResponseEntity<String> searchAcsEvents(@RequestBody(required = false) String body, HttpServletRequest request) {
-        return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/search", request, body);
+    public ResponseEntity<String> searchAcsEvents(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
+        return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/search", request, body == null ? null : body.toString());
     }
 }

@@ -20,6 +20,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,5 +52,22 @@ class EventReadControllerTest {
                 .andExpect(content().json("[{\"id\":12}]"));
 
         verify(isapiProxyService).forward(eq(HttpMethod.GET), eq("/api/punches"), any(HttpServletRequest.class), isNull());
+    }
+
+    @Test
+    void searchAcsEvents_proxiesPostBodyToIsapi() throws Exception {
+        String body = "{\"AcsEventCond\":{\"searchID\":\"1\",\"maxResults\":10}}";
+        String upstreamResponse = "{\"AcsEvent\":{\"InfoList\":[{\"serialNo\":9,\"pictureURL\":\"/pic.jpg\"}]}}";
+
+        when(isapiProxyService.forward(eq(HttpMethod.POST), eq("/api/acs-events/search"), any(HttpServletRequest.class), eq(body)))
+                .thenReturn(ResponseEntity.ok(upstreamResponse));
+
+        mockMvc.perform(post("/api/acs-events/search")
+                        .contentType("application/json")
+                        .content(body))
+                .andExpect(status().isOk())
+                .andExpect(content().json(upstreamResponse));
+
+        verify(isapiProxyService).forward(eq(HttpMethod.POST), eq("/api/acs-events/search"), any(HttpServletRequest.class), eq(body));
     }
 }

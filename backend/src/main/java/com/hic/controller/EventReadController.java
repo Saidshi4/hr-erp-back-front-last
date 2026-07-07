@@ -1,11 +1,14 @@
 package com.hic.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.hic.service.IsapiProxyService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,5 +32,10 @@ public class EventReadController {
     @GetMapping("/failed-attempts")
     public ResponseEntity<String> getFailedAttempts(HttpServletRequest request) {
         return isapiProxyService.forward(HttpMethod.GET, "/api/failed-attempts", request, null);
+    }
+
+    @PostMapping("/acs-events/search")
+    public ResponseEntity<String> searchAcsEvents(@RequestBody(required = false) JsonNode body, HttpServletRequest request) {
+        return isapiProxyService.forward(HttpMethod.POST, "/api/acs-events/search", request, body == null ? null : body.toString());
     }
 }

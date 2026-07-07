@@ -17,9 +17,9 @@ interface AttendanceReportState {
 }
 
 const defaultFilters: AttendanceReportFilters = {
-  start: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  start: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
   end: new Date().toISOString().split('T')[0],
-  shiftType: 'FIRST_ENTRY',
+  shiftType: '',   // empty = no filter, show all shifts
 }
 
 export const useAttendanceReportStore = create<AttendanceReportState>((set, get) => ({

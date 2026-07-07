@@ -276,8 +276,23 @@ export default function EmployeesPage() {
           setProfileImageSrc(null)
         }
         if (details.faceImageUrl) {
-          const token = localStorage.getItem('token')
-          const imageResponse = await fetch(details.faceImageUrl, {
+          // Read JWT token from Zustand persisted storage (same as axios client.ts)
+          let token: string | null = null
+          try {
+            const authStorage = localStorage.getItem('auth-storage')
+            if (authStorage) {
+              const { state } = JSON.parse(authStorage)
+              token = state?.token ?? null
+            }
+          } catch {
+            // ignore parse errors
+          }
+          // Prepend API base URL so the fetch hits the correct backend host
+          const apiBase = (import.meta.env.VITE_API_URL as string) || ''
+          const imageUrl = details.faceImageUrl.startsWith('http')
+            ? details.faceImageUrl
+            : `${apiBase}${details.faceImageUrl}`
+          const imageResponse = await fetch(imageUrl, {
             headers: token ? { Authorization: 'Bearer ' + token } : {},
           })
           if (imageResponse.ok) {

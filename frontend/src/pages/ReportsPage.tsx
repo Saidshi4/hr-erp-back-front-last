@@ -9,6 +9,7 @@ import { t } from '../i18n/index.ts'
 import { Position, Department } from '../types'
 
 const SHIFT_TABS = [
+  { label: 'Hamısı növbə', value: '' },
   { label: 'Sərbəst növbə', value: 'FIRST_ENTRY' },
   { label: 'Standart növbə', value: 'STANDARD_SHIFT' },
   { label: 'Dəqiq vaxt növbəsi', value: 'LATE_SHIFT' },
@@ -147,7 +148,7 @@ export default function ReportsPage() {
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.position ?? '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.area ?? '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.date}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit' }) : '-'}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.checkInTime ? new Date(row.checkInTime + 'Z').toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' }) : '-'}</td>
                 </tr>
               ))}
             </tbody>

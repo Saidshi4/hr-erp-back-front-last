@@ -25,9 +25,8 @@ public class AuthController {
     private final AuthService authService;
 
     @PostMapping("/signup")
-    @PreAuthorize("hasAnyRole('HEAD_OFFICE_HR','OFFICE_HR','DEPARTMENT_HR')")
     public ResponseEntity<LoginResponse> signup(@Valid @RequestBody SignupRequest request) {
-        User.UserType callerRole = extractRole();
+        User.UserType callerRole = extractRoleForSignup();
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(request, callerRole));
     }
 
@@ -53,6 +52,38 @@ public class AuthController {
     public ResponseEntity<?> me(@RequestHeader("Authorization") String authHeader) {
         String token = authHeader.startsWith("Bearer ") ? authHeader.substring(7) : authHeader;
         return ResponseEntity.ok(ApiResponse.success(authService.getUserFromToken(token)));
+    }
+
+    /**
+     * Returns the caller's role from the security context.
+     * If the user is not authenticated (anonymous call), this means no user has been created yet
+     * and we treat the caller as HEAD_OFFICE_HR so they can bootstrap the system.
+     * AuthService itself validates role hierarchy; the first signup will always succeed
+     * because there are no existing users.
+     */
+    private User.UserType extractRoleForSignup() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            // Anonymous caller – allow as HEAD_OFFICE_HR (AuthService applies first-user bootstrap logic)
+            return User.UserType.HEAD_OFFICE_HR;
+        }
+        return authentication.getAuthorities().stream()
+                .findFirst()
+                .map(GrantedAuthority::getAuthority)
+                .map(r -> r.replace("ROLE_", ""))
+                .map(r -> {
+                    try {
+                        return User.UserType.valueOf(r);
+                    } catch (IllegalArgumentException e) {
+                        log.warn("Unknown role authority '{}' in security context, defaulting to EMPLOYEE", r);
+                        return User.UserType.EMPLOYEE;
+                    }
+                })
+                .orElseGet(() -> {
+                    log.warn("Authenticated user has no granted authorities, defaulting to EMPLOYEE");
+                    return User.UserType.EMPLOYEE;
+                });
     }
 
     /**

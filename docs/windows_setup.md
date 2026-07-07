@@ -52,13 +52,13 @@ Windows kompüteri lokal şəbəkədə (məsələn, ofis daxilində) digər ciha
 * Modemdən və ya Windows şəbəkə sazlamalarından kompüterə sabit lokal IP təyin edin (məsələn: `192.168.0.186`).
 * Bu IP-ni layihənin ana qovluğundakı `.env` faylında yeniləyin:
   ```env
-  COMPUTER_IP=192.168.0.186
+  COMPUTER_IP=192.168.1.102
   ```
 
 ### CORS Sazlaması:
 * Backend container-inin digər cihazlardan sorğu qəbul edə bilməsi üçün `CORS_ALLOWED_ORIGINS` dəyərinə həm `localhost`, həm də kompüterin sabit IP-si əlavə edilib:
   ```yaml
-  CORS_ALLOWED_ORIGINS: http://localhost:3000,http://192.168.0.186:3000
+  CORS_ALLOWED_ORIGINS: http://localhost:3000,http://192.168.1.102:3000
   ```
 
 ### Windows Firewall (Güvenlik Duvarı) Sazlamaları:

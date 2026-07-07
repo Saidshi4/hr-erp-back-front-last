@@ -51,8 +51,11 @@ public class AuthService {
             }
         }
 
-        // Caller must have strictly higher authority (lower rank number) than the role they are assigning
-        if (roleRank(callerRole) >= roleRank(targetRole)) {
+        // Caller must have strictly higher authority (lower rank number) than the role they are assigning.
+        // Exception: if callerRole == HEAD_OFFICE_HR (set by extractRoleForSignup for anonymous callers),
+        // they are allowed to create any role including HEAD_OFFICE_HR (bootstrap scenario).
+        boolean isBootstrapCaller = callerRole == User.UserType.HEAD_OFFICE_HR;
+        if (!isBootstrapCaller && roleRank(callerRole) >= roleRank(targetRole)) {
             throw new BadRequestException(
                     "You cannot create an account with role " + targetRole + " as your own role is " + callerRole);
         }

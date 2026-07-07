@@ -470,8 +470,8 @@ export default function AttendancePage() {
                       {attendanceRows.map((row) => (
                         <tr key={row.date}>
                           <td className="px-5 py-4 font-medium text-slate-900">{new Date(row.date).toLocaleDateString()}</td>
-                          <td className="px-5 py-4">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
-                          <td className="px-5 py-4">{row.checkOutTime ? new Date(row.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                          <td className="px-5 py-4">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' }) : '—'}</td>
+                          <td className="px-5 py-4">{row.checkOutTime ? new Date(row.checkOutTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' }) : '—'}</td>
                           <td className="px-5 py-4">{row.hoursWorked?.toFixed(2) ?? '0.00'}</td>
                           <td className="px-5 py-4">
                             <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>

@@ -2,11 +2,11 @@ package com.hic.service;
 
 import com.hic.dto.AttendanceReportRowDTO;
 import com.hic.dto.PaginatedResponse;
-import com.hic.model.AttendanceRecord;
+import com.hic.model.AttendanceLog;
 import com.hic.model.Department;
 import com.hic.model.Employee;
 import com.hic.model.Position;
-import com.hic.repository.AttendanceRecordRepository;
+import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
@@ -21,19 +21,17 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class AttendanceReportService {
-    private final AttendanceRecordRepository attendanceRecordRepository;
+
+    private final AttendanceLogRepository attendanceLogRepository;
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
@@ -85,7 +83,7 @@ public class AttendanceReportService {
             int rowNum = 1;
             for (AttendanceReportRowDTO row : rows) {
                 Row excelRow = sheet.createRow(rowNum++);
-                excelRow.createCell(0).setCellValue(row.getEmployeeId());
+                excelRow.createCell(0).setCellValue(safe(row.getEmployeeId()));
                 excelRow.createCell(1).setCellValue(safe(row.getFullName()));
                 excelRow.createCell(2).setCellValue(safe(row.getFin()));
                 excelRow.createCell(3).setCellValue(safe(row.getDepartment()));
@@ -115,23 +113,45 @@ public class AttendanceReportService {
             String area
     ) {
         Long tenantId = TenantContext.getTenantId();
-        List<AttendanceRecord> records = tenantId != null
-                ? attendanceRecordRepository.findByTenantIdAndWorkDateBetween(tenantId, start, end)
-                : attendanceRecordRepository.findByWorkDateBetween(start, end);
 
-        Set<Long> employeeIds = records.stream().map(AttendanceRecord::getEmployeeId).collect(Collectors.toSet());
+        // Query attendance_logs for the date range (using checkInTime)
+        LocalDateTime startDt = start.atStartOfDay();
+        LocalDateTime endDt = end.atTime(LocalTime.MAX);
+
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(tenantId, startDt, endDt)
+                : attendanceLogRepository.findByCheckInTimeBetween(startDt, endDt);
+
+        // Build employee lookup
+        Set<Long> employeeIds = logs.stream()
+                .map(AttendanceLog::getEmployeeId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
         Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
-                .collect(Collectors.toMap(Employee::getId, employee -> employee));
+                .collect(Collectors.toMap(Employee::getId, e -> e));
 
+        // Build department & position lookups
         Set<Long> departmentIds = employeeMap.values().stream()
-                .map(Employee::getDepartmentId).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+                .map(Employee::getDepartmentId).filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> positionIds = employeeMap.values().stream()
-                .map(Employee::getPositionId).filter(java.util.Objects::nonNull).collect(Collectors.toSet());
+                .map(Employee::getPositionId).filter(Objects::nonNull).collect(Collectors.toSet());
 
         Map<Long, String> departmentNames = departmentRepository.findAllById(departmentIds).stream()
                 .collect(Collectors.toMap(Department::getId, Department::getDepartmentName));
         Map<Long, String> positionNames = positionRepository.findAllById(positionIds).stream()
                 .collect(Collectors.toMap(Position::getId, Position::getPositionName));
+
+        // Group logs by (employeeId, date) and keep the earliest check-in per day
+        // so each employee appears once per working day
+        Map<String, AttendanceLog> earliest = new LinkedHashMap<>();
+        for (AttendanceLog log : logs) {
+            if (log.getEmployeeId() == null || log.getCheckInTime() == null) continue;
+            LocalDate logDate = log.getCheckInTime().toLocalDate();
+            String key = log.getEmployeeId() + "_" + logDate;
+            earliest.merge(key, log, (existing, candidate) ->
+                    candidate.getCheckInTime().isBefore(existing.getCheckInTime()) ? candidate : existing);
+        }
 
         Predicate<AttendanceReportRowDTO> predicate = dto ->
                 contains(dto.getEmployeeId(), employeeCode) &&
@@ -140,14 +160,13 @@ public class AttendanceReportService {
                         contains(dto.getPosition(), position) &&
                         contains(dto.getDepartment(), department) &&
                         contains(dto.getArea(), area) &&
-                        contains(dto.getShiftType(), shiftType);
+                        matchesShiftType(dto.getShiftType(), shiftType);
 
         List<AttendanceReportRowDTO> rows = new ArrayList<>();
-        for (AttendanceRecord record : records) {
-            Employee employee = employeeMap.get(record.getEmployeeId());
-            if (employee == null) {
-                continue;
-            }
+        for (AttendanceLog log : earliest.values()) {
+            Employee employee = employeeMap.get(log.getEmployeeId());
+            if (employee == null) continue;
+
             AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
             dto.setEmployeePk(employee.getId());
             dto.setEmployeeId(employee.getEmployeeId());
@@ -156,11 +175,13 @@ public class AttendanceReportService {
             dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
             dto.setPosition(positionNames.get(employee.getPositionId()));
             dto.setArea(employee.getArea());
-            dto.setDate(record.getWorkDate());
-            dto.setCheckInTime(record.getEntryTime());
-            dto.setShiftType(record.getShiftType());
+            dto.setDate(log.getCheckInTime().toLocalDate());
+            dto.setCheckInTime(log.getCheckInTime());
+            // Use the employee's assigned shift type
+            dto.setShiftType(employee.getShiftType());
             faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
                     .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
+
             if (predicate.test(dto)) {
                 rows.add(dto);
             }
@@ -170,6 +191,23 @@ public class AttendanceReportService {
                 .sorted(Comparator.comparing(AttendanceReportRowDTO::getDate, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(AttendanceReportRowDTO::getCheckInTime, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+    }
+
+    /**
+     * If no shiftType filter is provided, all records match.
+     * If a filter is given, match employees whose shiftType contains the filter value (case-insensitive).
+     */
+    private boolean matchesShiftType(String employeeShiftType, String filter) {
+        if (filter == null || filter.isBlank()) {
+            return true;
+        }
+        if (employeeShiftType == null || employeeShiftType.isBlank()) {
+            // Employee has no shift type set — include them when no specific filter is chosen,
+            // but exclude when a specific shift is selected.
+            return false;
+        }
+        return employeeShiftType.equalsIgnoreCase(filter) ||
+                employeeShiftType.toUpperCase(Locale.ROOT).contains(filter.toUpperCase(Locale.ROOT));
     }
 
     private boolean contains(String value, String filter) {

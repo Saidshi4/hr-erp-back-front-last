@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi.ts'
 import { t } from '../i18n/index.ts'
 
@@ -27,6 +27,7 @@ function AuthBlobs() {
 }
 
 const HR_ROLES = [
+  { value: 'HEAD_OFFICE_HR', label: 'Baş Ofis HR (Admin)' },
   { value: 'OFFICE_HR', label: 'Ofis HR' },
   { value: 'DEPARTMENT_HR', label: 'Departament HR' },
   { value: 'EMPLOYEE', label: 'Əməkdaş' },
@@ -38,7 +39,7 @@ export default function SignupPage() {
   const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
-  const [role, setRole] = useState('EMPLOYEE')
+  const [role, setRole] = useState('HEAD_OFFICE_HR')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -96,13 +97,16 @@ export default function SignupPage() {
             </div>
             <h2 className="text-xl font-extrabold mb-2" style={{ color: '#1e1b4b' }}>{t('signup.success')}</h2>
             <p className="text-gray-500 text-sm mb-6">{t('signup.successNote')}</p>
-            <button
-              onClick={() => navigate('/employees')}
-              className="px-6 py-3 rounded-xl text-white font-semibold text-sm tracking-wide transition-all hover:shadow-lg active:scale-95"
+            <Link
+              to="/login"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold text-sm tracking-wide transition-all hover:shadow-lg active:scale-95"
               style={{ background: BUTTON_GRADIENT }}
             >
-              {t('signup.backToList')}
-            </button>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              </svg>
+              Daxil ol
+            </Link>
           </div>
         </div>
       </div>
@@ -119,8 +123,8 @@ export default function SignupPage() {
 
         <div className="p-8 pt-7">
           {/* Back link */}
-          <button
-            onClick={() => navigate(-1)}
+          <Link
+            to="/login"
             className="flex items-center gap-1.5 text-xs font-medium mb-6 transition-colors"
             style={{ color: '#7c3aed' }}
           >
@@ -128,7 +132,7 @@ export default function SignupPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             {t('signup.back')}
-          </button>
+          </Link>
 
           {/* Brand */}
           <div className="text-center mb-7">

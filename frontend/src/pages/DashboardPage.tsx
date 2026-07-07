@@ -234,7 +234,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">
-                      {eventTime ? new Date(eventTime).toLocaleString('az-AZ') : '—'}
+                      {eventTime ? new Date(String(eventTime).endsWith('Z') ? eventTime : eventTime + 'Z').toLocaleString('az-AZ', { timeZone: 'Asia/Baku' }) : '—'}
                     </p>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"

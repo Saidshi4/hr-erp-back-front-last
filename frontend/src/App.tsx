@@ -49,8 +49,8 @@ export default function App() {
       <Suspense fallback={<div className="flex items-center justify-center h-screen">{t('app.loading')}</div>}>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<HrRoute><SignupPage /></HrRoute>} />
-          <Route path="/register" element={<HrRoute><SignupPage /></HrRoute>} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/register" element={<SignupPage />} />
           <Route path="/" element={<ProtectedRoute><AppLayout><DashboardPage /></AppLayout></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><AppLayout><EmployeesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/branches" element={<ProtectedRoute><AppLayout><BranchesPage /></AppLayout></ProtectedRoute>} />

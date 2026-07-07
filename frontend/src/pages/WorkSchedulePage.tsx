@@ -73,6 +73,13 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 }
 
 // ─── Tab 1: Timetables ────────────────────────────────────────────────────────
+const SHIFT_TYPE_LABELS: Record<string, string> = {
+  MORNING: 'Səhər növbəsi',
+  STANDARD: 'Standart növbə',
+  NIGHT: 'Gecə növbəsi',
+  FLEXIBLE: 'Çevik növbə',
+}
+
 const defaultTimetable = (): Partial<Timetable> => ({
   name: '',
   description: '',
@@ -81,7 +88,7 @@ const defaultTimetable = (): Partial<Timetable> => ({
   breakMinutes: 0,
   allowedLateMinutes: 10,
   allowedEarlyLeaveMinutes: 5,
-  shiftType: 'STANDARD',
+  shiftType: '',
   crossesMidnight: false,
 })
 
@@ -98,6 +105,7 @@ function TimetableModal({ initial, onSave, onClose }: {
 
   const handleSave = async () => {
     if (!form.name?.trim()) { setError('Növbə adı daxil edilməlidir'); return }
+    if (!form.shiftType) { setError('Növbə növü seçilməlidir'); return }
     if (!form.startTime || !form.endTime) { setError('Başlanğıc və bitmə vaxtı seçilməlidir'); return }
     setSaving(true)
     try { await onSave(form); onClose() }
@@ -120,6 +128,19 @@ function TimetableModal({ initial, onSave, onClose }: {
               placeholder="məs. Səhər növbəsi, Axşam növbəsi..."
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Növbə növü *</label>
+            <select
+              value={form.shiftType ?? ''}
+              onChange={e => set('shiftType', e.target.value)}
+              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="">-- Növbə növü seçin --</option>
+              {SHIFT_TYPES.map(s => (
+                <option key={s} value={s}>{SHIFT_TYPE_LABELS[s] ?? s}</option>
+              ))}
+            </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

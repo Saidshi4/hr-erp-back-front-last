@@ -19,6 +19,7 @@ const HolidayPermissionsPage = lazy(() => import('./pages/HolidayPermissionsPage
 const AnnualLeavePage = lazy(() => import('./pages/AnnualLeavePage.tsx'))
 const DevicesPage = lazy(() => import('./pages/DevicesPage.tsx'))
 const AccessLogsPage = lazy(() => import('./pages/AccessLogsPage.tsx'))
+const DeviceLogSearchPage = lazy(() => import('./pages/DeviceLogSearchPage.tsx'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage.tsx'))
 
 const HR_ROLES = ['HEAD_OFFICE_HR', 'OFFICE_HR', 'DEPARTMENT_HR']
@@ -65,6 +66,7 @@ export default function App() {
           <Route path="/annual-leave" element={<ProtectedRoute><AppLayout><AnnualLeavePage /></AppLayout></ProtectedRoute>} />
           <Route path="/devices" element={<ProtectedRoute><AppLayout><DevicesPage /></AppLayout></ProtectedRoute>} />
           <Route path="/access-logs" element={<ProtectedRoute><AppLayout><AccessLogsPage /></AppLayout></ProtectedRoute>} />
+          <Route path="/device-log-search" element={<ProtectedRoute><AppLayout><DeviceLogSearchPage /></AppLayout></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><AppLayout><SettingsPage /></AppLayout></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

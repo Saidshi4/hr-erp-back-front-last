@@ -13,15 +13,17 @@ class AcsEventSearchDtoTest {
     private static final ObjectMapper OM = new ObjectMapper();
 
     @Test
-    void fromCondition_setsDefaultsAndPicEnable() throws Exception {
+    void fromCondition_setsDefaultsWithoutPicEnable() throws Exception {
         AcsEventSearchRequest.AcsEventCondRequest cond = new AcsEventSearchRequest.AcsEventCondRequest(
                 "",
                 null,
                 null,
-                5,
-                75,
+                0,
+                0,
                 "2026-01-01T00:00:00+04:00",
                 "2026-01-01T01:00:00+04:00",
+                null,
+                null,
                 null
         );
 
@@ -31,7 +33,9 @@ class AcsEventSearchDtoTest {
         assertThat(acsEventCond.path("searchID").asText()).isNotBlank();
         assertThat(acsEventCond.path("searchResultPosition").asInt()).isEqualTo(0);
         assertThat(acsEventCond.path("maxResults").asInt()).isEqualTo(50);
-        assertThat(acsEventCond.path("picEnable").asBoolean()).isTrue();
+        assertThat(acsEventCond.path("major").asInt()).isEqualTo(0);
+        assertThat(acsEventCond.path("minor").asInt()).isEqualTo(0);
+        assertThat(acsEventCond.has("picEnable")).isFalse();
     }
 
     @Test

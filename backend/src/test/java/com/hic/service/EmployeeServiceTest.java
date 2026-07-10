@@ -9,8 +9,10 @@ import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.Department;
 import com.hic.model.Employee;
 import com.hic.model.Employee.EmploymentStatus;
+import com.hic.model.Door;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.DoorRepository;
 import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
@@ -51,6 +53,9 @@ class EmployeeServiceTest {
 
     @Mock
     private DeviceConfigRepository deviceConfigRepository;
+
+    @Mock
+    private DoorRepository doorRepository;
 
     @Mock
     private EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
@@ -270,36 +275,53 @@ class EmployeeServiceTest {
         testEmployee.setBranchId(1L);
         testEmployeeDTO.setBranchId(2L);
 
+        Door branchDoor = new Door();
+        branchDoor.setId(5L);
+        branchDoor.setBranchId(2L);
+
+        com.hic.model.DeviceConfig branchDevice = new com.hic.model.DeviceConfig();
+        branchDevice.setId(20L);
+        branchDevice.setBranchId(2L);
+        branchDevice.setTenantId(testEmployee.getTenantId());
+
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
         when(departmentRepository.existsById(1L)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
         when(employeeDeviceAccessRepository.findByEmployeeId(1L)).thenReturn(List.of());
-        when(deviceConfigRepository.findByBranchId(2L)).thenReturn(List.of());
+        when(doorRepository.findByBranchId(2L)).thenReturn(List.of(branchDoor));
+        when(deviceConfigRepository.findAll()).thenReturn(List.of(branchDevice));
+        when(deviceConfigRepository.findAllById(List.of(20L))).thenReturn(List.of(branchDevice));
         when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
 
         EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
 
         assertThat(result).isNotNull();
-        verify(deviceConfigRepository).findByBranchId(2L);
+        verify(doorRepository).findByBranchId(2L);
+        verify(deviceConfigRepository).findAll();
         verify(employeeDeviceAccessRepository).deleteByEmployeeId(1L);
     }
 
     @Test
-    void update_explicitDeviceIdsFromWrongBranch_throwsBadRequestException() {
+    void update_doorLinkedDeviceFromWrongBranch_throwsBadRequestException() {
         testEmployee.setBranchId(1L);
         testEmployeeDTO.setBranchId(1L);
-        testEmployeeDTO.setDeviceIds(List.of(10L));
+
+        Door branchDoor = new Door();
+        branchDoor.setId(5L);
+        branchDoor.setBranchId(1L);
 
         com.hic.model.DeviceConfig wrongBranchDevice = new com.hic.model.DeviceConfig();
         wrongBranchDevice.setId(10L);
         wrongBranchDevice.setBranchId(2L);
+        wrongBranchDevice.setDoorId(5L);
         wrongBranchDevice.setTenantId(testEmployee.getTenantId());
 
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
         when(departmentRepository.existsById(1L)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
+        when(doorRepository.findByBranchId(1L)).thenReturn(List.of(branchDoor));
+        when(deviceConfigRepository.findAll()).thenReturn(List.of(wrongBranchDevice));
         when(deviceConfigRepository.findAllById(List.of(10L))).thenReturn(List.of(wrongBranchDevice));
-        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
 
         assertThatThrownBy(() -> employeeService.update(1L, testEmployeeDTO))
                 .isInstanceOf(BadRequestException.class)

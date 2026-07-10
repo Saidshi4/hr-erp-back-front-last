@@ -16,6 +16,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -185,11 +187,17 @@ public class EventReadController {
                             cond.minor(),
                             cond.startTime(),
                             cond.endTime(),
-                            true
+                            true,
+                            cond.employeeNoString(),
+                            cond.cardNo()
                     )
                     : cond;
             String requestJson = AcsEventSearchRequest.fromCondition(requestCondition);
             IsapiClient.AcsEventSearchResult result = isapiClient.searchAcsEventsOnDemand(device, requestJson);
+            if (result.statusCode() == 401) {
+                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                        "Authentication failed (401): wrong username or password for device.");
+            }
             if (result.statusCode() != 200) {
                 throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                         "Device AcsEvent search failed with status " + result.statusCode());
@@ -200,6 +208,69 @@ public class EventReadController {
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to search ACS events", e);
         }
+    }
+
+    @GetMapping("/acs-events/picture")
+    public ResponseEntity<byte[]> getAcsEventPicture(
+            @RequestParam Long deviceId,
+            @RequestParam String url
+    ) {
+        return fetchAcsEventPicture(deviceId, url);
+    }
+
+    @PostMapping("/acs-events/picture")
+    public ResponseEntity<byte[]> postAcsEventPicture(
+            @RequestParam Long deviceId,
+            @RequestBody PictureUrlRequest body
+    ) {
+        if (body == null || body.url() == null || body.url().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "url is required");
+        }
+        return fetchAcsEventPicture(deviceId, body.url());
+    }
+
+    private ResponseEntity<byte[]> fetchAcsEventPicture(Long deviceId, String url) {
+        DeviceEntity device = resolveDeviceForPicture(deviceId, url);
+        try {
+            byte[] imageBytes = isapiClient.downloadFaceImage(device, url)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Picture not found on device"));
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(imageBytes);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to fetch picture from device", e);
+        }
+    }
+
+    /** Use the device IP embedded in pictureURL when it differs from the requested deviceId. */
+    private DeviceEntity resolveDeviceForPicture(Long deviceId, String url) {
+        String host = extractHostFromUrl(url);
+        if (host != null) {
+            var byIp = deviceRepository.findByIp(host);
+            if (byIp.isPresent()) {
+                return byIp.get();
+            }
+        }
+        return deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Device not found"));
+    }
+
+    private static String extractHostFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        if (!url.startsWith("http://") && !url.startsWith("https://")) {
+            return null;
+        }
+        int schemeSep = url.indexOf("://");
+        int hostStart = schemeSep + 3;
+        int pathStart = url.indexOf('/', hostStart);
+        if (pathStart < 0) {
+            return url.substring(hostStart);
+        }
+        return url.substring(hostStart, pathStart);
     }
 
     private static int validateLimit(Integer limit) {
@@ -263,5 +334,8 @@ public class EventReadController {
     public record AcsEventSearchBody(
             @JsonProperty("AcsEventCond") AcsEventSearchRequest.AcsEventCondRequest acsEventCond
     ) {
+    }
+
+    public record PictureUrlRequest(String url) {
     }
 }

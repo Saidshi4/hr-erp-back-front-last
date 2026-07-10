@@ -164,10 +164,6 @@ class IsapiEmployeeUserSyncServiceTest {
                         .body("{\"status\":404,\"error\":\"Not Found\"}"));
 
         server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("[]", MediaType.APPLICATION_JSON));
-
-        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
                 .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
@@ -194,7 +190,7 @@ class IsapiEmployeeUserSyncServiceTest {
     }
 
     @Test
-    void syncEmployee_http404FallbackUpdatesExistingDeviceUser() {
+    void syncEmployee_http404FallbackCreatesUserViaIsapiService() {
         ReflectionTestUtils.setField(service, "userInfoRecordBaseUrl", "http://192.168.0.200");
         ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://192.168.0.201:8081");
 
@@ -205,18 +201,11 @@ class IsapiEmployeeUserSyncServiceTest {
                         .body("{\"status\":404,\"error\":\"Not Found\"}"));
 
         server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users"))
-                .andExpect(method(HttpMethod.GET))
-                .andRespond(withSuccess("""
-                        [
-                          {"id": 77, "employeeNo": "EMP202401005"}
-                        ]
-                        """, MediaType.APPLICATION_JSON));
-
-        server.expect(requestTo("http://192.168.0.201:8081/api/devices/1/users/77"))
-                .andExpect(method(HttpMethod.PUT))
+                .andExpect(method(HttpMethod.POST))
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                 .andExpect(content().json("""
                         {
+                          "employeeNo": "EMP202401005",
                           "name": "Aygun Karimova",
                           "userType": "normal",
                           "gender": "female",

@@ -2,6 +2,7 @@ package com.abv.hrerpisapi.device;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -59,16 +60,72 @@ public class DigestHttpClient {
     }
 
     public HttpResponse<byte[]> getBytes(String path) throws IOException, InterruptedException {
-        URI uri = URI.create(baseUrl + path);
+        String normalized = normalizePath(path);
+        IOException lastError = null;
+
+        for (String digestUri : digestUriCandidates(normalized)) {
+            try {
+                HttpResponse<byte[]> response = getBytesWithDigestUri(digestUri);
+                if (response.statusCode() == 200) {
+                    return response;
+                }
+                if (response.statusCode() != 401 && response.statusCode() != 404) {
+                    return response;
+                }
+            } catch (IOException ex) {
+                lastError = ex;
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
+        return getBytesWithDigestUri(normalized);
+    }
+
+    /**
+     * Download bytes from a full device resource URL (e.g. ACS event pictureURL).
+     * Tries several request/digest-uri combinations — Hikvision often requires the
+     * {@code @WEB…} token in the HTTP request while the digest hash uses the bare path.
+     */
+    public HttpResponse<byte[]> getBytesFromResourceUrl(String resourceUrl) throws IOException, InterruptedException {
+        ParsedResource resource = parseResourceUrl(resourceUrl, baseUrl);
+        DigestHttpClient hostClient = new DigestHttpClient(resource.baseUrl(), username, password);
+
+        IOException lastError = null;
+        for (DigestAttempt attempt : pictureDownloadAttempts(resourceUrl, resource.path())) {
+            try {
+                HttpResponse<byte[]> response = hostClient.getBytesWithDigestAttempt(attempt);
+                if (response.statusCode() == 200) {
+                    return response;
+                }
+                if (response.statusCode() != 401 && response.statusCode() != 404) {
+                    return response;
+                }
+            } catch (IOException ex) {
+                lastError = ex;
+            }
+        }
+
+        if (lastError != null) {
+            throw lastError;
+        }
+        return hostClient.getBytes(resource.path());
+    }
+
+    private HttpResponse<byte[]> getBytesWithDigestAttempt(DigestAttempt attempt) throws IOException, InterruptedException {
+        URI uri = resolveRequestUri(attempt.requestTarget());
 
         HttpRequest req1 = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
-                .header("Accept", "*/*")
+                .header("Accept", "image/jpeg, image/*, */*")
                 .GET()
                 .build();
 
         HttpResponse<byte[]> r1 = client.send(req1, HttpResponse.BodyHandlers.ofByteArray());
-        if (r1.statusCode() != 401) return r1;
+        if (r1.statusCode() != 401) {
+            return r1;
+        }
 
         Optional<String> wwwAuthOpt = r1.headers().firstValue("WWW-Authenticate");
         if (wwwAuthOpt.isEmpty() || !wwwAuthOpt.get().toLowerCase(Locale.ROOT).startsWith("digest")) {
@@ -76,16 +133,133 @@ public class DigestHttpClient {
         }
 
         DigestChallenge ch = DigestChallenge.parse(wwwAuthOpt.get());
-        String auth = buildDigestAuthorization(ch, "GET", uri.getPath());
+        String auth = buildDigestAuthorization(ch, "GET", attempt.digestUri());
 
         HttpRequest req2 = HttpRequest.newBuilder(uri)
                 .timeout(Duration.ofSeconds(30))
-                .header("Accept", "*/*")
+                .header("Accept", "image/jpeg, image/*, */*")
                 .header("Authorization", auth)
                 .GET()
                 .build();
 
         return client.send(req2, HttpResponse.BodyHandlers.ofByteArray());
+    }
+
+    private URI resolveRequestUri(String requestTarget) throws IOException {
+        if (requestTarget.startsWith("http://") || requestTarget.startsWith("https://")) {
+            return URI.create(requestTarget);
+        }
+        return buildRequestUri(requestTarget);
+    }
+
+    private static List<DigestAttempt> pictureDownloadAttempts(String resourceUrl, String path) {
+        LinkedHashSet<DigestAttempt> attempts = new LinkedHashSet<>();
+        String normalized = normalizePath(path);
+
+        attempts.add(new DigestAttempt(resourceUrl, normalized));
+        attempts.add(new DigestAttempt(normalized, normalized));
+
+        if (normalized.contains("@")) {
+            attempts.add(new DigestAttempt(resourceUrl, normalized.replace("@", "%40")));
+            attempts.add(new DigestAttempt(normalized.replace("@", "%40"), normalized.replace("@", "%40")));
+        }
+
+        int webTokenIndex = normalized.indexOf("@WEB");
+        if (webTokenIndex > 0) {
+            String strippedPath = normalized.substring(0, webTokenIndex);
+            String strippedUrl = resourceUrl.contains("@")
+                    ? resourceUrl.substring(0, resourceUrl.indexOf('@'))
+                    : resourceUrl;
+            attempts.add(new DigestAttempt(resourceUrl, strippedPath));
+            attempts.add(new DigestAttempt(strippedUrl, strippedPath));
+            attempts.add(new DigestAttempt(strippedPath, strippedPath));
+        }
+
+        int atIndex = normalized.indexOf('@');
+        if (atIndex > 0) {
+            String cleanPath = normalized.substring(0, atIndex);
+            String cleanUrl = resourceUrl.contains("@")
+                    ? resourceUrl.substring(0, resourceUrl.indexOf('@'))
+                    : resourceUrl;
+            attempts.add(new DigestAttempt(cleanUrl, cleanPath));
+        }
+
+        return new ArrayList<>(attempts);
+    }
+
+    private record DigestAttempt(String requestTarget, String digestUri) {
+    }
+
+    private HttpResponse<byte[]> getBytesWithDigestUri(String digestUri) throws IOException, InterruptedException {
+        return getBytesWithDigestAttempt(new DigestAttempt(digestUri, digestUri));
+    }
+
+    private URI buildRequestUri(String digestUri) throws IOException {
+        try {
+            URI base = URI.create(baseUrl);
+            String scheme = base.getScheme() == null ? "http" : base.getScheme();
+            String host = base.getHost();
+            int port = base.getPort();
+            if (host == null || host.isBlank()) {
+                throw new IOException("Invalid base URL: " + baseUrl);
+            }
+            return new URI(scheme, null, host, port, digestUri, null, null);
+        } catch (URISyntaxException ex) {
+            throw new IOException("Invalid request URI for path: " + digestUri, ex);
+        }
+    }
+
+    private static String normalizePath(String path) {
+        if (path == null || path.isBlank()) {
+            return "/";
+        }
+        return path.startsWith("/") ? path : "/" + path;
+    }
+
+    private static List<String> digestUriCandidates(String normalizedPath) {
+        LinkedHashSet<String> candidates = new LinkedHashSet<>();
+        candidates.add(normalizedPath);
+
+        if (normalizedPath.contains("@")) {
+            candidates.add(normalizedPath.replace("@", "%40"));
+        }
+
+        int webTokenIndex = normalizedPath.indexOf("@WEB");
+        if (webTokenIndex > 0) {
+            candidates.add(normalizedPath.substring(0, webTokenIndex));
+            String stripped = normalizedPath.substring(0, webTokenIndex);
+            if (stripped.contains("@")) {
+                candidates.add(stripped.replace("@", "%40"));
+            }
+        }
+
+        return new ArrayList<>(candidates);
+    }
+
+    static ParsedResource parseResourceUrl(String resourceUrl, String fallbackBaseUrl) throws IOException {
+        if (resourceUrl == null || resourceUrl.isBlank()) {
+            throw new IOException("Resource URL is blank");
+        }
+        if (!resourceUrl.startsWith("http://") && !resourceUrl.startsWith("https://")) {
+            String path = resourceUrl.startsWith("/") ? resourceUrl : "/" + resourceUrl;
+            return new ParsedResource(fallbackBaseUrl, path);
+        }
+
+        int schemeSep = resourceUrl.indexOf("://");
+        int hostStart = schemeSep + 3;
+        int pathStart = resourceUrl.indexOf('/', hostStart);
+        if (pathStart < 0) {
+            throw new IOException("Resource URL has no path: " + resourceUrl);
+        }
+
+        String scheme = resourceUrl.substring(0, schemeSep);
+        String authority = resourceUrl.substring(hostStart, pathStart);
+        String path = resourceUrl.substring(pathStart);
+        String base = scheme + "://" + authority;
+        return new ParsedResource(base, path);
+    }
+
+    record ParsedResource(String baseUrl, String path) {
     }
 
     private String buildDigestAuthorization(DigestChallenge ch, String method, String uriPath) throws IOException {

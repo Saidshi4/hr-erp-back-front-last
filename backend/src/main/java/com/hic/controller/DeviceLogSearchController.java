@@ -1,6 +1,7 @@
 package com.hic.controller;
 
 import com.hic.dto.ApiResponse;
+import com.hic.dto.DeviceLogPictureRequest;
 import com.hic.dto.DeviceLogSearchDTO;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.service.DeviceLogSearchService;
@@ -97,14 +98,37 @@ public class DeviceLogSearchController {
             @RequestParam String url,
             @RequestParam Long   deviceId
     ) {
+        return servePicture(url, deviceId);
+    }
+
+    /**
+     * Preferred picture proxy — avoids long query strings and {@code @} encoding issues.
+     */
+    @PostMapping("/picture")
+    public ResponseEntity<byte[]> postPicture(@RequestBody DeviceLogPictureRequest body) {
+        if (body == null || body.getUrl() == null || body.getUrl().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        if (body.getDeviceId() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        return servePicture(body.getUrl(), body.getDeviceId());
+    }
+
+    private ResponseEntity<byte[]> servePicture(String url, Long deviceId) {
         try {
-            String decodedUrl = URLDecoder.decode(url, StandardCharsets.UTF_8);
+            String decodedUrl = url.contains("%")
+                    ? URLDecoder.decode(url, StandardCharsets.UTF_8)
+                    : url;
             byte[] imageBytes = deviceLogSearchService.fetchPicture(decodedUrl, deviceId);
+            if (imageBytes == null || imageBytes.length == 0) {
+                log.warn("Empty picture body for deviceId={}", deviceId);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
 
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.IMAGE_JPEG);
             headers.setContentLength(imageBytes.length);
-            // Allow browser to cache the image briefly (device images are immutable)
             headers.setCacheControl("max-age=300");
 
             return ResponseEntity.ok().headers(headers).body(imageBytes);
@@ -115,6 +139,9 @@ public class DeviceLogSearchController {
 
         } catch (RuntimeException e) {
             log.warn("Failed to fetch picture from device deviceId={}: {}", deviceId, e.getMessage());
+            if (e.getMessage() != null && e.getMessage().contains("no longer available")) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+            }
             return ResponseEntity.status(HttpStatus.BAD_GATEWAY).build();
         }
     }

@@ -20,6 +20,7 @@ public interface DeviceConfigRepository extends JpaRepository<DeviceConfig, Long
     List<DeviceConfig> findByBranchId(Long branchId);
     List<DeviceConfig> findByStatus(String status);
     Optional<DeviceConfig> findByDeviceId(String deviceId);
+    Optional<DeviceConfig> findByDeviceIp(String deviceIp);
     long countByStatus(String status);
 
     // Door-related methods

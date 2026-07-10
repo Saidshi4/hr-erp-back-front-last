@@ -30,9 +30,12 @@ public record AcsEventSearchResponse(
                             event.path("major").asInt(event.path("majorEventType").asInt(-1)),
                             event.path("minor").asInt(event.path("subEventType").asInt(-1)),
                             event.path("time").asText(null),
+                            event.path("name").asText(null),
                             event.path("employeeNoString").asText(""),
                             event.path("cardNo").asText(""),
-                            event.path("pictureURL").asText(null)
+                            event.path("pictureURL").asText(null),
+                            event.path("currentVerifyMode").asText(null),
+                            event.path("picturesNumber").asInt(0)
                     ));
                 }
             }
@@ -54,9 +57,12 @@ public record AcsEventSearchResponse(
             int majorEventType,
             int subEventType,
             String time,
+            String name,
             String employeeNoString,
             String cardNo,
-            String pictureURL
+            String pictureURL,
+            String currentVerifyMode,
+            int picturesNumber
     ) {
     }
 }

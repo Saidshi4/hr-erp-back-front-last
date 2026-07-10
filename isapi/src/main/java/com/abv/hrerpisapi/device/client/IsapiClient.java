@@ -269,9 +269,29 @@ public class IsapiClient {
 
     public Optional<byte[]> downloadFaceImage(DeviceEntity device, String faceUrl)
             throws IOException, InterruptedException {
+        if (faceUrl == null || faceUrl.isBlank()) {
+            return Optional.empty();
+        }
+
+        DigestHttpClient client = clientFor(device);
+        try {
+            HttpResponse<byte[]> resp = client.getBytesFromResourceUrl(faceUrl);
+            if (isValidImageResponse(resp)) {
+                return Optional.of(resp.body());
+            }
+            log.warn("ACS picture download failed for device {} url {} status {} contentType {}",
+                    device.getId(),
+                    faceUrl,
+                    resp.statusCode(),
+                    resp.headers().firstValue("Content-Type").orElse("<missing>"));
+        } catch (IOException ex) {
+            log.warn("ACS picture download error for device {} url {}: {}", device.getId(), faceUrl, ex.getMessage());
+        }
+
+        // Fallback: path-only candidates against configured device host
         List<String> candidatePaths = buildFaceImageCandidatePaths(faceUrl);
         for (String path : candidatePaths) {
-            HttpResponse<byte[]> resp = clientFor(device).getBytes(path);
+            HttpResponse<byte[]> resp = client.getBytes(path);
             if (isValidImageResponse(resp)) {
                 return Optional.of(resp.body());
             }
@@ -683,7 +703,29 @@ public class IsapiClient {
             }
         }
 
+        String fileName = extractPictureFileName(faceUrl);
+        if (fileName != null) {
+            candidates.add("/ISAPI/AccessControl/AcsEvent/Pic?format=json&name="
+                    + URLEncoder.encode(fileName, StandardCharsets.UTF_8));
+        }
+
         return candidates;
+    }
+
+    private String extractPictureFileName(String faceUrl) {
+        if (faceUrl == null || faceUrl.isBlank()) {
+            return null;
+        }
+        String path = faceUrl;
+        int slash = faceUrl.lastIndexOf('/');
+        if (slash >= 0 && slash < faceUrl.length() - 1) {
+            path = faceUrl.substring(slash + 1);
+        }
+        int at = path.indexOf('@');
+        if (at > 0) {
+            path = path.substring(0, at);
+        }
+        return path.isBlank() ? null : path;
     }
 
     private boolean isValidImageResponse(HttpResponse<byte[]> resp) {
@@ -759,14 +801,15 @@ public class IsapiClient {
             return faceUrl;
         }
         if (faceUrl.startsWith("http://") || faceUrl.startsWith("https://")) {
-            java.net.URI uri = java.net.URI.create(faceUrl);
-            String path = uri.getRawPath();
-            if (uri.getRawQuery() != null && !uri.getRawQuery().isBlank()) {
-                return path + "?" + uri.getRawQuery();
+            int schemeSep = faceUrl.indexOf("://");
+            int hostStart = schemeSep + 3;
+            int pathStart = faceUrl.indexOf('/', hostStart);
+            if (pathStart < 0) {
+                return "/";
             }
-            return path;
+            return faceUrl.substring(pathStart);
         }
-        return faceUrl;
+        return faceUrl.startsWith("/") ? faceUrl : "/" + faceUrl;
     }
 
     private String snippet(String raw) {

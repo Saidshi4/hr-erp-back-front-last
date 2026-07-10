@@ -39,9 +39,17 @@ public class AcsEventSearchRequest {
         if (cond.minor() != null) {
             normalized.put("minor", cond.minor());
         }
+        if (!isBlank(cond.employeeNoString())) {
+            normalized.put("employeeNoString", cond.employeeNoString());
+        }
+        if (!isBlank(cond.cardNo())) {
+            normalized.put("cardNo", cond.cardNo());
+        }
         normalized.put("startTime", cond.startTime());
         normalized.put("endTime", cond.endTime());
-        normalized.put("picEnable", cond.picEnable() == null || cond.picEnable());
+        if (cond.picEnable() != null) {
+            normalized.put("picEnable", cond.picEnable());
+        }
 
         try {
             return OM.writeValueAsString(Map.of("AcsEventCond", normalized));
@@ -62,7 +70,9 @@ public class AcsEventSearchRequest {
             Integer minor,
             String startTime,
             String endTime,
-            Boolean picEnable
+            Boolean picEnable,
+            String employeeNoString,
+            String cardNo
     ) {
     }
 }

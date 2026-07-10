@@ -32,6 +32,20 @@ function getLocalOffsetStr(): string {
 
 const PAGE_SIZE_OPTIONS = [12, 24, 50, 100]
 
+function eventBadgeStyle(description?: string): { background: string; color: string; dot: string } {
+  const text = (description ?? '').toLowerCase()
+  if (text.includes('authenticated') || text.includes('verified')) {
+    return { background: '#d1fae5', color: '#065f46', dot: '#10b981' }
+  }
+  if (text.includes('door')) {
+    return { background: '#dbeafe', color: '#1e40af', dot: '#3b82f6' }
+  }
+  if (text.includes('login') || text.includes('logout') || text.includes('powering')) {
+    return { background: '#fef3c7', color: '#92400e', dot: '#f59e0b' }
+  }
+  return { background: '#f1f5f9', color: '#475569', dot: '#94a3b8' }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sub-components
 // ─────────────────────────────────────────────────────────────────────────────
@@ -46,19 +60,23 @@ function Spinner() {
 }
 
 interface PhotoModalProps {
+  open: boolean
   src: string | null
+  loading: boolean
+  error: string | null
+  fallbackUrl?: string
   employeeName?: string
   onClose: () => void
 }
 
-function PhotoModal({ src, employeeName, onClose }: PhotoModalProps) {
+function PhotoModal({ open, src, loading, error, fallbackUrl, employeeName, onClose }: PhotoModalProps) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
 
-  if (!src) return null
+  if (!open) return null
   return (
     <div
       id="photo-modal-overlay"
@@ -91,12 +109,34 @@ function PhotoModal({ src, employeeName, onClose }: PhotoModalProps) {
         </div>
         {/* Image */}
         <div className="flex items-center justify-center p-4" style={{ minHeight: '300px', background: '#12103a' }}>
-          <img
-            src={src}
-            alt={`Event photo${employeeName ? ' — ' + employeeName : ''}`}
-            className="max-w-full max-h-96 rounded-lg object-contain"
-            style={{ boxShadow: '0 0 40px rgba(168,85,247,0.3)' }}
-          />
+          {loading ? (
+            <div className="flex flex-col items-center gap-3">
+              <Spinner />
+              <p className="text-sm" style={{ color: '#a5b4fc' }}>Loading photo…</p>
+            </div>
+          ) : error ? (
+            <div className="text-center px-6 space-y-4">
+              <p className="text-sm text-red-300">{error}</p>
+              {fallbackUrl && (
+                <a
+                  href={fallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
+                  style={{ background: '#a855f7' }}
+                >
+                  Open photo on device
+                </a>
+              )}
+            </div>
+          ) : src ? (
+            <img
+              src={src}
+              alt={`Event photo${employeeName ? ' — ' + employeeName : ''}`}
+              className="max-w-full max-h-96 rounded-lg object-contain"
+              style={{ boxShadow: '0 0 40px rgba(168,85,247,0.3)' }}
+            />
+          ) : null}
         </div>
       </div>
     </div>
@@ -134,9 +174,13 @@ export default function DeviceLogSearchPage() {
   const [fetched,   setFetched]   = useState(false)
 
   // ── Photo modal state ─────────────────────────────────────────────────────
+  const [photoOpen,         setPhotoOpen]         = useState(false)
   const [photoSrc,          setPhotoSrc]          = useState<string | null>(null)
   const [photoName,         setPhotoName]         = useState<string | undefined>(undefined)
-  const [photoLoading,      setPhotoLoading]      = useState<string | null>(null) // pictureURL being loaded
+  const [photoLoading,      setPhotoLoading]      = useState(false)
+  const [photoModalError,   setPhotoModalError]   = useState<string | null>(null)
+  const [photoFallbackUrl,    setPhotoFallbackUrl]    = useState<string | undefined>(undefined)
+  const [photoBtnLoading,   setPhotoBtnLoading]   = useState<string | null>(null) // pictureURL being loaded
   const [photoError,        setPhotoError]        = useState<string | null>(null)
   const blobUrlsRef = useRef<string[]>([])
 
@@ -222,23 +266,34 @@ export default function DeviceLogSearchPage() {
   // ── Photo handling ────────────────────────────────────────────────────────
   const handleViewPhoto = async (event: DeviceLogEvent) => {
     if (!event.pictureURL || !deviceId) return
-    setPhotoLoading(event.pictureURL)
+    setPhotoOpen(true)
+    setPhotoSrc(null)
+    setPhotoModalError(null)
+    setPhotoFallbackUrl(event.pictureURL)
+    setPhotoName(event.name || event.employeeId)
+    setPhotoBtnLoading(event.pictureURL)
+    setPhotoLoading(true)
     setPhotoError(null)
     try {
       const blobUrl = await deviceLogApi.fetchPicture(event.pictureURL, Number(deviceId))
       blobUrlsRef.current.push(blobUrl)
       setPhotoSrc(blobUrl)
-      setPhotoName(event.name || event.employeeId)
     } catch (e: unknown) {
-      setPhotoError((e as Error)?.message ?? 'Could not load photo')
+      const msg = (e as Error)?.message ?? 'Could not load photo'
+      setPhotoModalError(msg)
+      setPhotoError(msg)
     } finally {
-      setPhotoLoading(null)
+      setPhotoLoading(false)
+      setPhotoBtnLoading(null)
     }
   }
 
   const handleClosePhoto = () => {
+    setPhotoOpen(false)
     setPhotoSrc(null)
     setPhotoName(undefined)
+    setPhotoModalError(null)
+    setPhotoFallbackUrl(undefined)
   }
 
   // ── Derived values ────────────────────────────────────────────────────────
@@ -249,7 +304,15 @@ export default function DeviceLogSearchPage() {
   return (
     <Layout>
       {/* Photo Modal */}
-      <PhotoModal src={photoSrc} employeeName={photoName} onClose={handleClosePhoto} />
+      <PhotoModal
+        open={photoOpen}
+        src={photoSrc}
+        loading={photoLoading}
+        error={photoModalError}
+        fallbackUrl={photoFallbackUrl}
+        employeeName={photoName}
+        onClose={handleClosePhoto}
+      />
 
       <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
 
@@ -531,7 +594,7 @@ export default function DeviceLogSearchPage() {
                     <tbody>
                       {result.items.map((event, idx) => {
                         const rowNum = page * pageSize + idx + 1
-                        const isLoadingThis = photoLoading === event.pictureURL
+                        const isLoadingThis = photoBtnLoading === event.pictureURL
                         return (
                           <tr
                             key={`${event.time}-${idx}`}
@@ -571,13 +634,21 @@ export default function DeviceLogSearchPage() {
 
                             {/* Event description */}
                             <td className="px-5 py-3.5">
-                              <span
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
-                                style={{ background: '#d1fae5', color: '#065f46' }}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full bg-green-500 inline-block" />
-                                {event.eventDescription || 'Access Control'}
-                              </span>
+                              {(() => {
+                                const badge = eventBadgeStyle(event.eventDescription)
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                                    style={{ background: badge.background, color: badge.color }}
+                                  >
+                                    <span
+                                      className="w-1.5 h-1.5 rounded-full inline-block"
+                                      style={{ background: badge.dot }}
+                                    />
+                                    {event.eventDescription || 'Event'}
+                                  </span>
+                                )
+                              })()}
                             </td>
 
                             {/* Verify mode */}
@@ -598,13 +669,13 @@ export default function DeviceLogSearchPage() {
                                 : '—'}
                             </td>
 
-                            {/* Photo */}
+                            {/* Photo — only when device returned a pictureURL */}
                             <td className="px-5 py-3.5 text-center">
-                              {event.hasPicture ? (
+                              {event.pictureURL ? (
                                 <button
                                   id={`view-photo-btn-${idx}`}
                                   onClick={() => handleViewPhoto(event)}
-                                  disabled={!!photoLoading}
+                                  disabled={!!photoBtnLoading}
                                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-50"
                                   style={{
                                     background: isLoadingThis ? '#ede9fe' : '#a855f7',

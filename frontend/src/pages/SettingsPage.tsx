@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
+import { roleLabel } from '../i18n/labels.ts'
 
 export default function SettingsPage() {
   const { user } = useAuthStore()
@@ -82,7 +83,7 @@ export default function SettingsPage() {
                       className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium"
                       style={{ background: '#f3e8ff', color: '#7c3aed' }}
                     >
-                      {user?.userType?.replace(/_/g, ' ')}
+                      {roleLabel(user?.userType)}
                     </span>
                   </div>
                 </div>
@@ -109,7 +110,7 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">{t('settings.role')}</label>
                     <input
                       type="text"
-                      value={user?.userType?.replace(/_/g, ' ') ?? ''}
+                      value={roleLabel(user?.userType)}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-500"
                       readOnly
                     />

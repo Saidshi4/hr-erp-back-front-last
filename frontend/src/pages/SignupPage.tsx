@@ -1,7 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi.ts'
+import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
+import { roleLabel } from '../i18n/labels.ts'
+import AttendraBrand from '../components/AttendraBrand.tsx'
 
 const AUTH_BG = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #2d2472 100%)'
 const ACCENT_BAR_GRADIENT = 'linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)'
@@ -26,20 +29,37 @@ function AuthBlobs() {
   )
 }
 
+const ROLE_RANK: Record<string, number> = {
+  HEAD_OFFICE_HR: 0,
+  OFFICE_HR: 1,
+  DEPARTMENT_HR: 2,
+  EMPLOYEE: 3,
+}
+
 const HR_ROLES = [
-  { value: 'HEAD_OFFICE_HR', label: 'Baş Ofis HR (Admin)' },
-  { value: 'OFFICE_HR', label: 'Ofis HR' },
-  { value: 'DEPARTMENT_HR', label: 'Departament HR' },
-  { value: 'EMPLOYEE', label: 'Əməkdaş' },
+  { value: 'HEAD_OFFICE_HR', label: roleLabel('HEAD_OFFICE_HR') },
+  { value: 'OFFICE_HR', label: roleLabel('OFFICE_HR') },
+  { value: 'DEPARTMENT_HR', label: roleLabel('DEPARTMENT_HR') },
+  { value: 'EMPLOYEE', label: roleLabel('EMPLOYEE') },
 ]
 
 export default function SignupPage() {
+  const { user, isAuthenticated } = useAuthStore()
+  const availableRoles = useMemo(() => {
+    if (!isAuthenticated || !user?.userType) {
+      // First bootstrap only — anonymous may create HEAD_OFFICE_HR
+      return HR_ROLES.filter((r) => r.value === 'HEAD_OFFICE_HR')
+    }
+    const callerRank = ROLE_RANK[user.userType] ?? 99
+    return HR_ROLES.filter((r) => (ROLE_RANK[r.value] ?? 99) > callerRank)
+  }, [isAuthenticated, user?.userType])
+
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
   const [passwordConfirm, setPasswordConfirm] = useState('')
-  const [role, setRole] = useState('HEAD_OFFICE_HR')
+  const [role, setRole] = useState(availableRoles[0]?.value ?? 'EMPLOYEE')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -71,6 +91,8 @@ export default function SignupPage() {
       if (status === 400) {
         const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
         setError(msg ?? t('signup.error'))
+      } else if (status === 401) {
+        setError(t('signup.authRequired'))
       } else if (status === 403) {
         setError(t('signup.forbidden'))
       } else {
@@ -84,17 +106,10 @@ export default function SignupPage() {
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4" style={{ background: AUTH_BG }}>
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
           <div className="h-1 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
           <div className="p-8 text-center">
-            <div
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg"
-              style={{ background: BUTTON_GRADIENT }}
-            >
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+            <AttendraBrand size="auth" showWordmark showTagline className="justify-center mb-6" />
             <h2 className="text-xl font-extrabold mb-2" style={{ color: '#1e1b4b' }}>{t('signup.success')}</h2>
             <p className="text-gray-500 text-sm mb-6">{t('signup.successNote')}</p>
             <Link
@@ -105,7 +120,7 @@ export default function SignupPage() {
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
               </svg>
-              Daxil ol
+              {t('login.signIn')}
             </Link>
           </div>
         </div>
@@ -117,7 +132,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex items-center justify-center p-4" style={{ background: AUTH_BG }}>
       <AuthBlobs />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         {/* Top accent bar */}
         <div className="h-1 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
 
@@ -134,18 +149,9 @@ export default function SignupPage() {
             {t('signup.back')}
           </Link>
 
-          {/* Brand */}
-          <div className="text-center mb-7">
-            <div
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg"
-              style={{ background: BUTTON_GRADIENT }}
-            >
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: '#1e1b4b' }}>{t('signup.title')}</h1>
-            <p className="text-gray-500 mt-1 text-sm">{t('signup.subtitle')}</p>
+          {/* Brand — full logo */}
+          <div className="flex flex-col items-center mb-7">
+            <AttendraBrand size="hero" showWordmark showTagline className="justify-center" />
           </div>
 
           {error && (
@@ -218,7 +224,7 @@ export default function SignupPage() {
                   onChange={(e) => setRole(e.target.value)}
                   className={INPUT_CLS}
                 >
-                  {HR_ROLES.map((r) => (
+                  {availableRoles.map((r) => (
                     <option key={r.value} value={r.value}>{r.label}</option>
                   ))}
                 </select>

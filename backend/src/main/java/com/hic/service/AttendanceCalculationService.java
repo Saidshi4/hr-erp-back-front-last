@@ -34,11 +34,16 @@ public class AttendanceCalculationService {
         record.setEmployeeId(employeeId);
         record.setWorkDate(workDate);
         Long tenantId = TenantContext.getTenantId();
-        if (tenantId != null) {
-            record.setTenantId(tenantId);
-        } else if (record.getTenantId() == null) {
-            record.setTenantId(1L);
+        if (tenantId == null && employee != null) {
+            tenantId = employee.getTenantId();
         }
+        if (tenantId == null) {
+            tenantId = record.getTenantId();
+        }
+        if (tenantId == null) {
+            throw new IllegalStateException("Tenant context is required for attendance calculation");
+        }
+        record.setTenantId(tenantId);
         if (employee != null) {
             record.setShiftType(employee.getShiftType());
             record.setTimetableId(employee.getTimetableId());
@@ -87,7 +92,7 @@ public class AttendanceCalculationService {
         } else if (tenantId != null) {
             employees = employeeRepository.findByTenantId(tenantId, org.springframework.data.domain.Pageable.unpaged()).getContent();
         } else {
-            employees = employeeRepository.findAll();
+            throw new IllegalStateException("Tenant context is required to recalculate attendance for all employees");
         }
 
         for (Employee employee : employees) {

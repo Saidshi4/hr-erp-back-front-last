@@ -35,6 +35,15 @@ public class DeviceUserController {
         return deviceUserService.listDeviceUsers(deviceId);
     }
 
+    /**
+     * Live list of persons enrolled on the physical device (Digest ISAPI pull).
+     * Used by setup-team employee import — not the local device_users cache.
+     */
+    @GetMapping("/from-device")
+    public List<DeviceUserService.DevicePersonFromDevice> listUsersFromDevice(@PathVariable Long deviceId) {
+        return deviceUserService.fetchUsersFromDevice(deviceId);
+    }
+
     @GetMapping("/{userId}")
     public DeviceUserResponse getUser(@PathVariable Long deviceId,
                                       @PathVariable Long userId) {

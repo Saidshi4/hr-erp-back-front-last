@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { authApi } from '../api/authApi.ts'
 import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
+import AttendraBrand from '../components/AttendraBrand.tsx'
 
 const AUTH_BG = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #2d2472 100%)'
 const ACCENT_BAR_GRADIENT = 'linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)'
@@ -48,25 +49,14 @@ export default function LoginPage() {
         style={{ background: 'radial-gradient(circle, #7c3aed 0%, transparent 70%)', transform: 'translate(30%, 30%)' }}
       />
 
-      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
         {/* Top accent bar */}
         <div className="h-1.5 w-full" style={{ background: ACCENT_BAR_GRADIENT }} />
 
-        <div className="p-8 pt-7">
-          {/* Brand */}
-          <div className="text-center mb-8">
-            <div
-              className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 shadow-lg"
-              style={{ background: BUTTON_GRADIENT }}
-            >
-              <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: '#1e1b4b' }}>
-              HR ERP
-            </h1>
-            <p className="text-gray-500 mt-1 text-sm">{t('login.subtitle')}</p>
+        <div className="p-8 pt-8">
+          {/* Brand — full logo (icon + Attendra wordmark) */}
+          <div className="flex flex-col items-center mb-8">
+            <AttendraBrand size="hero" showWordmark showTagline className="justify-center" />
           </div>
 
           {error && (

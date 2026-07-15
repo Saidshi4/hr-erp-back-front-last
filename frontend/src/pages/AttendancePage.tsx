@@ -206,7 +206,7 @@ export default function AttendancePage() {
         if (cancelled) return
         setAttendanceRows([])
         setSummary(defaultSummary)
-        setError((requestError as Error).message || 'Failed to fetch attendance data')
+        setError((requestError as Error).message || t('attendance.fetchFailed'))
       })
       .finally(() => {
         if (!cancelled) {

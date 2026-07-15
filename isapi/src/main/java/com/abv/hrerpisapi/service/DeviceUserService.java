@@ -184,6 +184,39 @@ public class DeviceUserService {
                 .toList();
     }
 
+    /**
+     * Live pull of all persons enrolled on the physical device (not local DB cache).
+     */
+    public List<DevicePersonFromDevice> fetchUsersFromDevice(Long deviceId) {
+        DeviceEntity device = requireDevice(deviceId);
+        log.info("ActionLog.deviceUser.fetchFromDevice.started deviceId={}", deviceId);
+        try {
+            List<IsapiClient.DevicePersonInfo> persons = isapiClient.searchAllDeviceUsers(device);
+            List<DevicePersonFromDevice> mapped = persons.stream()
+                    .map(p -> new DevicePersonFromDevice(
+                            p.employeeNo(), p.name(), p.userType(), p.gender(),
+                            p.beginTime(), p.endTime()))
+                    .toList();
+            log.info("ActionLog.deviceUser.fetchFromDevice.ended deviceId={} count={}", deviceId, mapped.size());
+            return mapped;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            log.error("ActionLog.deviceUser.fetchFromDevice.failed deviceId={} error={}", deviceId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Failed to fetch users from device: " + e.getMessage());
+        }
+    }
+
+    public record DevicePersonFromDevice(
+            String employeeNo,
+            String name,
+            String userType,
+            String gender,
+            String beginTime,
+            String endTime
+    ) {
+    }
+
     public DeviceUserSyncResponse syncUserToDevice(Long deviceId, Long userId) {
         log.info("ActionLog.deviceUser.sync.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);

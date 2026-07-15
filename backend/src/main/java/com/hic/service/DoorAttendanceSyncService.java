@@ -74,30 +74,44 @@ public class DoorAttendanceSyncService {
         Map<Long, String> deviceRoles = activeDevicesWithRoles.stream()
                 .collect(Collectors.toMap(DeviceConfig::getId, DeviceConfig::getDoorRole));
 
-        Set<String> employeeCodes = allPunches.stream()
-                .map(p -> normalizeEmployeeCode(p.getEmployeeNo()))
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<String> unresolvedEmployeeNos = new HashSet<>();
+        Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
+
+        // Resolve each punch to an employee using device + device person ID
+        // so the same raw employeeNo at two branches can map to different people.
+        Map<Long, List<AttendanceLogSyncDTO.AttendanceLogEntryDTO>> punchesByEmployeeId = new HashMap<>();
 
         int matchedSessions = 0;
         int createdLogs = 0;
         int skippedEmployees = 0;
         int skippedPunches = 0;
-        Set<String> unresolvedEmployeeNos = new HashSet<>();
-        Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
 
-        for (String employeeCode : employeeCodes) {
-            Employee employee = resolveEmployee(tenantId, employeeCode);
-
+        for (AttendanceLogSyncDTO.AttendanceLogEntryDTO punch : allPunches) {
+            String code = normalizeEmployeeCode(punch.getEmployeeNo());
+            if (code == null) {
+                skippedPunches++;
+                continue;
+            }
+            Employee employee = resolveEmployee(tenantId, punch.getDeviceId(), punch.getEmployeeNo());
             if (employee == null) {
-                skippedEmployees++;
-                skippedPunches += countPunchesForEmployeeCode(allPunches, employeeCode);
-                unresolvedEmployeeNos.add(employeeCode);
+                skippedPunches++;
+                unresolvedEmployeeNos.add(code);
+                continue;
+            }
+            punchesByEmployeeId.computeIfAbsent(employee.getId(), ignored -> new ArrayList<>()).add(punch);
+        }
+
+        skippedEmployees = unresolvedEmployeeNos.size();
+
+        for (Map.Entry<Long, List<AttendanceLogSyncDTO.AttendanceLogEntryDTO>> entry : punchesByEmployeeId.entrySet()) {
+            Employee employee = tenantId != null
+                    ? employeeRepository.findByTenantIdAndId(tenantId, entry.getKey()).orElse(null)
+                    : employeeRepository.findById(entry.getKey()).orElse(null);
+            if (employee == null) {
                 continue;
             }
 
-            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> employeePunches = allPunches.stream()
-                    .filter(p -> employeeCode.equals(normalizeEmployeeCode(p.getEmployeeNo())))
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> employeePunches = entry.getValue().stream()
                     .sorted(Comparator.comparing(p -> toLocalDateTime(p.getPunchTime())))
                     .toList();
 
@@ -141,17 +155,17 @@ public class DoorAttendanceSyncService {
                                     matchedSessions++;
                                 }
                             } else {
-                                AttendanceLog log = new AttendanceLog();
-                                log.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
-                                log.setEmployeeId(employee.getId());
-                                log.setCheckInTime(entryTime);
-                                log.setCheckOutTime(exitTime);
-                                log.setDoorId(doorId);
-                                log.setDeviceId(String.valueOf(entryDevId));
-                                log.setEventType("DOOR_SESSION");
-                                log.setVerificationMethod("ISAPI_PUNCH");
-                                log.setStatus("ACTIVE");
-                                attendanceLogRepository.save(log);
+                                AttendanceLog logEntry = new AttendanceLog();
+                                logEntry.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
+                                logEntry.setEmployeeId(employee.getId());
+                                logEntry.setCheckInTime(entryTime);
+                                logEntry.setCheckOutTime(exitTime);
+                                logEntry.setDoorId(doorId);
+                                logEntry.setDeviceId(String.valueOf(entryDevId));
+                                logEntry.setEventType("DOOR_SESSION");
+                                logEntry.setVerificationMethod("ISAPI_PUNCH");
+                                logEntry.setStatus("ACTIVE");
+                                attendanceLogRepository.save(logEntry);
                                 createdLogs++;
                                 matchedSessions++;
                             }
@@ -175,17 +189,17 @@ public class DoorAttendanceSyncService {
                         : attendanceLogRepository.findByEmployeeIdAndCheckInTime(employee.getId(), entryTime);
 
                 if (existingLogOpt.isEmpty()) {
-                    AttendanceLog log = new AttendanceLog();
-                    log.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
-                    log.setEmployeeId(employee.getId());
-                    log.setCheckInTime(entryTime);
-                    log.setCheckOutTime(null);
-                    log.setDoorId(doorId);
-                    log.setDeviceId(String.valueOf(entryDevId));
-                    log.setEventType("DOOR_SESSION");
-                    log.setVerificationMethod("ISAPI_PUNCH");
-                    log.setStatus("ACTIVE");
-                    attendanceLogRepository.save(log);
+                    AttendanceLog logEntry = new AttendanceLog();
+                    logEntry.setTenantId(tenantId != null ? tenantId : employee.getTenantId());
+                    logEntry.setEmployeeId(employee.getId());
+                    logEntry.setCheckInTime(entryTime);
+                    logEntry.setCheckOutTime(null);
+                    logEntry.setDoorId(doorId);
+                    logEntry.setDeviceId(String.valueOf(entryDevId));
+                    logEntry.setEventType("DOOR_SESSION");
+                    logEntry.setVerificationMethod("ISAPI_PUNCH");
+                    logEntry.setStatus("ACTIVE");
+                    attendanceLogRepository.save(logEntry);
                     createdLogs++;
                 }
             }
@@ -260,12 +274,37 @@ public class DoorAttendanceSyncService {
         return time.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
     }
 
-    private Employee resolveEmployee(Long tenantId, String employeeCode) {
+    private Employee resolveEmployee(Long tenantId, Long deviceConfigId, String employeeCode) {
         String normalizedCode = employeeCode == null ? null : employeeCode.trim();
         if (normalizedCode == null || normalizedCode.isEmpty()) {
             return null;
         }
 
+        if (deviceConfigId != null) {
+            List<Employee> byAccess = employeeRepository.findByDeviceAccessAndDeviceEmployeeNo(
+                    deviceConfigId, normalizedCode);
+            if (byAccess.size() == 1) {
+                return byAccess.get(0);
+            }
+            if (byAccess.size() > 1) {
+                log.warn("Multiple employees match deviceConfigId={} deviceEmployeeNo={}", deviceConfigId, normalizedCode);
+                return byAccess.get(0);
+            }
+
+            DeviceConfig device = deviceConfigRepository.findById(deviceConfigId).orElse(null);
+            if (device != null && device.getBranchId() != null && tenantId != null) {
+                List<Employee> byHomeBranch = employeeRepository.findByTenantIdAndBranchIdAndDeviceEmployeeNoIgnoreCase(
+                        tenantId, device.getBranchId(), normalizedCode);
+                if (byHomeBranch.size() == 1) {
+                    return byHomeBranch.get(0);
+                }
+                if (byHomeBranch.size() > 1) {
+                    return byHomeBranch.get(0);
+                }
+            }
+        }
+
+        // Legacy / prefixed employeeId exact match (BAK-1001 or raw 1001)
         Employee byEmployeeCode = tenantId != null
                 ? employeeRepository.findByTenantIdAndEmployeeId(tenantId, normalizedCode)
                 .or(() -> employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(tenantId, normalizedCode))
@@ -275,6 +314,13 @@ public class DoorAttendanceSyncService {
                 .orElse(null);
         if (byEmployeeCode != null) {
             return byEmployeeCode;
+        }
+
+        List<Employee> byDeviceNo = tenantId != null
+                ? employeeRepository.findByTenantIdAndDeviceEmployeeNoIgnoreCase(tenantId, normalizedCode)
+                : employeeRepository.findByDeviceEmployeeNoIgnoreCase(normalizedCode);
+        if (byDeviceNo.size() == 1) {
+            return byDeviceNo.get(0);
         }
 
         if (normalizedCode.chars().allMatch(Character::isDigit)) {

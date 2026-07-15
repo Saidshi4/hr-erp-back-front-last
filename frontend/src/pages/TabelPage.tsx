@@ -5,6 +5,7 @@ import { departmentApi } from '../api/departmentApi.ts'
 import { tabelApi } from '../api/tabelApi.ts'
 import { Branch, Department, TabelMonthlyData } from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
+import { t } from '../i18n/index.ts'
 
 /** Sidebar Tailwind width classes */
 const SIDEBAR_OPEN = 'w-64'
@@ -174,7 +175,7 @@ export default function TabelPage() {
                 <p className="mt-1 text-sm text-slate-500">FIN kodu, günlük iş saatları və aylıq tabel arxivi</p>
               </div>
               <button onClick={handleExport} className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
-                Excel Export
+                {t('reports.excelExport')}
               </button>
             </div>
 

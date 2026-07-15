@@ -4,6 +4,7 @@ import { useScheduleStore } from '../store/scheduleStore.ts'
 import { Timetable, Holiday, Permission, PermissionType } from '../types'
 import ShiftAssignmentPage from './ShiftAssignmentPage.tsx'
 import PermissionAssignmentPage from './PermissionAssignmentPage.tsx'
+import { statusLabel } from '../i18n/labels.ts'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const SHIFT_TYPES = ['MORNING', 'STANDARD', 'NIGHT', 'FLEXIBLE']
@@ -39,18 +40,29 @@ const DEFAULT_HOLIDAY_NAMES = [
   'Ramazan Bayramı',
   'Müstəqillik Günü',
   'Respublika Günü',
-  'Custom',
+  'Xüsusi',
 ]
 const DEFAULT_PERMISSION_TYPES: PermissionType[] = [
-  { id: 0, code: 'MEDICAL_LEAVE', name: 'Medical Leave' },
-  { id: 0, code: 'PREGNANCY_LEAVE', name: 'Pregnancy Leave' },
-  { id: 0, code: 'MATERNITY_LEAVE', name: 'Maternity Leave' },
-  { id: 0, code: 'PARENTAL_LEAVE', name: 'Parental Leave' },
-  { id: 0, code: 'REMOTE_WORK', name: 'Remote Work' },
-  { id: 0, code: 'FLEXIBLE_HOURS', name: 'Flexible Hours' },
-  { id: 0, code: 'UNPAID_LEAVE', name: 'Unpaid Leave' },
-  { id: 0, code: 'SABBATICAL', name: 'Sabbatical' },
+  { id: 0, code: 'MEDICAL_LEAVE', name: 'Tibbi məzuniyyət' },
+  { id: 0, code: 'PREGNANCY_LEAVE', name: 'Hamiləlik məzuniyyəti' },
+  { id: 0, code: 'MATERNITY_LEAVE', name: 'Analıq məzuniyyəti' },
+  { id: 0, code: 'PARENTAL_LEAVE', name: 'Valideyn məzuniyyəti' },
+  { id: 0, code: 'REMOTE_WORK', name: 'Uzaqdan iş' },
+  { id: 0, code: 'FLEXIBLE_HOURS', name: 'Çevik saatlar' },
+  { id: 0, code: 'UNPAID_LEAVE', name: 'Ödənişsiz məzuniyyət' },
+  { id: 0, code: 'SABBATICAL', name: 'Uzunmüddətli məzuniyyət' },
 ]
+
+const LEAVE_TYPE_LABELS: Record<string, string> = {
+  MEDICAL_LEAVE: 'Tibbi məzuniyyət',
+  PREGNANCY_LEAVE: 'Hamiləlik məzuniyyəti',
+  MATERNITY_LEAVE: 'Analıq məzuniyyəti',
+  PARENTAL_LEAVE: 'Valideyn məzuniyyəti',
+  REMOTE_WORK: 'Uzaqdan iş',
+  FLEXIBLE_HOURS: 'Çevik saatlar',
+  UNPAID_LEAVE: 'Ödənişsiz məzuniyyət',
+  SABBATICAL: 'Uzunmüddətli məzuniyyət',
+}
 
 const SCOPE_COLORS: Record<string, string> = {
   ALL: 'bg-orange-100 text-orange-700',
@@ -299,7 +311,7 @@ function HolidayModal({ initial, onSave, onClose }: {
 
   const set = (k: keyof Holiday, v: unknown) => setForm(f => ({ ...f, [k]: v }))
 
-  const displayName = form.name === 'Custom' ? customName : form.name
+  const displayName = form.name === 'Xüsusi' ? customName : form.name
 
   const handleSave = async () => {
     if (!displayName) { setError('Ad seçilməlidir'); return }
@@ -326,7 +338,7 @@ function HolidayModal({ initial, onSave, onClose }: {
             <select value={form.name} onChange={e => set('name', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
               {DEFAULT_HOLIDAY_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
             </select>
-            {form.name === 'Custom' && (
+            {form.name === 'Xüsusi' && (
               <input value={customName} onChange={e => setCustomName(e.target.value)} placeholder="Xüsusi ad daxil edin" className="w-full border rounded-lg px-3 py-2 text-sm mt-2 focus:outline-none focus:ring-2 focus:ring-purple-500" />
             )}
           </div>
@@ -494,7 +506,7 @@ function PermissionModal({ initial, permissionTypes, onSave, onClose }: {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">İcazə növü</label>
             <select value={form.leaveType} onChange={e => set('leaveType', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-              {types.map(t => <option key={t.code} value={t.code}>{t.name}</option>)}
+              {types.map(pt => <option key={pt.code} value={pt.code}>{LEAVE_TYPE_LABELS[pt.code] ?? pt.name}</option>)}
             </select>
           </div>
           <div>
@@ -514,9 +526,9 @@ function PermissionModal({ initial, permissionTypes, onSave, onClose }: {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Vəziyyət</label>
             <select value={form.status ?? 'ACTIVE'} onChange={e => set('status', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-              {PERMISSION_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {PERMISSION_STATUSES.map(s => <option key={s} value={s}>{statusLabel(s)}</option>)}
             </select>
           </div>
           <div>
@@ -552,7 +564,8 @@ function PermissionTab() {
     else await createPermission(data)
   }
 
-  const getTypeName = (code: string) => types.find(t => t.code === code)?.name ?? code
+  const getTypeName = (code: string) =>
+    LEAVE_TYPE_LABELS[code] ?? types.find(t => t.code === code)?.name ?? code
 
   return (
     <div>
@@ -597,7 +610,7 @@ function PermissionTab() {
               </div>
               <div className="flex items-center gap-2">
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[p.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {p.status}
+                  {statusLabel(p.status)}
                 </span>
                 <span className="text-xs text-gray-500">{APPLY_TYPE_LABELS[p.applyType] ?? p.applyType}</span>
               </div>

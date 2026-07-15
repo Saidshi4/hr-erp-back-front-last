@@ -149,7 +149,7 @@ export default function ShiftAssignmentPage() {
       item.assignment.effectiveStartDate,
       item.assignment.effectiveEndDate || '',
     ])
-    const csv = [['Employee ID', 'Name', 'Department', 'Position', 'Start Date', 'End Date'], ...rows]
+    const csv = [['Əməkdaş ID', 'Ad', 'Departament', 'Vəzifə', 'Başlanğıc tarixi', 'Bitiş tarixi'], ...rows]
       .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
       .join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })

@@ -201,6 +201,64 @@ class AuthServiceTest {
                 .hasMessageContaining("Email already registered");
     }
 
+    @Test
+    void signup_anonymousWhenUsersExist_throwsUnauthorized() {
+        SignupRequest request = new SignupRequest();
+        request.setEmail("second@hic.az");
+        request.setFirstName("Second");
+        request.setLastName("User");
+        request.setPassword("password1");
+        request.setRole("HEAD_OFFICE_HR");
+
+        when(userRepository.existsByEmail("second@hic.az")).thenReturn(false);
+        when(userRepository.count()).thenReturn(1L);
+
+        assertThatThrownBy(() -> authService.signup(request, null))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("authentication");
+    }
+
+    @Test
+    void signup_anonymousBootstrap_createsHeadOffice() {
+        com.hic.model.Tenant tenant = new com.hic.model.Tenant();
+        tenant.setId(1L);
+
+        SignupRequest request = new SignupRequest();
+        request.setEmail("first@hic.az");
+        request.setFirstName("First");
+        request.setLastName("Admin");
+        request.setPassword("password1");
+        request.setRole("HEAD_OFFICE_HR");
+
+        when(userRepository.existsByEmail("first@hic.az")).thenReturn(false);
+        when(userRepository.count()).thenReturn(0L);
+        when(tenantRepository.findByTenantCode("DEFAULT")).thenReturn(Optional.of(tenant));
+        when(passwordUtil.hashPassword("password1")).thenReturn("hash");
+        when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(jwtUtil.generateToken(anyString(), any(), any(), any())).thenReturn("tok");
+        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("ref");
+
+        LoginResponse response = authService.signup(request, null);
+
+        assertThat(response.getUser().getUserType()).isEqualTo(UserType.HEAD_OFFICE_HR);
+    }
+
+    @Test
+    void signup_headOfficeCannotCreatePeerHeadOffice_throws() {
+        SignupRequest request = new SignupRequest();
+        request.setEmail("peer-head@hic.az");
+        request.setFirstName("Peer");
+        request.setLastName("Head");
+        request.setPassword("password1");
+        request.setRole("HEAD_OFFICE_HR");
+
+        when(userRepository.existsByEmail("peer-head@hic.az")).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.signup(request, UserType.HEAD_OFFICE_HR))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("HEAD_OFFICE_HR");
+    }
+
     // ---- Token utility tests ----
 
     @Test

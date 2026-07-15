@@ -36,12 +36,14 @@ public class AuthService {
         };
     }
 
+    /**
+     * @param callerRole authenticated caller's role, or {@code null} for anonymous bootstrap
+     */
     public LoginResponse signup(SignupRequest request, User.UserType callerRole) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new BadRequestException("Email already registered");
         }
 
-        // Resolve target role
         User.UserType targetRole = User.UserType.EMPLOYEE;
         if (request.getRole() != null && !request.getRole().isBlank()) {
             try {
@@ -51,11 +53,14 @@ public class AuthService {
             }
         }
 
-        // Caller must have strictly higher authority (lower rank number) than the role they are assigning.
-        // Exception: if callerRole == HEAD_OFFICE_HR (set by extractRoleForSignup for anonymous callers),
-        // they are allowed to create any role including HEAD_OFFICE_HR (bootstrap scenario).
-        boolean isBootstrapCaller = callerRole == User.UserType.HEAD_OFFICE_HR;
-        if (!isBootstrapCaller && roleRank(callerRole) >= roleRank(targetRole)) {
+        if (callerRole == null) {
+            if (userRepository.count() > 0) {
+                throw new UnauthorizedException("Signup requires authentication after the first admin is created");
+            }
+            if (targetRole != User.UserType.HEAD_OFFICE_HR) {
+                throw new BadRequestException("First account must use role HEAD_OFFICE_HR");
+            }
+        } else if (roleRank(callerRole) >= roleRank(targetRole)) {
             throw new BadRequestException(
                     "You cannot create an account with role " + targetRole + " as your own role is " + callerRole);
         }
@@ -64,7 +69,6 @@ public class AuthService {
                 .orElseThrow(() -> new BadRequestException("Default tenant not configured"));
 
         User user = new User();
-        // Use email as the login identifier (stored in both email and username for JWT compatibility)
         user.setUsername(request.getEmail());
         user.setEmail(request.getEmail());
         user.setFirstName(request.getFirstName());
@@ -81,7 +85,6 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        // Support both email field and legacy username field
         String loginId = (request.getEmail() != null && !request.getEmail().isBlank())
                 ? request.getEmail()
                 : request.getUsername();
@@ -90,7 +93,6 @@ public class AuthService {
             throw new UnauthorizedException("Email is required");
         }
 
-        // Try email lookup first, then fall back to username for legacy accounts
         User user = userRepository.findByEmail(loginId)
                 .or(() -> userRepository.findByUsername(loginId))
                 .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));

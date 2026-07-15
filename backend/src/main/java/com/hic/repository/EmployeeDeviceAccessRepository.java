@@ -11,4 +11,5 @@ public interface EmployeeDeviceAccessRepository extends JpaRepository<EmployeeDe
     List<EmployeeDeviceAccess> findByEmployeeId(Long employeeId);
     List<EmployeeDeviceAccess> findByEmployeeIdIn(List<Long> employeeIds);
     void deleteByEmployeeId(Long employeeId);
+    boolean existsByEmployeeIdAndDeviceConfigId(Long employeeId, Long deviceConfigId);
 }

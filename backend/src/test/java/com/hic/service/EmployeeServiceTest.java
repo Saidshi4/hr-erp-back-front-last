@@ -17,6 +17,7 @@ import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
+import com.hic.repository.TenantRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +66,9 @@ class EmployeeServiceTest {
 
     @Mock
     private UserScopeService userScopeService;
+
+    @Mock
+    private TenantRepository tenantRepository;
 
     @InjectMocks
     private EmployeeService employeeService;
@@ -288,7 +292,6 @@ class EmployeeServiceTest {
         when(departmentRepository.existsById(1L)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> inv.getArgument(0));
         when(employeeDeviceAccessRepository.findByEmployeeId(1L)).thenReturn(List.of());
-        when(doorRepository.findByBranchId(2L)).thenReturn(List.of(branchDoor));
         when(deviceConfigRepository.findAll()).thenReturn(List.of(branchDevice));
         when(deviceConfigRepository.findAllById(List.of(20L))).thenReturn(List.of(branchDevice));
         when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
@@ -296,13 +299,12 @@ class EmployeeServiceTest {
         EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
 
         assertThat(result).isNotNull();
-        verify(doorRepository).findByBranchId(2L);
         verify(deviceConfigRepository).findAll();
         verify(employeeDeviceAccessRepository).deleteByEmployeeId(1L);
     }
 
     @Test
-    void update_doorLinkedDeviceFromWrongBranch_throwsBadRequestException() {
+    void update_doorLinkedDeviceFromWrongBranch_isNotAutoAssigned() {
         testEmployee.setBranchId(1L);
         testEmployeeDTO.setBranchId(1L);
 
@@ -319,12 +321,14 @@ class EmployeeServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(testEmployee));
         when(departmentRepository.existsById(1L)).thenReturn(true);
         when(employeeRepository.save(any(Employee.class))).thenReturn(testEmployee);
-        when(doorRepository.findByBranchId(1L)).thenReturn(List.of(branchDoor));
         when(deviceConfigRepository.findAll()).thenReturn(List.of(wrongBranchDevice));
-        when(deviceConfigRepository.findAllById(List.of(10L))).thenReturn(List.of(wrongBranchDevice));
+        when(employeeDeviceAccessRepository.findByEmployeeId(1L)).thenReturn(List.of());
+        when(departmentRepository.findById(1L)).thenReturn(Optional.of(testDepartment));
 
-        assertThatThrownBy(() -> employeeService.update(1L, testEmployeeDTO))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Device ids do not belong to employee branch");
+        EmployeeResponseDTO result = employeeService.update(1L, testEmployeeDTO);
+
+        assertThat(result).isNotNull();
+        verify(employeeDeviceAccessRepository).deleteByEmployeeId(1L);
+        verify(deviceConfigRepository, never()).findAllById(List.of(10L));
     }
 }

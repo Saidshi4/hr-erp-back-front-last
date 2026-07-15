@@ -126,7 +126,7 @@ public class IsapiEmployeeUserSyncService {
         );
         IsapiUserInfoCreateRequestDTO.RightPlanDTO rightPlan = new IsapiUserInfoCreateRequestDTO.RightPlanDTO(doorNo, planTemplateNo);
         IsapiUserInfoCreateRequestDTO.UserInfoDTO userInfo = new IsapiUserInfoCreateRequestDTO.UserInfoDTO(
-                employee.getEmployeeId(),
+                resolveDevicePersonNo(employee),
                 fullName,
                 "normal",
                 normalizedGender,
@@ -217,13 +217,21 @@ public class IsapiEmployeeUserSyncService {
         String normalizedGender = HikvisionPayloadNormalizer.normalizeGender(employee.getGender());
 
         return new DeviceUserCreateRequest(
-                employee.getEmployeeId(),
+                resolveDevicePersonNo(employee),
                 fullName,
                 "normal",
                 normalizedGender,
                 beginTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
                 endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME)
         );
+    }
+
+    /** Person ID written to / read from the device — never the branch-prefixed HR code. */
+    private static String resolveDevicePersonNo(Employee employee) {
+        if (StringUtils.hasText(employee.getDeviceEmployeeNo())) {
+            return employee.getDeviceEmployeeNo().trim();
+        }
+        return employee.getEmployeeId();
     }
 
     private UpstreamApiException buildUpstreamApiException(String url, HttpStatusCode statusCode, String responseBody) {

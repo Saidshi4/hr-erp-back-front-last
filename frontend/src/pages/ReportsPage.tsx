@@ -122,7 +122,7 @@ export default function ReportsPage() {
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                {['ID', 'Şəkil', 'Ad Soyad', 'FIN', 'Depart', 'Vəzifə', 'Area', 'Tarix', 'Giriş'].map((h) => (
+                {['ID', 'Şəkil', 'Ad Soyad', 'FIN', 'Depart', 'Vəzifə', t('reports.area'), 'Tarix', 'Giriş'].map((h) => (
                   <th key={h} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                 ))}
               </tr>

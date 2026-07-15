@@ -32,6 +32,30 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByEmployeeIdIn(Collection<String> employeeIds);
     List<Employee> findByTenantIdAndEmployeeIdIn(Long tenantId, Collection<String> employeeIds);
 
+    List<Employee> findByTenantIdAndDeviceEmployeeNoIgnoreCase(Long tenantId, String deviceEmployeeNo);
+    List<Employee> findByDeviceEmployeeNoIgnoreCase(String deviceEmployeeNo);
+
+    @Query("""
+            SELECT e FROM Employee e, EmployeeDeviceAccess a
+            WHERE a.employeeId = e.id
+              AND a.deviceConfigId = :deviceConfigId
+              AND LOWER(e.deviceEmployeeNo) = LOWER(:deviceEmployeeNo)
+            """)
+    List<Employee> findByDeviceAccessAndDeviceEmployeeNo(
+            @Param("deviceConfigId") Long deviceConfigId,
+            @Param("deviceEmployeeNo") String deviceEmployeeNo);
+
+    @Query("""
+            SELECT e FROM Employee e
+            WHERE e.tenantId = :tenantId
+              AND e.branchId = :branchId
+              AND LOWER(e.deviceEmployeeNo) = LOWER(:deviceEmployeeNo)
+            """)
+    List<Employee> findByTenantIdAndBranchIdAndDeviceEmployeeNoIgnoreCase(
+            @Param("tenantId") Long tenantId,
+            @Param("branchId") Long branchId,
+            @Param("deviceEmployeeNo") String deviceEmployeeNo);
+
     Optional<Employee> findByTenantIdAndId(Long tenantId, Long id);
 
     Page<Employee> findByTenantIdAndDepartmentIdIn(Long tenantId, Collection<Long> departmentIds, Pageable pageable);

@@ -12,7 +12,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -55,49 +54,14 @@ public class AuthController {
     }
 
     /**
-     * Returns the caller's role from the security context.
-     * If the user is not authenticated (anonymous call), this means no user has been created yet
-     * and we treat the caller as HEAD_OFFICE_HR so they can bootstrap the system.
-     * AuthService itself validates role hierarchy; the first signup will always succeed
-     * because there are no existing users.
+     * Returns the authenticated caller's role, or {@code null} for anonymous bootstrap signup.
+     * AuthService allows anonymous only when no users exist yet (first HEAD_OFFICE_HR).
      */
     private User.UserType extractRoleForSignup() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()
                 || "anonymousUser".equals(authentication.getPrincipal())) {
-            // Anonymous caller – allow as HEAD_OFFICE_HR (AuthService applies first-user bootstrap logic)
-            return User.UserType.HEAD_OFFICE_HR;
-        }
-        return authentication.getAuthorities().stream()
-                .findFirst()
-                .map(GrantedAuthority::getAuthority)
-                .map(r -> r.replace("ROLE_", ""))
-                .map(r -> {
-                    try {
-                        return User.UserType.valueOf(r);
-                    } catch (IllegalArgumentException e) {
-                        log.warn("Unknown role authority '{}' in security context, defaulting to EMPLOYEE", r);
-                        return User.UserType.EMPLOYEE;
-                    }
-                })
-                .orElseGet(() -> {
-                    log.warn("Authenticated user has no granted authorities, defaulting to EMPLOYEE");
-                    return User.UserType.EMPLOYEE;
-                });
-    }
-
-    /**
-     * Extracts the caller's role from the security context.
-     * The @PreAuthorize annotation on signup() guarantees authentication is present in production.
-     * If the security context is unexpectedly empty (security misconfiguration), a warning is logged
-     * and EMPLOYEE is returned — this causes AuthService to reject the creation since EMPLOYEE
-     * cannot create any user roles.
-     */
-    private User.UserType extractRole() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            log.warn("extractRole called without an authenticated security context — security misconfiguration suspected");
-            return User.UserType.EMPLOYEE;
+            return null;
         }
         return authentication.getAuthorities().stream()
                 .findFirst()

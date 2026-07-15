@@ -5,6 +5,8 @@ import { DeviceConfig, Branch, Door } from '../types'
 import { branchApi } from '../api/branchApi.ts'
 import { doorApi } from '../api/doorApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
+import { t } from '../i18n/index.ts'
+import { doorRoleLabel, statusLabel } from '../i18n/labels.ts'
 
 interface DeviceFormData {
   deviceName: string
@@ -326,7 +328,7 @@ export default function DevicesPage() {
                         className="px-2 py-0.5 rounded-full text-xs font-medium"
                         style={{ background: '#e0e7ff', color: '#3730a3' }}
                       >
-                        {device.doorRole}
+                        {doorRoleLabel(device.doorRole)}
                       </span>
                     )}
                   </div>
@@ -513,14 +515,14 @@ export default function DevicesPage() {
                 </>
               )}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{t('common.status')}</label>
                 <select
                   value={form.status}
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
                 >
-                  <option value="ACTIVE">Aktiv</option>
-                  <option value="INACTIVE">Deaktiv</option>
+                  <option value="ACTIVE">{statusLabel('ACTIVE')}</option>
+                  <option value="INACTIVE">{statusLabel('INACTIVE')}</option>
                 </select>
               </div>
             </div>
@@ -579,7 +581,7 @@ export default function DevicesPage() {
                   <div key={door.id} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
                     <div>
                       <p className="text-sm font-medium text-gray-800">{door.name}</p>
-                      <p className="text-xs text-gray-400">{door.status}</p>
+                      <p className="text-xs text-gray-400">{statusLabel(door.status)}</p>
                     </div>
                     <button
                       onClick={() => setDoorDeleteConfirm(door)}
@@ -596,7 +598,7 @@ export default function DevicesPage() {
                 onClick={() => setShowDoorManager(false)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
               >
-                Close
+                Bağla
               </button>
             </div>
           </div>
@@ -607,9 +609,11 @@ export default function DevicesPage() {
       {doorDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Qapını sil</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{t('devices.deleteDoorTitle')}</h2>
             <p className="text-gray-600 mb-6 text-sm">
-              Are you sure you want to delete <strong>{doorDeleteConfirm.name}</strong>? All linked devices will be unassigned. This action cannot be undone.
+              {t('devices.deleteDoorConfirm')}
+              {' '}
+              <strong>{doorDeleteConfirm.name}</strong>
             </p>
             <div className="flex justify-end gap-3">
               <button
@@ -633,9 +637,11 @@ export default function DevicesPage() {
       {deleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
-            <h2 className="text-lg font-bold text-gray-900 mb-2">Cihazı sil</h2>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">{t('devices.deleteDeviceTitle')}</h2>
             <p className="text-gray-600 mb-6 text-sm">
-              Are you sure you want to delete <strong>{deleteConfirm.deviceName || deleteConfirm.deviceId}</strong>? This action cannot be undone.
+              {t('devices.deleteDeviceConfirm')}
+              {' '}
+              <strong>{deleteConfirm.deviceName || deleteConfirm.deviceId}</strong>
             </p>
             <div className="flex justify-end gap-3">
               <button

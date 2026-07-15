@@ -26,6 +26,14 @@ public class Employee {
     @Column(name = "employee_id", nullable = false)
     private String employeeId;
 
+    /**
+     * Raw person ID on Hikvision devices (ISAPI employeeNo).
+     * Used for punch matching and device sync. May duplicate across branches
+     * for different people; HR-facing {@link #employeeId} is branch-prefixed.
+     */
+    @Column(name = "device_employee_no")
+    private String deviceEmployeeNo;
+
     @Column(name = "first_name", nullable = false)
     private String firstName;
 

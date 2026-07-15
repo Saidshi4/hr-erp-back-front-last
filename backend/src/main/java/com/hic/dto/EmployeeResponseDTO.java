@@ -12,6 +12,8 @@ import java.util.List;
 public class EmployeeResponseDTO {
     private Long id;
     private String employeeId;
+    /** Raw device person ID (ISAPI employeeNo). */
+    private String deviceEmployeeNo;
     private String firstName;
     private String lastName;
     private LocalDate birthDate;

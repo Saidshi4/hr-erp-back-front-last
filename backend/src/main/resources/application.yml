@@ -49,6 +49,7 @@ logging:
 
 isapi:
   base-url: ${ISAPI_BASE_URL:http://${COMPUTER_IP:192.168.1.102}:8081}
+  api-key: ${ISAPI_API_KEY:}
   user-info-record:
     base-url: ${ISAPI_USER_INFO_BASE_URL:${ISAPI_BASE_URL:http://${COMPUTER_IP:192.168.1.102}}}
     path: /ISAPI/AccessControl/UserInfo/Record

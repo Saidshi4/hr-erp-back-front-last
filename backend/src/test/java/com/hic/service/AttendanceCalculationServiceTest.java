@@ -2,9 +2,13 @@ package com.hic.service;
 
 import com.hic.model.AttendanceLog;
 import com.hic.model.AttendanceRecord;
+import com.hic.model.Employee;
 import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.AttendanceRecordRepository;
 import com.hic.repository.EmployeeRepository;
+import com.hic.util.TenantContext;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -46,6 +50,16 @@ class AttendanceCalculationServiceTest {
     @InjectMocks
     private AttendanceCalculationService attendanceCalculationService;
 
+    @BeforeEach
+    void setTenant() {
+        TenantContext.setTenantId(7L);
+    }
+
+    @AfterEach
+    void clearTenant() {
+        TenantContext.clear();
+    }
+
     @Test
     void calculateForDay_multiPunchDay_sumsWorkedIntervals() {
         LocalDate workDate = LocalDate.of(2024, 1, 15);
@@ -78,5 +92,29 @@ class AttendanceCalculationServiceTest {
         assertThat(record.getExitTime()).isEqualTo(LocalDateTime.of(2024, 1, 15, 17, 0));
         assertThat(record.getWorkedMinutes()).isEqualTo(410);
         assertThat(record.getStatus()).isEqualTo("PRESENT");
+        assertThat(record.getTenantId()).isEqualTo(7L);
+    }
+
+    @Test
+    void calculateForDay_withoutTenantContext_usesEmployeeTenant() {
+        TenantContext.clear();
+        LocalDate workDate = LocalDate.of(2024, 1, 15);
+
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setTenantId(99L);
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(attendanceRecordRepository.findByEmployeeIdAndWorkDate(1L, workDate)).thenReturn(Optional.empty());
+        when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of());
+        when(leaveService.hasActiveLeave(1L, workDate)).thenReturn(false);
+        when(holidayService.isHoliday(workDate)).thenReturn(false);
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AttendanceRecord record = attendanceCalculationService.calculateForDay(1L, workDate);
+
+        assertThat(record.getTenantId()).isEqualTo(99L);
+        assertThat(record.getStatus()).isEqualTo("ABSENT");
     }
 }

@@ -3,6 +3,7 @@ import { employeeApi } from '../api/employeeApi.ts'
 import { permissionApi } from '../api/permissionApi.ts'
 import { employeePermissionApi } from '../api/employeePermissionApi.ts'
 import { Employee, EmployeePermission, PermissionType } from '../types'
+import { statusLabel } from '../i18n/labels.ts'
 
 interface PermissionModalProps {
   employees: Employee[]
@@ -71,11 +72,11 @@ function PermissionAssignmentModal({ employees, permissionTypeId, onClose, onSav
             <textarea value={reason} onChange={e => setReason(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm" rows={2} />
           </div>
           <div>
-            <label className="text-sm text-gray-700">Status</label>
+            <label className="text-sm text-gray-700">Vəziyyət</label>
             <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm">
-              <option value="PENDING">PENDING</option>
-              <option value="APPROVED">APPROVED</option>
-              <option value="ACTIVE">ACTIVE</option>
+              <option value="PENDING">{statusLabel('PENDING')}</option>
+              <option value="APPROVED">{statusLabel('APPROVED')}</option>
+              <option value="ACTIVE">{statusLabel('ACTIVE')}</option>
             </select>
           </div>
         </div>
@@ -178,10 +179,10 @@ export default function PermissionAssignmentPage() {
       item.employee?.departmentName || '',
       item.permission.startDate,
       item.permission.endDate,
-      item.permission.status,
+      statusLabel(item.permission.status),
       item.permission.reason || '',
     ])
-    const csv = [['Employee ID', 'Name', 'Department', 'Start Date', 'End Date', 'Status', 'Reason'], ...rows]
+    const csv = [['Əməkdaş ID', 'Ad', 'Departament', 'Başlanğıc tarixi', 'Bitiş tarixi', 'Vəziyyət', 'Səbəb'], ...rows]
       .map(row => row.map(cell => `"${cell ?? ''}"`).join(','))
       .join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -246,7 +247,7 @@ export default function PermissionAssignmentPage() {
               <th className="text-left px-4 py-3">Əməkdaş</th>
               <th className="text-left px-4 py-3">Departament</th>
               <th className="text-left px-4 py-3">Tarix aralığı</th>
-              <th className="text-left px-4 py-3">Status</th>
+              <th className="text-left px-4 py-3">Vəziyyət</th>
               <th className="text-left px-4 py-3">Qeyd</th>
               <th className="text-right px-4 py-3">Əməliyyat</th>
             </tr>
@@ -259,7 +260,7 @@ export default function PermissionAssignmentPage() {
                 <td className="px-4 py-3">{item.employee?.employeeId} — {item.employee?.firstName} {item.employee?.lastName}</td>
                 <td className="px-4 py-3">{item.employee?.departmentName || '—'}</td>
                 <td className="px-4 py-3">{item.permission.startDate} → {item.permission.endDate}</td>
-                <td className="px-4 py-3">{item.permission.status}</td>
+                <td className="px-4 py-3">{statusLabel(item.permission.status)}</td>
                 <td className="px-4 py-3">{item.permission.reason || '—'}</td>
                 <td className="px-4 py-3 text-right">
                   <button onClick={() => void removePermission(item.permission.id)} className="text-red-500 hover:text-red-700">Sil</button>

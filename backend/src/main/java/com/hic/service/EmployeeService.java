@@ -20,6 +20,7 @@ import com.hic.repository.EmployeeDeviceAccessRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
+import com.hic.repository.TenantRepository;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -53,6 +55,7 @@ public class EmployeeService {
     private final EmployeeDeviceAccessRepository employeeDeviceAccessRepository;
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
     private final UserScopeService userScopeService;
+    private final TenantRepository tenantRepository;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
         return getAll(page, size, sortBy, null);
@@ -162,6 +165,7 @@ public class EmployeeService {
         validateDepartmentExists(dto.getDepartmentId());
 
         Long tenantId = TenantContext.getTenantId();
+        enforceEmployeeQuota(tenantId);
 
         if (dto.getFinNumber() != null && !dto.getFinNumber().isBlank()) {
             if (tenantId != null) {
@@ -202,7 +206,14 @@ public class EmployeeService {
         mapDtoToEmployee(dto, employee);
 
         Employee saved = employeeRepository.save(employee);
-        List<Long> deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
+        // Refresh home-branch devices but keep any cross-branch access already granted.
+        List<Long> homeBranchDevices = resolveDeviceIdsByBranch(saved, tenantId);
+        List<Long> preservedOtherBranch = getEmployeeDeviceIds(saved.getId()).stream()
+                .filter(deviceId -> !homeBranchDevices.contains(deviceId))
+                .filter(deviceId -> isOtherBranchDevice(deviceId, saved.getBranchId()))
+                .toList();
+        List<Long> deviceIdsToAssign = new ArrayList<>(homeBranchDevices);
+        deviceIdsToAssign.addAll(preservedOtherBranch);
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
         return toResponseDTO(saved);
@@ -285,6 +296,7 @@ public class EmployeeService {
         EmployeeResponseDTO dto = new EmployeeResponseDTO();
         dto.setId(employee.getId());
         dto.setEmployeeId(employee.getEmployeeId());
+        dto.setDeviceEmployeeNo(employee.getDeviceEmployeeNo());
         dto.setFirstName(employee.getFirstName());
         dto.setLastName(employee.getLastName());
         dto.setBirthDate(employee.getBirthDate());
@@ -375,7 +387,7 @@ public class EmployeeService {
 
     private List<Long> replaceEmployeeDeviceAccess(Employee employee, List<Long> requestedDeviceIds, Long tenantId) {
         List<Long> validDeviceIds = validateDeviceIds(requestedDeviceIds, tenantId);
-        validateDeviceIdsBelongToBranch(validDeviceIds, employee.getBranchId());
+        // Cross-branch device access is allowed (home branch + optional other-branch doors).
         employeeDeviceAccessRepository.deleteByEmployeeId(employee.getId());
         employeeDeviceAccessRepository.flush();
         if (validDeviceIds.isEmpty()) {
@@ -423,18 +435,13 @@ public class EmployeeService {
         return normalized;
     }
 
-    private void validateDeviceIdsBelongToBranch(List<Long> deviceIds, Long branchId) {
-        if (deviceIds == null || deviceIds.isEmpty() || branchId == null) {
-            return;
+    private boolean isOtherBranchDevice(Long deviceConfigId, Long homeBranchId) {
+        if (deviceConfigId == null || homeBranchId == null) {
+            return false;
         }
-        List<DeviceConfig> devices = deviceConfigRepository.findAllById(deviceIds);
-        List<Long> wrongBranchDeviceIds = devices.stream()
-                .filter(d -> !branchId.equals(d.getBranchId()))
-                .map(DeviceConfig::getId)
-                .toList();
-        if (!wrongBranchDeviceIds.isEmpty()) {
-            throw new BadRequestException("Device ids do not belong to employee branch: " + wrongBranchDeviceIds);
-        }
+        return deviceConfigRepository.findById(deviceConfigId)
+                .map(d -> d.getBranchId() != null && !homeBranchId.equals(d.getBranchId()))
+                .orElse(false);
     }
 
     private List<Long> resolveDeviceIdsByBranch(Employee employee, Long tenantId) {
@@ -442,19 +449,32 @@ public class EmployeeService {
         if (branchId == null) {
             return List.of();
         }
-        List<Door> doors = tenantId != null
-                ? doorRepository.findByTenantIdAndBranchId(tenantId, branchId)
-                : doorRepository.findByBranchId(branchId);
-        Set<Long> doorIdSet = doors.stream().map(Door::getId).collect(Collectors.toSet());
 
         List<DeviceConfig> allDevices = deviceConfigRepository.findAll();
         return allDevices.stream()
                 .filter(d -> tenantId == null || d.getTenantId() == null || tenantId.equals(d.getTenantId()))
-                .filter(d -> branchId.equals(d.getBranchId()) || (d.getDoorId() != null && doorIdSet.contains(d.getDoorId())))
+                .filter(d -> branchId.equals(d.getBranchId()))
                 .map(DeviceConfig::getId)
                 .distinct()
                 .sorted()
                 .toList();
+    }
+
+    private void enforceEmployeeQuota(Long tenantId) {
+        if (tenantId == null) {
+            return;
+        }
+        tenantRepository.findById(tenantId).ifPresent(tenant -> {
+            Integer max = tenant.getMaxEmployees();
+            if (max == null || max <= 0) {
+                return;
+            }
+            long current = employeeRepository.countByTenantId(tenantId);
+            if (current >= max) {
+                throw new BadRequestException(
+                        "Employee limit reached for this tenant (" + max + "). Upgrade the subscription to add more.");
+            }
+        });
     }
 
     private List<Long> getEmployeeDeviceIds(Long employeeId) {

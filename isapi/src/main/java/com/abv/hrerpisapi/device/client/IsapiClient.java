@@ -382,9 +382,106 @@ public class IsapiClient {
 
         if (resp.statusCode() != 200) return false;
 
-        JsonNode root = OM.readTree(resp.body());
-        JsonNode list = root.path("UserInfo");
+        JsonNode list = extractUserInfoList(OM.readTree(resp.body()));
         return list.isArray() && !list.isEmpty();
+    }
+
+    /**
+     * Pages through all persons enrolled on the device via UserInfo/Search.
+     * Uses a stable searchID and advances {@code searchResultPosition} by
+     * {@code numOfMatches} until the device reports OK / NO MATCHES.
+     */
+    public List<DevicePersonInfo> searchAllDeviceUsers(DeviceEntity device)
+            throws IOException, InterruptedException {
+
+        String searchId = "import-" + UUID.randomUUID();
+        List<DevicePersonInfo> result = new ArrayList<>();
+        int position = 0;
+        final int pageSize = 30;
+
+        while (true) {
+            Map<String, Object> cond = new LinkedHashMap<>();
+            cond.put("searchID", searchId);
+            cond.put("searchResultPosition", position);
+            cond.put("maxResults", pageSize);
+
+            String body = OM.writeValueAsString(Map.of("UserInfoSearchCond", cond));
+            HttpResponse<String> resp = clientFor(device)
+                    .post("/ISAPI/AccessControl/UserInfo/Search?format=json", "application/json", body);
+
+            if (resp.statusCode() != 200) {
+                throw new IOException("UserInfo/Search returned HTTP " + resp.statusCode()
+                        + " for device " + device.getId() + ": " + snippet(resp.body()));
+            }
+
+            JsonNode root = OM.readTree(resp.body());
+            JsonNode search = root.path("UserInfoSearch");
+            if (search.isMissingNode() || search.isNull()) {
+                search = root;
+            }
+
+            String status = search.path("responseStatusStrg").asText("");
+            JsonNode list = search.path("UserInfo");
+            if (!list.isArray() || list.isEmpty()) {
+                break;
+            }
+
+            int got = 0;
+            for (JsonNode node : list) {
+                String employeeNo = node.path("employeeNo").asText("").trim();
+                if (employeeNo.isBlank()) {
+                    continue;
+                }
+                result.add(new DevicePersonInfo(
+                        employeeNo,
+                        node.path("name").asText(null),
+                        node.path("userType").asText(null),
+                        node.path("gender").asText(null),
+                        node.path("Valid").path("beginTime").asText(null),
+                        node.path("Valid").path("endTime").asText(null)
+                ));
+                got++;
+            }
+
+            int numOfMatches = search.path("numOfMatches").asInt(got);
+            if (numOfMatches <= 0) {
+                numOfMatches = got;
+            }
+
+            if ("OK".equalsIgnoreCase(status)
+                    || status.toUpperCase().contains("NO")
+                    || numOfMatches < pageSize
+                    || got == 0) {
+                break;
+            }
+
+            position += numOfMatches;
+            if (position > 100_000) {
+                log.warn("Aborting UserInfo/Search pagination for device {} after position={}",
+                        device.getId(), position);
+                break;
+            }
+        }
+
+        return result;
+    }
+
+    private static JsonNode extractUserInfoList(JsonNode root) {
+        JsonNode nested = root.path("UserInfoSearch").path("UserInfo");
+        if (nested.isArray()) {
+            return nested;
+        }
+        return root.path("UserInfo");
+    }
+
+    public record DevicePersonInfo(
+            String employeeNo,
+            String name,
+            String userType,
+            String gender,
+            String beginTime,
+            String endTime
+    ) {
     }
 
     /**

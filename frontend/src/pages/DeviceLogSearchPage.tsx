@@ -1,8 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import Layout from '../components/Layout.tsx'
+import PaginationBar from '../components/PaginationBar.tsx'
 import { deviceLogApi, DeviceLogEvent, DeviceLogSearchResult } from '../api/deviceLogApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
 import { DeviceConfig } from '../types'
+import { t } from '../i18n/index.ts'
+import { doorRoleLabel } from '../i18n/labels.ts'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -29,8 +32,6 @@ function getLocalOffsetStr(): string {
   const mm = String(abs % 60).padStart(2, '0')
   return `${sign}${hh}:${mm}`
 }
-
-const PAGE_SIZE_OPTIONS = [12, 24, 50, 100]
 
 function eventBadgeStyle(description?: string): { background: string; color: string; dot: string } {
   const text = (description ?? '').toLowerCase()
@@ -91,7 +92,7 @@ function PhotoModal({ open, src, loading, error, fallbackUrl, employeeName, onCl
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div>
-            <p className="text-white font-semibold text-sm">Event Photo</p>
+            <p className="text-white font-semibold text-sm">{t('deviceLogSearch.eventPhoto')}</p>
             {employeeName && <p className="text-xs mt-0.5" style={{ color: '#a5b4fc' }}>{employeeName}</p>}
           </div>
           <button
@@ -101,6 +102,7 @@ function PhotoModal({ open, src, loading, error, fallbackUrl, employeeName, onCl
             style={{ color: '#a5b4fc' }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'rgba(168,85,247,0.3)' }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            aria-label={t('common.close')}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -112,7 +114,7 @@ function PhotoModal({ open, src, loading, error, fallbackUrl, employeeName, onCl
           {loading ? (
             <div className="flex flex-col items-center gap-3">
               <Spinner />
-              <p className="text-sm" style={{ color: '#a5b4fc' }}>Loading photo…</p>
+              <p className="text-sm" style={{ color: '#a5b4fc' }}>{t('deviceLogSearch.loadingPhoto')}</p>
             </div>
           ) : error ? (
             <div className="text-center px-6 space-y-4">
@@ -125,14 +127,14 @@ function PhotoModal({ open, src, loading, error, fallbackUrl, employeeName, onCl
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-white"
                   style={{ background: '#a855f7' }}
                 >
-                  Open photo on device
+                  {t('deviceLogSearch.openPhotoOnDevice')}
                 </a>
               )}
             </div>
           ) : src ? (
             <img
               src={src}
-              alt={`Event photo${employeeName ? ' — ' + employeeName : ''}`}
+              alt={`${t('deviceLogSearch.eventPhoto')}${employeeName ? ' — ' + employeeName : ''}`}
               className="max-w-full max-h-96 rounded-lg object-contain"
               style={{ boxShadow: '0 0 40px rgba(168,85,247,0.3)' }}
             />
@@ -164,7 +166,6 @@ export default function DeviceLogSearchPage() {
   const [endTime,     setEndTime]     = useState(toLocalDatetimeString(endOfDay))
   const [page,        setPage]        = useState(0)
   const [pageSize,    setPageSize]    = useState(24)
-  const [gotoPage,    setGotoPage]    = useState('')
 
   // ── UI state ──────────────────────────────────────────────────────────────
   const [devices,   setDevices]   = useState<DeviceConfig[]>([])
@@ -200,7 +201,7 @@ export default function DeviceLogSearchPage() {
   // ── Search ────────────────────────────────────────────────────────────────
   const doSearch = useCallback(async (targetPage: number, targetPageSize: number) => {
     if (!deviceId) {
-      setError('Please select a device.')
+      setError(t('deviceLogSearch.selectDeviceRequired'))
       return
     }
     setLoading(true)
@@ -225,7 +226,7 @@ export default function DeviceLogSearchPage() {
       const msg = (e as { response?: { data?: { message?: string } }; message?: string })
         ?.response?.data?.message
         ?? (e as Error)?.message
-        ?? 'Search failed'
+        ?? t('deviceLogSearch.searchFailed')
       setError(msg)
       setResult(null)
     } finally {
@@ -238,29 +239,14 @@ export default function DeviceLogSearchPage() {
     doSearch(0, pageSize)
   }
 
+  const handlePageChange = (nextPage: number) => {
+    doSearch(nextPage, pageSize)
+  }
+
   const handlePageSizeChange = (newSize: number) => {
     setPageSize(newSize)
     setPage(0)
     if (fetched && deviceId) doSearch(0, newSize)
-  }
-
-  const handlePrev = () => {
-    if (page > 0) doSearch(page - 1, pageSize)
-  }
-
-  const handleNext = () => {
-    const totalPages = result ? Math.ceil(result.totalMatches / pageSize) : 0
-    if (page < totalPages - 1) doSearch(page + 1, pageSize)
-  }
-
-  const handleGoto = () => {
-    const p = parseInt(gotoPage, 10)
-    if (!isNaN(p) && p >= 1) {
-      const totalPages = result ? Math.ceil(result.totalMatches / pageSize) : 1
-      const clamped = Math.min(p - 1, totalPages - 1)
-      doSearch(clamped, pageSize)
-    }
-    setGotoPage('')
   }
 
   // ── Photo handling ────────────────────────────────────────────────────────
@@ -279,7 +265,7 @@ export default function DeviceLogSearchPage() {
       blobUrlsRef.current.push(blobUrl)
       setPhotoSrc(blobUrl)
     } catch (e: unknown) {
-      const msg = (e as Error)?.message ?? 'Could not load photo'
+      const msg = (e as Error)?.message ?? t('deviceLogSearch.photoLoadFailed')
       setPhotoModalError(msg)
       setPhotoError(msg)
     } finally {
@@ -329,9 +315,9 @@ export default function DeviceLogSearchPage() {
               </svg>
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Live Device Log Search</h1>
+              <h1 className="text-2xl font-bold text-gray-900">{t('deviceLogSearch.title')}</h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                Query Access Control events directly from device memory in real time
+                {t('deviceLogSearch.subtitle')}
               </p>
             </div>
           </div>
@@ -348,7 +334,7 @@ export default function DeviceLogSearchPage() {
                   style={{ background: selectedDevice.status === 'ACTIVE' ? '#10b981' : '#f59e0b' }}
                 />
                 {selectedDevice.deviceName ?? selectedDevice.deviceIp}
-                {selectedDevice.doorRole && ` — ${selectedDevice.doorRole}`}
+                {selectedDevice.doorRole && ` — ${doorRoleLabel(selectedDevice.doorRole)}`}
                 &nbsp;·&nbsp;{selectedDevice.deviceIp}
               </span>
             </div>
@@ -357,14 +343,14 @@ export default function DeviceLogSearchPage() {
 
         {/* ── Filter Panel ── */}
         <div className="bg-white rounded-2xl shadow-sm p-6 mb-6" style={{ border: '1px solid #f1f5f9' }}>
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">Search Filters</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest mb-4">{t('deviceLogSearch.searchFilters')}</p>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
 
             {/* Device selector — required */}
             <div className="xl:col-span-2">
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="device-select">
-                Device <span style={{ color: '#a855f7' }}>*</span>
+                {t('deviceLogSearch.device')}
               </label>
               <div className="relative">
                 <select
@@ -374,11 +360,11 @@ export default function DeviceLogSearchPage() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm appearance-none focus:outline-none focus:ring-2"
                   style={{ '--tw-ring-color': '#a855f7', paddingRight: '2.5rem' } as React.CSSProperties}
                 >
-                  <option value="">— Select a device —</option>
+                  <option value="">{t('deviceLogSearch.selectDevice')}</option>
                   {devices.map((d) => (
                     <option key={d.id} value={d.id}>
                       {d.deviceName ?? d.deviceIp}
-                      {d.doorRole ? ` — ${d.doorRole}` : ''}
+                      {d.doorRole ? ` — ${doorRoleLabel(d.doorRole)}` : ''}
                       {d.deviceIp ? ` (${d.deviceIp})` : ''}
                     </option>
                   ))}
@@ -394,12 +380,12 @@ export default function DeviceLogSearchPage() {
             {/* Employee ID */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="filter-employee-id">
-                Employee ID
+                {t('deviceLogSearch.employeeId')}
               </label>
               <input
                 id="filter-employee-id"
                 type="text"
-                placeholder="e.g. EMP0009"
+                placeholder="məs. EMP0009"
                 value={employeeId}
                 onChange={(e) => setEmployeeId(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -411,12 +397,12 @@ export default function DeviceLogSearchPage() {
             {/* Name */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="filter-name">
-                Name
+                {t('deviceLogSearch.name')}
               </label>
               <input
                 id="filter-name"
                 type="text"
-                placeholder="e.g. Said"
+                placeholder="məs. Said"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -427,12 +413,12 @@ export default function DeviceLogSearchPage() {
             {/* Card No */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="filter-card-no">
-                Card No.
+                {t('deviceLogSearch.cardNo')}
               </label>
               <input
                 id="filter-card-no"
                 type="text"
-                placeholder="Card number"
+                placeholder={t('deviceLogSearch.cardNumber')}
                 value={cardNo}
                 onChange={(e) => setCardNo(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -442,7 +428,7 @@ export default function DeviceLogSearchPage() {
 
             {/* Event Type — fixed */}
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">Event Type</label>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('deviceLogSearch.eventType')}</label>
               <div
                 className="w-full border rounded-xl px-3 py-2.5 text-sm flex items-center gap-2"
                 style={{ border: '1px solid #f1f5f9', background: '#fafafa', color: '#6b7280' }}
@@ -451,14 +437,14 @@ export default function DeviceLogSearchPage() {
                   className="inline-block w-2 h-2 rounded-full flex-shrink-0"
                   style={{ background: '#a855f7' }}
                 />
-                Access Control Event
+                {t('deviceLogSearch.accessControlEvent')}
               </div>
             </div>
 
             {/* Start Time */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="filter-start-time">
-                Start Time
+                {t('deviceLogSearch.startTime')}
               </label>
               <input
                 id="filter-start-time"
@@ -472,7 +458,7 @@ export default function DeviceLogSearchPage() {
             {/* End Time */}
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5" htmlFor="filter-end-time">
-                End Time
+                {t('deviceLogSearch.endTime')}
               </label>
               <input
                 id="filter-end-time"
@@ -503,7 +489,7 @@ export default function DeviceLogSearchPage() {
                       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
                 )}
-                {loading ? 'Searching…' : 'Search'}
+                {loading ? t('deviceLogSearch.searching') : t('deviceLogSearch.search')}
               </button>
             </div>
           </div>
@@ -533,7 +519,7 @@ export default function DeviceLogSearchPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            <span>Photo error: {photoError}</span>
+            <span>{t('deviceLogSearch.photoError')}: {photoError}</span>
           </div>
         )}
 
@@ -547,21 +533,21 @@ export default function DeviceLogSearchPage() {
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold" style={{ color: '#7c3aed' }}>
-                  Total {result.totalMatches.toLocaleString()} Events
+                  {t('deviceLogSearch.totalEvents', { n: result.totalMatches.toLocaleString() })}
                 </span>
                 {result.responseStatus === 'MORE' && (
                   <span
                     className="text-xs px-2 py-0.5 rounded-full font-medium"
                     style={{ background: '#a855f7', color: '#fff' }}
                   >
-                    More available
+                    {t('deviceLogSearch.moreAvailable')}
                   </span>
                 )}
               </div>
               <div className="flex items-center gap-2 text-xs" style={{ color: '#7c3aed' }}>
-                <span>Page {page + 1} of {totalPages}</span>
+                <span>{t('deviceLogSearch.pageOf', { x: page + 1, y: totalPages })}</span>
                 <span>·</span>
-                <span>Showing {result.numOfMatches} on this page</span>
+                <span>{t('deviceLogSearch.showingOnPage', { n: result.numOfMatches })}</span>
               </div>
             </div>
 
@@ -572,8 +558,8 @@ export default function DeviceLogSearchPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                     d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <p className="text-gray-400 text-sm">No matching events found.</p>
-                <p className="text-gray-300 text-xs mt-1">Try adjusting your filters or time range.</p>
+                <p className="text-gray-400 text-sm">{t('deviceLogSearch.noResults')}</p>
+                <p className="text-gray-300 text-xs mt-1">{t('deviceLogSearch.tryAdjustFilters')}</p>
               </div>
             ) : (
               <div className="bg-white rounded-2xl shadow-sm overflow-hidden" style={{ border: '1px solid #f1f5f9' }}>
@@ -582,13 +568,13 @@ export default function DeviceLogSearchPage() {
                     <thead>
                       <tr style={{ background: '#faf5ff', borderBottom: '2px solid #ede9fe' }}>
                         <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider w-8">#</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee ID</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Name</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Card No.</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Event</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Verify Mode</th>
-                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Time</th>
-                        <th className="text-center px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">Photo</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.employeeId')}</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.name')}</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.cardNo')}</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.event')}</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.verifyMode')}</th>
+                        <th className="text-left px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.time')}</th>
+                        <th className="text-center px-5 py-3.5 text-xs font-semibold text-gray-500 uppercase tracking-wider">{t('deviceLogSearch.photo')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -645,7 +631,7 @@ export default function DeviceLogSearchPage() {
                                       className="w-1.5 h-1.5 rounded-full inline-block"
                                       style={{ background: badge.dot }}
                                     />
-                                    {event.eventDescription || 'Event'}
+                                    {event.eventDescription || t('deviceLogSearch.event')}
                                   </span>
                                 )
                               })()}
@@ -686,7 +672,7 @@ export default function DeviceLogSearchPage() {
                                   {isLoadingThis ? (
                                     <>
                                       <Spinner />
-                                      Loading…
+                                      {t('common.loading')}
                                     </>
                                   ) : (
                                     <>
@@ -694,7 +680,7 @@ export default function DeviceLogSearchPage() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                                           d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                       </svg>
-                                      View Photo
+                                      {t('deviceLogSearch.viewPhoto')}
                                     </>
                                   )}
                                 </button>
@@ -709,128 +695,15 @@ export default function DeviceLogSearchPage() {
                   </table>
                 </div>
 
-                {/* ── Pagination ── */}
-                <div
-                  className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"
-                  style={{ borderTop: '1px solid #f1f5f9' }}
-                >
-                  {/* Left: page size + total */}
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      <span>Items per page:</span>
-                      <div className="relative">
-                        <select
-                          id="page-size-select"
-                          value={pageSize}
-                          onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs pr-6 appearance-none focus:outline-none focus:ring-1"
-                          style={{ color: '#7c3aed', fontWeight: 600 }}
-                        >
-                          {PAGE_SIZE_OPTIONS.map((s) => (
-                            <option key={s} value={s}>{s}</option>
-                          ))}
-                        </select>
-                        <div className="absolute inset-y-0 right-1.5 flex items-center pointer-events-none">
-                          <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                    <span className="text-xs text-gray-400">
-                      Total {result.totalMatches.toLocaleString()} items
-                    </span>
-                  </div>
-
-                  {/* Center: Prev / page numbers / Next */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      id="pagination-prev-btn"
-                      onClick={handlePrev}
-                      disabled={page === 0 || loading}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background: '#f3f4f6', color: '#374151' }}
-                      onMouseEnter={(e) => { if (page > 0) (e.currentTarget as HTMLElement).style.background = '#ede9fe' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#f3f4f6' }}
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                      </svg>
-                      Prev
-                    </button>
-
-                    {/* Visible page buttons */}
-                    {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                      let p: number
-                      if (totalPages <= 7) {
-                        p = i
-                      } else if (page < 4) {
-                        p = i
-                      } else if (page > totalPages - 5) {
-                        p = totalPages - 7 + i
-                      } else {
-                        p = page - 3 + i
-                      }
-                      return (
-                        <button
-                          key={p}
-                          id={`pagination-page-${p + 1}-btn`}
-                          onClick={() => doSearch(p, pageSize)}
-                          disabled={loading}
-                          className="w-8 h-8 rounded-lg text-xs font-medium transition-all"
-                          style={
-                            p === page
-                              ? { background: '#a855f7', color: '#fff', boxShadow: '0 2px 6px rgba(168,85,247,0.4)' }
-                              : { background: '#f3f4f6', color: '#374151' }
-                          }
-                        >
-                          {p + 1}
-                        </button>
-                      )
-                    })}
-
-                    <button
-                      id="pagination-next-btn"
-                      onClick={handleNext}
-                      disabled={page >= totalPages - 1 || loading}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                      style={{ background: '#f3f4f6', color: '#374151' }}
-                      onMouseEnter={(e) => { if (page < totalPages - 1) (e.currentTarget as HTMLElement).style.background = '#ede9fe' }}
-                      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = '#f3f4f6' }}
-                    >
-                      Next
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Right: Go to page */}
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
-                    <span>Go to page:</span>
-                    <input
-                      id="goto-page-input"
-                      type="number"
-                      min={1}
-                      max={totalPages}
-                      value={gotoPage}
-                      onChange={(e) => setGotoPage(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleGoto()}
-                      placeholder={String(page + 1)}
-                      className="w-14 border border-gray-200 rounded-lg px-2 py-1 text-xs text-center focus:outline-none focus:ring-1"
-                      style={{ '--tw-ring-color': '#a855f7' } as React.CSSProperties}
-                    />
-                    <button
-                      id="goto-page-btn"
-                      onClick={handleGoto}
-                      disabled={loading}
-                      className="px-3 py-1 rounded-lg text-xs font-medium transition-all"
-                      style={{ background: '#ede9fe', color: '#7c3aed' }}
-                    >
-                      Go
-                    </button>
-                  </div>
-                </div>
+                <PaginationBar
+                  page={page}
+                  pageSize={pageSize}
+                  totalItems={result.totalMatches}
+                  loading={loading}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  idPrefix="pagination"
+                />
               </div>
             )}
           </>
@@ -851,11 +724,9 @@ export default function DeviceLogSearchPage() {
                   d="M15 10l4.553-2.069A1 1 0 0121 8.867V15.1a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
               </svg>
             </div>
-            <p className="text-gray-700 font-semibold mb-1">Select a device and search</p>
+            <p className="text-gray-700 font-semibold mb-1">{t('deviceLogSearch.emptyHint')}</p>
             <p className="text-gray-400 text-sm max-w-sm mx-auto">
-              Choose a device from the dropdown, set your time range, and click{' '}
-              <strong className="font-semibold" style={{ color: '#a855f7' }}>Search</strong>{' '}
-              to query its onboard Access Control event log in real time.
+              {t('deviceLogSearch.emptyHelp')}
             </p>
           </div>
         )}

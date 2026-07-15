@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -8,7 +6,7 @@ services:
     environment:
       POSTGRES_DB: hic_backend
       POSTGRES_USER: hic_user
-      POSTGRES_PASSWORD: hic_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
     ports:
       - "5432:5432"
     volumes:
@@ -29,8 +27,8 @@ services:
     container_name: hic_pgadmin
     restart: unless-stopped
     environment:
-      PGADMIN_DEFAULT_EMAIL: admin@pgadmin.com
-      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@pgadmin.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:?Set PGADMIN_DEFAULT_PASSWORD in .env}
     ports:
       - "5050:80"
     depends_on:
@@ -55,9 +53,11 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/hic_backend
       SPRING_DATASOURCE_USERNAME: hic_user
-      SPRING_DATASOURCE_PASSWORD: hic_password
-      JWT_SECRET: ${JWT_SECRET:-HicCentralJwtSecretKey2024AzerbaijanHRERPSystemSecretKeyMustBe64CharsLong!!}
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://${COMPUTER_IP:-192.168.1.102}:3000}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      ENCRYPTION_SECRET_KEY: ${ENCRYPTION_SECRET_KEY:?Set ENCRYPTION_SECRET_KEY in .env}
+      ISAPI_API_KEY: ${ISAPI_API_KEY:?Set ISAPI_API_KEY in .env}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       ISAPI_BASE_URL: http://isapi:8081
       COMPUTER_IP: ${COMPUTER_IP:-192.168.1.102}
@@ -67,6 +67,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      isapi:
+        condition: service_started
     deploy:
       resources:
         limits:
@@ -81,11 +83,13 @@ services:
     environment:
       DB_URL: jdbc:postgresql://postgres:5432/hic_isapi
       DB_USERNAME: hic_user
-      DB_PASSWORD: hic_password
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      ISAPI_API_KEY: ${ISAPI_API_KEY:?Set ISAPI_API_KEY in .env}
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
       TZ: Asia/Baku
+    # Bind to localhost only — not publicly reachable in SaaS/prod deploys
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     depends_on:
       postgres:
         condition: service_healthy

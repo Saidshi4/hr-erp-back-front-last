@@ -33,7 +33,15 @@ client.interceptors.request.use((config) => {
 client.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    const status = error.response?.status
+    const url = String(error.config?.url || '')
+    const isAuthEndpoint =
+      url.includes('/auth/login') ||
+      url.includes('/auth/signup') ||
+      url.includes('/auth/refresh')
+
+    // Do not bounce login/signup pages to /login on credential errors.
+    if (status === 401 && !isAuthEndpoint) {
       localStorage.removeItem('auth-storage')
       window.location.href = '/login'
     }

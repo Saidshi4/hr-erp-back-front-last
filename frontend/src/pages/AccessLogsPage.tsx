@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import Layout from '../components/Layout.tsx'
+import PaginationBar from '../components/PaginationBar.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
 import { AccessLog } from '../types'
 import { t } from '../i18n/index.ts'
@@ -16,6 +17,8 @@ export default function AccessLogsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fetched, setFetched] = useState(false)
+  const [page, setPage] = useState(0)
+  const [pageSize, setPageSize] = useState(24)
 
   const fetchLogs = useCallback(async () => {
     setLoading(true)
@@ -30,6 +33,7 @@ export default function AccessLogsPage() {
       const end = endDate ? new Date(`${endDate}T23:59:59`).toISOString() : undefined
       const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId, start, end })
       setLogs(res.data?.data ?? [])
+      setPage(0)
       setFetched(true)
     } catch (e: unknown) {
       setError((e as Error).message || t('accessLogs.fetchFailed'))
@@ -38,7 +42,7 @@ export default function AccessLogsPage() {
     }
   }, [search, deviceIdFilter, startDate, endDate])
 
-  const filteredLogs = logs.filter((log) => {
+  const filteredLogs = useMemo(() => logs.filter((log) => {
     const normalizedSearch = search.trim().toLowerCase()
     const matchesSearch = !normalizedSearch || (
       String(log.employeeNo ?? '').toLowerCase().includes(normalizedSearch) ||
@@ -47,16 +51,44 @@ export default function AccessLogsPage() {
       String(log.lastName ?? '').toLowerCase().includes(normalizedSearch)
     )
     return matchesSearch
-  })
+  }), [logs, search])
 
-  const sortedLogs = [...filteredLogs].sort((a, b) => {
+  const sortedLogs = useMemo(() => [...filteredLogs].sort((a, b) => {
     const timeA = a.punchTime ? new Date(a.punchTime).getTime() : 0
     const timeB = b.punchTime ? new Date(b.punchTime).getTime() : 0
     return timeB - timeA
-  })
+  }), [filteredLogs])
+
+  const totalItems = sortedLogs.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize) || 1)
+
+  useEffect(() => {
+    if (page > totalPages - 1) {
+      setPage(Math.max(0, totalPages - 1))
+    }
+  }, [page, totalPages])
+
+  // Reset to first page when local search filter changes the result set
+  useEffect(() => {
+    setPage(0)
+  }, [search])
+
+  const pageLogs = useMemo(() => {
+    const start = page * pageSize
+    return sortedLogs.slice(start, start + pageSize)
+  }, [sortedLogs, page, pageSize])
 
   const uniqueEmployees = new Set(filteredLogs.map(l => l.employeeNo).filter(Boolean)).size
   const uniqueDevices = new Set(filteredLogs.map(l => l.deviceId).filter(v => v !== undefined && v !== null)).size
+
+  const handlePageChange = (nextPage: number) => {
+    setPage(Math.max(0, Math.min(totalPages - 1, nextPage)))
+  }
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize)
+    setPage(0)
+  }
 
   return (
     <Layout>
@@ -155,11 +187,24 @@ export default function AccessLogsPage() {
                 {t('accessLogs.noResults')}
               </div>
             ) : (
-              <div className="space-y-3">
-                {sortedLogs.map((log) => {
-                  return (
-                    <div key={log.id} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-5">
-                      {/* Status indicator */}
+              <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div
+                  className="flex flex-wrap items-center justify-between gap-2 px-5 py-3 text-sm"
+                  style={{ background: '#f5f3ff', color: '#5b21b6' }}
+                >
+                  <span className="font-medium">
+                    {t('deviceLogSearch.totalEvents', { n: totalItems })}
+                  </span>
+                  <span className="text-xs sm:text-sm opacity-90">
+                    {t('deviceLogSearch.pageOf', { x: page + 1, y: totalPages })}
+                    {' · '}
+                    {t('deviceLogSearch.showingOnPage', { n: pageLogs.length })}
+                  </span>
+                </div>
+
+                <div className="space-y-3 p-4 sm:p-5">
+                  {pageLogs.map((log) => (
+                    <div key={log.id} className="bg-slate-50 rounded-xl p-5 flex items-center gap-5 border border-slate-100">
                       <div
                         className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
                         style={{ background: '#d1fae5' }}
@@ -169,7 +214,6 @@ export default function AccessLogsPage() {
                         </svg>
                       </div>
 
-                      {/* Info */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-gray-900">
                           {log.firstName || log.lastName
@@ -181,7 +225,6 @@ export default function AccessLogsPage() {
                         </p>
                       </div>
 
-                      {/* Time */}
                       <div className="hidden md:block text-center min-w-[150px]">
                         <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.accessTime')}</p>
                         <p className="text-sm font-medium text-gray-700">
@@ -191,13 +234,11 @@ export default function AccessLogsPage() {
                         </p>
                       </div>
 
-                      {/* Device */}
                       <div className="hidden lg:block text-center min-w-[120px]">
                         <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.device')}</p>
                         <p className="text-sm text-gray-600 font-mono">{log.deviceId ?? '—'}</p>
                       </div>
 
-                      {/* Status badge */}
                       <span
                         className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
                         style={{ background: '#d1fae5', color: '#065f46' }}
@@ -205,8 +246,18 @@ export default function AccessLogsPage() {
                         {t('accessLogs.recorded')}
                       </span>
                     </div>
-                  )
-                })}
+                  ))}
+                </div>
+
+                <PaginationBar
+                  page={page}
+                  pageSize={pageSize}
+                  totalItems={totalItems}
+                  loading={loading}
+                  onPageChange={handlePageChange}
+                  onPageSizeChange={handlePageSizeChange}
+                  idPrefix="access-logs"
+                />
               </div>
             )}
           </>

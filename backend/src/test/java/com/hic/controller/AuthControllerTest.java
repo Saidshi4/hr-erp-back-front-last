@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -59,7 +60,7 @@ class AuthControllerTest {
                 "New", "User", UserType.OFFICE_HR, null, null, 1L);
         LoginResponse response = new LoginResponse("access-token", "refresh-token", userDTO);
 
-        when(authService.signup(any(SignupRequest.class), any(UserType.class))).thenReturn(response);
+        when(authService.signup(any(SignupRequest.class), nullable(UserType.class))).thenReturn(response);
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -78,7 +79,7 @@ class AuthControllerTest {
         request.setLastName("User");
         request.setPassword("password1");
 
-        when(authService.signup(any(SignupRequest.class), any(UserType.class)))
+        when(authService.signup(any(SignupRequest.class), nullable(UserType.class)))
                 .thenThrow(new BadRequestException("Email already registered"));
 
         mockMvc.perform(post("/api/auth/signup")

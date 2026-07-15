@@ -47,6 +47,7 @@ export interface Position {
 export interface Employee {
   id: number
   employeeId: string
+  deviceEmployeeNo?: string
   firstName: string
   lastName: string
   fatherName?: string

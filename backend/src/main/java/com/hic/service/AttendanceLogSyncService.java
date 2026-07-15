@@ -96,8 +96,17 @@ public class AttendanceLogSyncService {
                     ? employeeRepository.findByTenantIdAndEmployeeIdIn(tenantId, employeeNos)
                     : employeeRepository.findByEmployeeIdIn(employeeNos);
             for (Employee emp : employees) {
-                if (emp.getEmployeeId() != null) {
-                    employeeMap.put(emp.getEmployeeId().trim().toLowerCase(), emp);
+                indexEmployee(employeeMap, emp);
+            }
+            for (String no : employeeNos) {
+                if (employeeMap.containsKey(no.toLowerCase())) {
+                    continue;
+                }
+                List<Employee> byDeviceNo = tenantId != null
+                        ? employeeRepository.findByTenantIdAndDeviceEmployeeNoIgnoreCase(tenantId, no)
+                        : employeeRepository.findByDeviceEmployeeNoIgnoreCase(no);
+                if (byDeviceNo.size() == 1) {
+                    indexEmployee(employeeMap, byDeviceNo.get(0));
                 }
             }
         }
@@ -119,6 +128,15 @@ public class AttendanceLogSyncService {
                     );
                 })
                 .toList();
+    }
+
+    private static void indexEmployee(Map<String, Employee> employeeMap, Employee emp) {
+        if (emp.getEmployeeId() != null) {
+            employeeMap.put(emp.getEmployeeId().trim().toLowerCase(), emp);
+        }
+        if (emp.getDeviceEmployeeNo() != null && !emp.getDeviceEmployeeNo().isBlank()) {
+            employeeMap.putIfAbsent(emp.getDeviceEmployeeNo().trim().toLowerCase(), emp);
+        }
     }
 
 

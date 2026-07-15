@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import client from '../api/client.ts'
+import { statusLabel } from '../i18n/labels.ts'
 
 interface DashboardStats {
   totalEmployees: number
@@ -134,8 +135,8 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">İdare paneli</h1>
-            <p className="text-sm text-gray-500 mt-1">Canlı HR və cihaz metrikalarının bir baxışda izləyin</p>
+            <h1 className="text-2xl font-bold text-gray-900">İdarə paneli</h1>
+            <p className="text-sm text-gray-500 mt-1">Canlı əməkdaş və cihaz metrikalarını bir baxışda izləyin</p>
           </div>
           <div className="text-right">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">BU GÜN TARİX VƏ SAAT</p>
@@ -162,7 +163,7 @@ export default function DashboardPage() {
 
         {/* Device Status */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Cihaz status xülasəsi</h2>
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Cihaz vəziyyət xülasəsi</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="rounded-xl p-4 flex items-center gap-3" style={{ background: '#f3f4f6' }}>
               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#e5e7eb' }}>
@@ -242,7 +243,7 @@ export default function DashboardPage() {
                         ? { background: '#d1fae5', color: '#065f46' }
                         : { background: '#fef3c7', color: '#92400e' }}
                     >
-                      {log.status || log.eventType || 'GİRİŞ'}
+                      {log.status ? statusLabel(log.status) : (log.eventType || 'GİRİŞ')}
                     </span>
                   </div>
                   </div>

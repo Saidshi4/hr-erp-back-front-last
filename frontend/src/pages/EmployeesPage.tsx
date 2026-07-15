@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Layout from '../components/Layout.tsx'
 import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
@@ -89,7 +88,6 @@ function getAvatarColor(name: string) {
 }
 
 export default function EmployeesPage() {
-  const navigate = useNavigate()
   const defaultDeviceId = Number(import.meta.env.VITE_DEFAULT_DEVICE_ID || 1)
   const { employees, loading, error, fetchEmployees, deleteEmployee, totalPages, currentPage, totalElements } = useEmployeeStore()
   const { branches, fetchBranches } = useBranchStore()
@@ -366,7 +364,7 @@ export default function EmployeesPage() {
           await deviceUserApi.uploadFace(isapiDeviceId, deviceUser.id, file, employee.id)
           console.info('[uploadFace] uploaded face to device', isapiDeviceId)
         } else {
-          errors.push(`Cihaz ${isapiDeviceId}: user tapılmadı`)
+          errors.push(`Cihaz ${isapiDeviceId}: istifadəçi tapılmadı`)
         }
       } catch (e) {
         console.error('[uploadFace] error for device', isapiDeviceId, ':', e)
@@ -510,7 +508,7 @@ export default function EmployeesPage() {
       const usersRes = await deviceUserApi.getAll(defaultDeviceId)
       const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
       if (!deviceUser) {
-        throw new Error(`Cihaz user tapılmadı (${employee.employeeId})`)
+        throw new Error(`Cihaz istifadəçi tapılmadı (${employee.employeeId})`)
       }
       await deviceUserApi.deleteFace(defaultDeviceId, deviceUser.id, employee.id)
       await fetchEmployees(currentPage, 20)
@@ -1097,10 +1095,6 @@ export default function EmployeesPage() {
           onClose={closeProfile}
           onEdit={(emp) => { closeProfile(); openEdit(emp) }}
           onDelete={(emp) => setDeleteConfirm(emp)}
-          onViewPermissionHistory={(emp) => {
-            closeProfile()
-            navigate(`/leaves?employeePk=${emp.id}&year=${new Date().getFullYear()}`)
-          }}
         />
       )}
 

@@ -28,12 +28,11 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
              .authorizeHttpRequests(auth -> auth
                  .requestMatchers("/api/auth/login").permitAll()
+                 // Signup stays public only for first-user bootstrap; AuthService rejects later anonymous signups.
                  .requestMatchers("/api/auth/signup").permitAll()
                  .requestMatchers("/api/auth/refresh").permitAll()
                  .requestMatchers("/api/auth/verify").permitAll()
                  .requestMatchers("/api/health").permitAll()
-                 .requestMatchers("/api/isapi/access-control/user-info/record").permitAll()
-                 .requestMatchers("/ISAPI/AccessControl/UserInfo/Record").permitAll()
                  .requestMatchers("/actuator/health").permitAll()
                  .anyRequest().authenticated()
              )

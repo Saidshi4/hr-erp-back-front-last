@@ -39,7 +39,7 @@ encryption:
   secret-key: ${ENCRYPTION_SECRET_KEY:HicEncryptKey32CharactersLongKey!}
 
 rate-limit:
-  max-requests-per-minute: ${RATE_LIMIT_MAX:60}
+  # Only auth endpoints are rate-limited (see RateLimitFilter).
   login-max-per-minute: ${RATE_LIMIT_LOGIN_MAX:10}
 
 logging:

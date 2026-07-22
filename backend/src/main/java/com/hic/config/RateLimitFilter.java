@@ -16,15 +16,13 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Simple IP-based rate limiter using a sliding window.
- * Limits login endpoints to prevent brute-force attacks.
+ * IP-based rate limiter for auth endpoints only (brute-force protection).
+ * Normal authenticated SPA traffic is not throttled — a single page refresh
+ * can fire dozens of API calls and must not return 429.
  */
 @Slf4j
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
-
-    @Value("${rate-limit.max-requests-per-minute:60}")
-    private int maxRequestsPerMinute;
 
     @Value("${rate-limit.login-max-per-minute:10}")
     private int loginMaxPerMinute;
@@ -32,31 +30,24 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final long WINDOW_MS = 60_000L;
 
     // IP -> [window start ms, count]
-    private final Map<String, long[]> requestCounts = new ConcurrentHashMap<>();
     private final Map<String, long[]> loginCounts = new ConcurrentHashMap<>();
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        String ip = getClientIp(request);
         String path = request.getRequestURI();
-        boolean isLoginEndpoint = path.contains("/auth/login");
+        boolean isAuthEndpoint = path.contains("/auth/login") || path.contains("/auth/signup");
 
-        if (isLoginEndpoint && isRateLimited(ip, loginCounts, loginMaxPerMinute)) {
-            response.setStatus(429);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Too many login attempts. Please try again later.\"}");
-            log.warn("Rate limit exceeded for login from IP: {}", ip);
-            return;
-        }
-
-        if (!isLoginEndpoint && isRateLimited(ip, requestCounts, maxRequestsPerMinute)) {
-            response.setStatus(429);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"error\":\"Rate limit exceeded. Please slow down your requests.\"}");
-            log.warn("Rate limit exceeded for IP: {} on path: {}", ip, path);
-            return;
+        if (isAuthEndpoint) {
+            String ip = getClientIp(request);
+            if (isRateLimited(ip, loginCounts, loginMaxPerMinute)) {
+                response.setStatus(429);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\":\"Too many login attempts. Please try again later.\"}");
+                log.warn("Rate limit exceeded for auth from IP: {}", ip);
+                return;
+            }
         }
 
         filterChain.doFilter(request, response);
@@ -92,12 +83,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Scheduled(fixedDelay = 300_000)
     public void cleanExpiredEntries() {
         long now = System.currentTimeMillis();
-        evictExpired(requestCounts, now);
-        evictExpired(loginCounts, now);
-    }
-
-    private void evictExpired(Map<String, long[]> counts, long now) {
-        Iterator<Map.Entry<String, long[]>> it = counts.entrySet().iterator();
+        Iterator<Map.Entry<String, long[]>> it = loginCounts.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<String, long[]> entry = it.next();
             if (now - entry.getValue()[0] > WINDOW_MS) {

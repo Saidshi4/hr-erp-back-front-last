@@ -86,6 +86,18 @@ function getPresetPeriod(periodType: PeriodType, selectedMonth: number, selected
   }
 }
 
+function formatTime(value?: string) {
+  if (!value) return '—'
+  return new Date(value).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' })
+}
+
+/** Sərbəst / çevik növbə — bütün giriş-çıxış sessiyaları göstərilir. */
+function isFlexibleShift(shiftType?: string | null) {
+  if (!shiftType) return false
+  const normalized = shiftType.trim().toUpperCase()
+  return normalized === 'FIRST_ENTRY' || normalized === 'FLEXIBLE' || normalized === 'SERBEST'
+}
+
 export default function AttendancePage() {
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -230,6 +242,7 @@ export default function AttendancePage() {
   ]
 
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
+  const showAllSessions = isFlexibleShift(selectedEmployee?.shiftType)
 
   return (
     <Layout>
@@ -367,6 +380,7 @@ export default function AttendancePage() {
                 <div className="mt-4 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-900">
                   {t('attendance.viewingAttendanceFor')} <span className="font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
                   {selectedEmployee.departmentName ? ` · ${selectedEmployee.departmentName}` : ''}
+                  {showAllSessions ? ' · Sərbəst növbə (bütün keçidlər)' : ''}
                 </div>
               )}
             </div>
@@ -414,20 +428,60 @@ export default function AttendancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                      {attendanceRows.map((row) => (
-                        <tr key={row.date}>
-                          <td className="px-5 py-4 font-medium text-slate-900">{new Date(row.date).toLocaleDateString()}</td>
-                          <td className="px-5 py-4">{row.checkInTime ? new Date(row.checkInTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' }) : '—'}</td>
-                          <td className="px-5 py-4">{row.checkOutTime ? new Date(row.checkOutTime).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' }) : '—'}</td>
-                          <td className="px-5 py-4">{row.hoursWorked?.toFixed(2) ?? '0.00'}</td>
-                          <td className="px-5 py-4">
-                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
-                              {statusLabels[row.status]}
-                            </span>
-                          </td>
-                          <td className="px-5 py-4 text-slate-500">{row.notes || '—'}</td>
-                        </tr>
-                      ))}
+                      {attendanceRows.map((row) => {
+                        const sessions = row.sessions?.length
+                          ? row.sessions
+                          : (row.checkInTime || row.checkOutTime)
+                            ? [{ checkInTime: row.checkInTime, checkOutTime: row.checkOutTime }]
+                            : []
+                        const expandSessions = showAllSessions || isFlexibleShift(row.shiftType)
+
+                        return (
+                          <tr key={row.date}>
+                            <td className="px-5 py-4 font-medium text-slate-900 align-top">
+                              {new Date(row.date).toLocaleDateString()}
+                              {expandSessions && sessions.length > 1 && (
+                                <div className="mt-1 text-xs font-normal text-slate-400">
+                                  {t('attendance.sessionsCount', { n: sessions.length })}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-5 py-4 align-top">
+                              {expandSessions && sessions.length > 0 ? (
+                                <div className="space-y-1">
+                                  {sessions.map((session, index) => (
+                                    <div key={`${row.date}-in-${index}`} className="text-slate-700">
+                                      {formatTime(session.checkInTime)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                formatTime(row.checkInTime)
+                              )}
+                            </td>
+                            <td className="px-5 py-4 align-top">
+                              {expandSessions && sessions.length > 0 ? (
+                                <div className="space-y-1">
+                                  {sessions.map((session, index) => (
+                                    <div key={`${row.date}-out-${index}`} className="text-slate-700">
+                                      {formatTime(session.checkOutTime)}
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                formatTime(row.checkOutTime)
+                              )}
+                            </td>
+                            <td className="px-5 py-4 align-top">{row.hoursWorked?.toFixed(2) ?? '0.00'}</td>
+                            <td className="px-5 py-4 align-top">
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
+                                {statusLabels[row.status]}
+                              </span>
+                            </td>
+                            <td className="px-5 py-4 text-slate-500 align-top">{row.notes || '—'}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 </div>

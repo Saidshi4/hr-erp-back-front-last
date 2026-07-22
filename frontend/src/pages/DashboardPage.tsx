@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import client from '../api/client.ts'
-import { statusLabel } from '../i18n/labels.ts'
+import { doorRoleLabel, statusLabel } from '../i18n/labels.ts'
 
 interface DashboardStats {
   totalEmployees: number
@@ -27,6 +27,8 @@ interface AccessLog {
   punchTime?: string
   checkOutTime?: string
   deviceId?: string | number
+  deviceName?: string
+  doorRole?: string
   eventType?: string
   status?: string
   firstName?: string
@@ -199,7 +201,7 @@ export default function DashboardPage() {
 
         {/* Last 10 Access Logs */}
         <div className="bg-white rounded-xl shadow-sm p-6">
-          <h2 className="text-base font-semibold text-gray-800 mb-4">Son 10 girış loqu</h2>
+          <h2 className="text-base font-semibold text-gray-800 mb-4">Son 10 keçid</h2>
           {loading ? (
             <div className="text-center text-gray-400 py-8">
               <div className="w-7 h-7 border-2 border-purple-300 border-t-purple-600 rounded-full animate-spin mx-auto mb-2"></div>
@@ -210,12 +212,23 @@ export default function DashboardPage() {
               <svg className="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              Giriş loqu tapılmadı
+              Keçid qeydi tapılmadı
             </div>
           ) : (
             <div className="space-y-2">
               {sortedLogs.map((log) => {
                 const eventTime = log.checkInTime ?? log.punchTime
+                const role = log.doorRole?.toUpperCase()
+                const roleLabel = role === 'ENTRY' ? 'Giriş' : role === 'EXIT' ? 'Çıxış' : (log.status ? statusLabel(log.status) : (log.eventType || 'Keçid'))
+                const deviceDisplay = log.deviceName
+                  || (log.deviceId !== undefined ? `Cihaz #${log.deviceId}` : 'Bilinməyən cihaz')
+                const badgeStyle = role === 'ENTRY'
+                  ? { background: '#d1fae5', color: '#065f46' }
+                  : role === 'EXIT'
+                    ? { background: '#fee2e2', color: '#991b1b' }
+                    : log.status === 'SUCCESS' || log.status === 'GRANTED'
+                      ? { background: '#d1fae5', color: '#065f46' }
+                      : { background: '#fef3c7', color: '#92400e' }
                 return (
                   <div key={log.id} className="flex items-center gap-3 sm:gap-4 p-3 rounded-lg" style={{ background: '#f9fafb' }}>
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: '#ede9fe' }}>
@@ -230,7 +243,8 @@ export default function DashboardPage() {
                         : `Əməkdaş #${log.employeeNo ?? log.employeeId ?? '—'}`}
                     </p>
                     <p className="text-xs text-gray-400 truncate">
-                      {log.deviceId !== undefined ? `Cihaz: ${log.deviceId}` : 'Bilinməyən cihaz'}
+                      {deviceDisplay}
+                      {log.doorRole ? ` · ${doorRoleLabel(log.doorRole)}` : ''}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
@@ -239,11 +253,9 @@ export default function DashboardPage() {
                     </p>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"
-                      style={log.status === 'SUCCESS' || log.status === 'GRANTED'
-                        ? { background: '#d1fae5', color: '#065f46' }
-                        : { background: '#fef3c7', color: '#92400e' }}
+                      style={badgeStyle}
                     >
-                      {log.status ? statusLabel(log.status) : (log.eventType || 'GİRİŞ')}
+                      {roleLabel}
                     </span>
                   </div>
                   </div>

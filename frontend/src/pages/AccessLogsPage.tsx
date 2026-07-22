@@ -2,13 +2,30 @@ import { useState, useCallback, useMemo, useEffect } from 'react'
 import Layout from '../components/Layout.tsx'
 import PaginationBar from '../components/PaginationBar.tsx'
 import { attendanceApi } from '../api/attendanceApi.ts'
+import { useDeviceStore } from '../store/deviceStore.ts'
 import { AccessLog } from '../types'
+import { doorRoleLabel } from '../i18n/labels.ts'
 import { t } from '../i18n/index.ts'
+
+function eventLabel(doorRole?: string | null) {
+  const upper = doorRole?.toUpperCase()
+  if (upper === 'ENTRY') return t('accessLogs.entryEvent')
+  if (upper === 'EXIT') return t('accessLogs.exitEvent')
+  return t('accessLogs.accessEvent')
+}
+
+function eventBadgeStyle(doorRole?: string | null): { background: string; color: string } {
+  const upper = doorRole?.toUpperCase()
+  if (upper === 'ENTRY') return { background: '#d1fae5', color: '#065f46' }
+  if (upper === 'EXIT') return { background: '#fee2e2', color: '#991b1b' }
+  return { background: '#e0e7ff', color: '#3730a3' }
+}
 
 export default function AccessLogsPage() {
   const today = new Date().toISOString().split('T')[0]
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
+  const { devices, fetchDevices } = useDeviceStore()
   const [startDate, setStartDate] = useState(weekAgo)
   const [endDate, setEndDate] = useState(today)
   const [deviceIdFilter, setDeviceIdFilter] = useState('')
@@ -20,15 +37,46 @@ export default function AccessLogsPage() {
   const [page, setPage] = useState(0)
   const [pageSize, setPageSize] = useState(24)
 
+  useEffect(() => {
+    void fetchDevices()
+  }, [fetchDevices])
+
+  const deviceById = useMemo(() => {
+    const map = new Map<number, { name?: string; doorRole?: string }>()
+    for (const device of devices) {
+      const info = { name: device.deviceName, doorRole: device.doorRole }
+      map.set(device.id, info)
+      const isapiId = Number(device.deviceId)
+      if (!Number.isNaN(isapiId)) {
+        map.set(isapiId, info)
+      }
+    }
+    return map
+  }, [devices])
+
+  const resolveDevice = (log: AccessLog) => {
+    const fromApi = {
+      name: log.deviceName,
+      doorRole: log.doorRole,
+    }
+    if (log.deviceId == null) return fromApi
+    const fromStore = deviceById.get(log.deviceId)
+    return {
+      name: fromApi.name || fromStore?.name,
+      doorRole: fromApi.doorRole || fromStore?.doorRole,
+    }
+  }
+
   const fetchLogs = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const employeeNo = search.trim() || undefined
-      const normalizedDeviceId = Number(deviceIdFilter.trim())
-      const deviceId = deviceIdFilter.trim() && !Number.isNaN(normalizedDeviceId)
-        ? normalizedDeviceId
-        : undefined
+      const selectedDevice = devices.find((d) => String(d.id) === deviceIdFilter.trim())
+      const isapiDeviceId = selectedDevice
+        ? Number(selectedDevice.deviceId || selectedDevice.id)
+        : NaN
+      const deviceId = selectedDevice && !Number.isNaN(isapiDeviceId) ? isapiDeviceId : undefined
       const start = startDate ? new Date(`${startDate}T00:00:00`).toISOString() : undefined
       const end = endDate ? new Date(`${endDate}T23:59:59`).toISOString() : undefined
       const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId, start, end })
@@ -40,18 +88,20 @@ export default function AccessLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, deviceIdFilter, startDate, endDate])
+  }, [search, deviceIdFilter, startDate, endDate, devices])
 
   const filteredLogs = useMemo(() => logs.filter((log) => {
     const normalizedSearch = search.trim().toLowerCase()
+    const device = resolveDevice(log)
     const matchesSearch = !normalizedSearch || (
       String(log.employeeNo ?? '').toLowerCase().includes(normalizedSearch) ||
       String(log.deviceId ?? '').toLowerCase().includes(normalizedSearch) ||
+      String(device.name ?? '').toLowerCase().includes(normalizedSearch) ||
       String(log.firstName ?? '').toLowerCase().includes(normalizedSearch) ||
       String(log.lastName ?? '').toLowerCase().includes(normalizedSearch)
     )
     return matchesSearch
-  }), [logs, search])
+  }), [logs, search, deviceById])
 
   const sortedLogs = useMemo(() => [...filteredLogs].sort((a, b) => {
     const timeA = a.punchTime ? new Date(a.punchTime).getTime() : 0
@@ -68,7 +118,6 @@ export default function AccessLogsPage() {
     }
   }, [page, totalPages])
 
-  // Reset to first page when local search filter changes the result set
   useEffect(() => {
     setPage(0)
   }, [search])
@@ -93,13 +142,11 @@ export default function AccessLogsPage() {
   return (
     <Layout>
       <div className="p-4 sm:p-8" style={{ background: '#f8fafc', minHeight: '100vh' }}>
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">{t('accessLogs.title')}</h1>
           <p className="text-sm text-gray-500 mt-1">{t('accessLogs.subtitle')}</p>
         </div>
 
-        {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 items-end">
             <div>
@@ -121,14 +168,20 @@ export default function AccessLogsPage() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.deviceId')}</label>
-              <input
-                type="text"
-                placeholder={t('accessLogs.sampleDeviceId')}
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('accessLogs.device')}</label>
+              <select
                 value={deviceIdFilter}
                 onChange={(e) => setDeviceIdFilter(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
+              >
+                <option value="">{t('accessLogs.allDevices')}</option>
+                {devices.map((device) => (
+                  <option key={device.id} value={String(device.id)}>
+                    {device.deviceName || device.deviceId}
+                    {device.doorRole ? ` — ${doorRoleLabel(device.doorRole)}` : ''}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">{t('common.search')}</label>
@@ -166,7 +219,6 @@ export default function AccessLogsPage() {
 
         {fetched && (
           <>
-            {/* Summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-xl p-4 shadow-sm">
                 <p className="text-xs text-gray-400">{t('accessLogs.totalEvents')}</p>
@@ -203,50 +255,58 @@ export default function AccessLogsPage() {
                 </div>
 
                 <div className="space-y-3 p-4 sm:p-5">
-                  {pageLogs.map((log) => (
-                    <div key={log.id} className="bg-slate-50 rounded-xl p-5 flex items-center gap-5 border border-slate-100">
-                      <div
-                        className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: '#d1fae5' }}
-                      >
-                        <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
+                  {pageLogs.map((log) => {
+                    const device = resolveDevice(log)
+                    const label = eventLabel(device.doorRole)
+                    const badge = eventBadgeStyle(device.doorRole)
+                    const deviceDisplay = device.name || (log.deviceId != null ? `#${log.deviceId}` : '—')
 
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-gray-900">
-                          {log.firstName || log.lastName
-                            ? `${log.firstName ?? ''} ${log.lastName ?? ''}`.trim()
-                            : t('accessLogs.employeeLabel', { employeeNo: log.employeeNo || '—' })}
-                        </p>
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {t('accessLogs.accessEvent')} {log.deviceId ? `· ${t('accessLogs.device')}: ${log.deviceId}` : ''}
-                        </p>
-                      </div>
+                    return (
+                      <div key={log.id} className="bg-slate-50 rounded-xl p-5 flex items-center gap-5 border border-slate-100">
+                        <div
+                          className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: badge.background }}
+                        >
+                          <svg className="w-5 h-5" style={{ color: badge.color }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
 
-                      <div className="hidden md:block text-center min-w-[150px]">
-                        <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.accessTime')}</p>
-                        <p className="text-sm font-medium text-gray-700">
-                          {log.punchTime
-                            ? new Date(log.punchTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-                            : '—'}
-                        </p>
-                      </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">
+                            {log.firstName || log.lastName
+                              ? `${log.firstName ?? ''} ${log.lastName ?? ''}`.trim()
+                              : t('accessLogs.employeeLabel', { employeeNo: log.employeeNo || '—' })}
+                          </p>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {label} · {deviceDisplay}
+                            {device.doorRole ? ` · ${doorRoleLabel(device.doorRole)}` : ''}
+                          </p>
+                        </div>
 
-                      <div className="hidden lg:block text-center min-w-[120px]">
-                        <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.device')}</p>
-                        <p className="text-sm text-gray-600 font-mono">{log.deviceId ?? '—'}</p>
-                      </div>
+                        <div className="hidden md:block text-center min-w-[150px]">
+                          <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.accessTime')}</p>
+                          <p className="text-sm font-medium text-gray-700">
+                            {log.punchTime
+                              ? new Date(log.punchTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+                              : '—'}
+                          </p>
+                        </div>
 
-                      <span
-                        className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
-                        style={{ background: '#d1fae5', color: '#065f46' }}
-                      >
-                        {t('accessLogs.recorded')}
-                      </span>
-                    </div>
-                  ))}
+                        <div className="hidden lg:block text-center min-w-[140px]">
+                          <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.device')}</p>
+                          <p className="text-sm text-gray-700 truncate" title={deviceDisplay}>{deviceDisplay}</p>
+                        </div>
+
+                        <span
+                          className="px-2.5 py-1 rounded-full text-xs font-medium flex-shrink-0"
+                          style={badge}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                    )
+                  })}
                 </div>
 
                 <PaginationBar

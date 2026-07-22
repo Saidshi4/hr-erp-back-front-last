@@ -3,6 +3,11 @@ package com.hic.service;
 import com.hic.dto.AttendanceLogSyncDTO;
 import com.hic.exception.DeviceSyncException;
 import com.hic.exception.UpstreamApiException;
+import com.hic.model.DeviceConfig;
+import com.hic.model.Employee;
+import com.hic.repository.DeviceConfigRepository;
+import com.hic.repository.EmployeeRepository;
+import com.hic.util.TenantContext;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,16 +23,16 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
-import com.hic.repository.EmployeeRepository;
-import com.hic.model.Employee;
-import com.hic.util.TenantContext;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
-import java.util.List;
-import java.util.Optional;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +40,7 @@ public class AttendanceLogSyncService {
 
     private final RestTemplate restTemplate;
     private final EmployeeRepository employeeRepository;
+    private final DeviceConfigRepository deviceConfigRepository;
 
     @Value("${isapi.base-url}")
     private String isapiBaseUrl;
@@ -52,7 +58,7 @@ public class AttendanceLogSyncService {
                 .build().toUri();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
-        return mapPunches(punches);
+        return filterToTenantDevices(mapPunches(punches));
     }
 
     public List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> getAttendanceLogs(
@@ -74,7 +80,7 @@ public class AttendanceLogSyncService {
                 .build().toUri();
 
         List<IsapiPunchResponse> punches = exchangeForList(url);
-        return mapPunches(punches);
+        return filterToTenantDevices(mapPunches(punches));
     }
 
     private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> mapPunches(List<IsapiPunchResponse> punches) {
@@ -84,7 +90,7 @@ public class AttendanceLogSyncService {
 
         List<String> employeeNos = punches.stream()
                 .map(IsapiPunchResponse::getEmployeeNo)
-                .filter(org.springframework.util.StringUtils::hasText)
+                .filter(StringUtils::hasText)
                 .map(String::trim)
                 .distinct()
                 .toList();
@@ -111,12 +117,17 @@ public class AttendanceLogSyncService {
             }
         }
 
+        Map<Long, DeviceConfig> deviceMap = loadDevices(punches);
+
         return punches.stream()
                 .map(response -> {
                     String key = response.getEmployeeNo() != null ? response.getEmployeeNo().trim().toLowerCase() : null;
                     Employee emp = key != null ? employeeMap.get(key) : null;
                     String firstName = emp != null ? emp.getFirstName() : null;
                     String lastName = emp != null ? emp.getLastName() : null;
+                    DeviceConfig device = response.getDeviceId() != null ? deviceMap.get(response.getDeviceId()) : null;
+                    String deviceName = device != null ? device.getDeviceName() : null;
+                    String doorRole = device != null ? device.getDoorRole() : null;
                     return new AttendanceLogSyncDTO.AttendanceLogEntryDTO(
                             response.getId(),
                             response.getDeviceId(),
@@ -124,9 +135,75 @@ public class AttendanceLogSyncService {
                             response.getPunchTime(),
                             response.getRawEventId(),
                             firstName,
-                            lastName
+                            lastName,
+                            deviceName,
+                            doorRole
                     );
                 })
+                .toList();
+    }
+
+    private Map<Long, DeviceConfig> loadDevices(List<IsapiPunchResponse> punches) {
+        Set<Long> punchDeviceIds = punches.stream()
+                .map(IsapiPunchResponse::getDeviceId)
+                .filter(id -> id != null)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (punchDeviceIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Long tenantId = TenantContext.getTenantId();
+        List<DeviceConfig> devices = tenantId != null
+                ? deviceConfigRepository.findByTenantId(tenantId)
+                : deviceConfigRepository.findAll();
+
+        Map<Long, DeviceConfig> byIsapiOrBackendId = new HashMap<>();
+        for (DeviceConfig device : devices) {
+            byIsapiOrBackendId.put(device.getId(), device);
+            if (device.getDeviceId() != null && !device.getDeviceId().isBlank()) {
+                try {
+                    byIsapiOrBackendId.putIfAbsent(Long.valueOf(device.getDeviceId().trim()), device);
+                } catch (NumberFormatException ignored) {
+                    // non-numeric deviceId strings are ignored for punch mapping
+                }
+            }
+        }
+
+        Map<Long, DeviceConfig> matched = new HashMap<>();
+        for (Long punchDeviceId : punchDeviceIds) {
+            DeviceConfig device = byIsapiOrBackendId.get(punchDeviceId);
+            if (device != null) {
+                matched.put(punchDeviceId, device);
+            }
+        }
+        return matched;
+    }
+
+    /**
+     * When listing without an explicit device filter, keep only punches that belong to this tenant's devices.
+     */
+    private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> filterToTenantDevices(
+            List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> logs
+    ) {
+        Long tenantId = TenantContext.getTenantId();
+        if (tenantId == null || logs.isEmpty()) {
+            return logs;
+        }
+        Set<Long> tenantIsapiIds = new HashSet<>();
+        for (DeviceConfig device : deviceConfigRepository.findByTenantId(tenantId)) {
+            tenantIsapiIds.add(device.getId());
+            if (device.getDeviceId() != null && !device.getDeviceId().isBlank()) {
+                try {
+                    tenantIsapiIds.add(Long.valueOf(device.getDeviceId().trim()));
+                } catch (NumberFormatException ignored) {
+                    // ignore
+                }
+            }
+        }
+        if (tenantIsapiIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return logs.stream()
+                .filter(log -> log.getDeviceId() != null && tenantIsapiIds.contains(log.getDeviceId()))
                 .toList();
     }
 
@@ -138,8 +215,6 @@ public class AttendanceLogSyncService {
             employeeMap.putIfAbsent(emp.getDeviceEmployeeNo().trim().toLowerCase(), emp);
         }
     }
-
-
 
     private String basePunchesUrl() {
         return trimTrailingSlash(isapiBaseUrl) + "/api/punches";

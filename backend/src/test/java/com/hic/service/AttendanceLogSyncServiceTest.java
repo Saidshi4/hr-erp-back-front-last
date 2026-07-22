@@ -26,7 +26,8 @@ class AttendanceLogSyncServiceTest {
         RestTemplate restTemplate = new RestTemplate();
         server = MockRestServiceServer.bindTo(restTemplate).build();
         com.hic.repository.EmployeeRepository employeeRepository = org.mockito.Mockito.mock(com.hic.repository.EmployeeRepository.class);
-        service = new AttendanceLogSyncService(restTemplate, employeeRepository);
+        com.hic.repository.DeviceConfigRepository deviceConfigRepository = org.mockito.Mockito.mock(com.hic.repository.DeviceConfigRepository.class);
+        service = new AttendanceLogSyncService(restTemplate, employeeRepository, deviceConfigRepository);
         ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://host.docker.internal:8080");
     }
 

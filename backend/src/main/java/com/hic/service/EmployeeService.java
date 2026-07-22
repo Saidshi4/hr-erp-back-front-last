@@ -155,6 +155,7 @@ public class EmployeeService {
                             ? departmentNames.get(employee.getDepartmentId())
                             : null);
                     dto.setBranchId(employee.getBranchId());
+                    dto.setShiftType(employee.getShiftType());
                     return dto;
                 })
                 .toList();

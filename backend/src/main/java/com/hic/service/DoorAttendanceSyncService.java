@@ -64,15 +64,22 @@ public class DoorAttendanceSyncService {
                 .toList();
 
         List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> allPunches = new ArrayList<>();
+        Map<Long, String> deviceRolesByIsapiId = new HashMap<>();
+        Map<Long, Long> backendIdByIsapiId = new HashMap<>();
+
         for (DeviceConfig device : activeDevicesWithRoles) {
-            allPunches.addAll(fetchPunchesInRange(device.getId(), start, end, effectiveLimit)
+            Long isapiDeviceId = toIsapiDeviceId(device);
+            if (isapiDeviceId == null) {
+                log.warn("Skipping device config id={} — missing/invalid ISAPI deviceId={}", device.getId(), device.getDeviceId());
+                continue;
+            }
+            deviceRolesByIsapiId.put(isapiDeviceId, device.getDoorRole());
+            backendIdByIsapiId.put(isapiDeviceId, device.getId());
+            allPunches.addAll(fetchPunchesInRange(isapiDeviceId, start, end, effectiveLimit)
                     .stream()
                     .filter(p -> p.getPunchTime() != null && p.getEmployeeNo() != null)
                     .toList());
         }
-
-        Map<Long, String> deviceRoles = activeDevicesWithRoles.stream()
-                .collect(Collectors.toMap(DeviceConfig::getId, DeviceConfig::getDoorRole));
 
         Set<String> unresolvedEmployeeNos = new HashSet<>();
         Map<Long, Set<LocalDate>> recalcDatesByEmployee = new HashMap<>();
@@ -92,7 +99,10 @@ public class DoorAttendanceSyncService {
                 skippedPunches++;
                 continue;
             }
-            Employee employee = resolveEmployee(tenantId, punch.getDeviceId(), punch.getEmployeeNo());
+            Long backendDeviceConfigId = punch.getDeviceId() != null
+                    ? backendIdByIsapiId.getOrDefault(punch.getDeviceId(), punch.getDeviceId())
+                    : null;
+            Employee employee = resolveEmployee(tenantId, backendDeviceConfigId, punch.getEmployeeNo());
             if (employee == null) {
                 skippedPunches++;
                 unresolvedEmployeeNos.add(code);
@@ -121,7 +131,7 @@ public class DoorAttendanceSyncService {
             for (int i = 0; i < employeePunches.size(); i++) {
                 AttendanceLogSyncDTO.AttendanceLogEntryDTO punch = employeePunches.get(i);
                 LocalDateTime punchTime = toLocalDateTime(punch.getPunchTime());
-                String role = deviceRoles.get(punch.getDeviceId());
+                String role = deviceRolesByIsapiId.get(punch.getDeviceId());
 
                 if ("ENTRY".equals(role)) {
                     if (currentEntryTime == null) {
@@ -353,6 +363,24 @@ public class DoorAttendanceSyncService {
 
     private String normalizeEmployeeCode(String employeeCode) {
         return employeeCode == null ? null : employeeCode.trim().toUpperCase();
+    }
+
+    /**
+     * ISAPI punch APIs use the ISAPI-side device primary key stored in {@code device_configs.device_id},
+     * not the backend {@code device_configs.id}.
+     */
+    private Long toIsapiDeviceId(DeviceConfig device) {
+        if (device == null) {
+            return null;
+        }
+        if (device.getDeviceId() != null && !device.getDeviceId().isBlank()) {
+            try {
+                return Long.valueOf(device.getDeviceId().trim());
+            } catch (NumberFormatException ignored) {
+                log.warn("Invalid ISAPI deviceId on device config id={}: {}", device.getId(), device.getDeviceId());
+            }
+        }
+        return device.getId();
     }
 
     private void addRecalcDate(Map<Long, Set<LocalDate>> map, Long employeeId, LocalDate date) {

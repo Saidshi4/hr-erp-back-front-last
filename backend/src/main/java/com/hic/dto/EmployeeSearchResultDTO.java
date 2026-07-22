@@ -12,4 +12,5 @@ public class EmployeeSearchResultDTO {
     private Long departmentId;
     private String departmentName;
     private Long branchId;
+    private String shiftType;
 }

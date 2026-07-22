@@ -97,6 +97,7 @@ export interface EmployeeSearchResult {
   departmentId?: number
   departmentName?: string
   branchId?: number
+  shiftType?: string
 }
 
 export interface AttendanceLog {
@@ -110,6 +111,11 @@ export interface AttendanceLog {
   createdAt?: string
 }
 
+export interface AttendanceSession {
+  checkInTime?: string
+  checkOutTime?: string
+}
+
 export interface EmployeeAttendanceRow {
   date: string
   checkInTime?: string
@@ -117,6 +123,8 @@ export interface EmployeeAttendanceRow {
   hoursWorked?: number
   status: 'PRESENT' | 'ABSENT' | 'LATE' | 'EARLY_LEAVE' | 'ON_LEAVE' | 'WORKDAY_COMPLETE'
   notes?: string
+  shiftType?: string
+  sessions?: AttendanceSession[]
 }
 
 export interface EmployeeAttendanceSummary {
@@ -146,6 +154,8 @@ export interface AccessLog {
   rawEventId?: number
   firstName?: string
   lastName?: string
+  deviceName?: string
+  doorRole?: string
 }
 
 export interface DailyAttendanceSummary {

@@ -135,7 +135,9 @@ public class DashboardController {
                         log.getRawEventId(),
                         DEFAULT_LOG_STATUS,
                         log.getFirstName(),
-                        log.getLastName()
+                        log.getLastName(),
+                        log.getDeviceName(),
+                        log.getDoorRole()
                 ))
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(latest));
@@ -158,7 +160,9 @@ public class DashboardController {
             Long rawEventId,
             String status,
             String firstName,
-            String lastName
+            String lastName,
+            String deviceName,
+            String doorRole
     ) {
     }
 }

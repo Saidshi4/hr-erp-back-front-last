@@ -4,6 +4,7 @@ import com.hic.dto.AttendanceDTO;
 import com.hic.dto.EmployeeAttendanceRowDTO;
 import com.hic.dto.EmployeeAttendanceSummaryDTO;
 import com.hic.dto.AttendanceLogDTO;
+import com.hic.dto.AttendanceSessionDTO;
 import com.hic.dto.DailyAttendanceSummaryDTO;
 import com.hic.exception.ResourceNotFoundException;
 import com.hic.model.AttendanceLog;
@@ -33,6 +34,7 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -182,6 +184,8 @@ public class AttendanceService {
             row.setHoursWorked(hoursWorked);
             row.setStatus(determineDailyStatus(summary, inference, onLeave, date, timetable.orElse(null)));
             row.setNotes(buildNotes(approvedLeaves, approvedPermissions, date));
+            row.setShiftType(employee.getShiftType());
+            row.setSessions(toSessionDtos(dayLogs));
             rows.add(row);
         }
 
@@ -374,6 +378,20 @@ public class AttendanceService {
             grouped.computeIfAbsent(date, ignored -> new ArrayList<>()).add(log);
         }
         return grouped;
+    }
+
+    private List<AttendanceSessionDTO> toSessionDtos(List<AttendanceLog> dayLogs) {
+        return dayLogs.stream()
+                .sorted(Comparator.comparing(
+                        AttendanceLog::getCheckInTime,
+                        Comparator.nullsLast(Comparator.naturalOrder())))
+                .map(log -> {
+                    AttendanceSessionDTO session = new AttendanceSessionDTO();
+                    session.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
+                    session.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
+                    return session;
+                })
+                .collect(Collectors.toList());
     }
 
     private ScheduleSettings resolveScheduleSettings(Employee employee, LocalDate date) {

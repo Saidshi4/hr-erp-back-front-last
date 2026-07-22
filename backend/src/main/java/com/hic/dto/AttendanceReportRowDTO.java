@@ -17,5 +17,9 @@ public class AttendanceReportRowDTO {
     private String area;
     private LocalDate date;
     private LocalDateTime checkInTime;
+    private LocalDateTime checkOutTime;
+    /** Worked duration in minutes for the day. */
+    private Integer workedMinutes;
+    private String verificationMethod;
     private String shiftType;
 }

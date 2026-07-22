@@ -23,7 +23,13 @@ import java.io.ByteArrayOutputStream;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -36,6 +42,7 @@ public class AttendanceReportService {
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
+    private final AttendanceInferenceService attendanceInferenceService;
 
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
             LocalDate start,
@@ -74,7 +81,10 @@ public class AttendanceReportService {
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Attendance Reports");
             Row header = sheet.createRow(0);
-            String[] headers = {"ID", "Name", "FIN", "Department", "Position", "Area", "Date", "Check-in", "Shift"};
+            String[] headers = {
+                    "ID", "Name", "FIN", "Department", "Position", "Area",
+                    "Date", "Check-in", "Check-out", "Worked", "Method", "Shift"
+            };
             for (int i = 0; i < headers.length; i++) {
                 header.createCell(i).setCellValue(headers[i]);
                 sheet.setColumnWidth(i, 5500);
@@ -91,7 +101,10 @@ public class AttendanceReportService {
                 excelRow.createCell(5).setCellValue(safe(row.getArea()));
                 excelRow.createCell(6).setCellValue(row.getDate() != null ? row.getDate().toString() : "");
                 excelRow.createCell(7).setCellValue(row.getCheckInTime() != null ? row.getCheckInTime().toLocalTime().toString() : "");
-                excelRow.createCell(8).setCellValue(safe(row.getShiftType()));
+                excelRow.createCell(8).setCellValue(row.getCheckOutTime() != null ? row.getCheckOutTime().toLocalTime().toString() : "");
+                excelRow.createCell(9).setCellValue(formatDuration(row.getWorkedMinutes()));
+                excelRow.createCell(10).setCellValue(safe(row.getVerificationMethod()));
+                excelRow.createCell(11).setCellValue(safe(row.getShiftType()));
             }
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             workbook.write(outputStream);
@@ -114,15 +127,14 @@ public class AttendanceReportService {
     ) {
         Long tenantId = TenantContext.getTenantId();
 
-        // Query attendance_logs for the date range (using checkInTime)
-        LocalDateTime startDt = start.atStartOfDay();
+        // Include previous day so night shifts that cross midnight into `start` are counted.
+        LocalDateTime startDt = start.minusDays(1).atStartOfDay();
         LocalDateTime endDt = end.atTime(LocalTime.MAX);
 
         List<AttendanceLog> logs = tenantId != null
                 ? attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(tenantId, startDt, endDt)
                 : attendanceLogRepository.findByCheckInTimeBetween(startDt, endDt);
 
-        // Build employee lookup
         Set<Long> employeeIds = logs.stream()
                 .map(AttendanceLog::getEmployeeId)
                 .filter(Objects::nonNull)
@@ -131,7 +143,6 @@ public class AttendanceReportService {
         Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e));
 
-        // Build department & position lookups
         Set<Long> departmentIds = employeeMap.values().stream()
                 .map(Employee::getDepartmentId).filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> positionIds = employeeMap.values().stream()
@@ -142,16 +153,9 @@ public class AttendanceReportService {
         Map<Long, String> positionNames = positionRepository.findAllById(positionIds).stream()
                 .collect(Collectors.toMap(Position::getId, Position::getPositionName));
 
-        // Group logs by (employeeId, date) and keep the earliest check-in per day
-        // so each employee appears once per working day
-        Map<String, AttendanceLog> earliest = new LinkedHashMap<>();
-        for (AttendanceLog log : logs) {
-            if (log.getEmployeeId() == null || log.getCheckInTime() == null) continue;
-            LocalDate logDate = log.getCheckInTime().toLocalDate();
-            String key = log.getEmployeeId() + "_" + logDate;
-            earliest.merge(key, log, (existing, candidate) ->
-                    candidate.getCheckInTime().isBefore(existing.getCheckInTime()) ? candidate : existing);
-        }
+        Map<Long, List<AttendanceLog>> logsByEmployee = logs.stream()
+                .filter(log -> log.getEmployeeId() != null && log.getCheckInTime() != null)
+                .collect(Collectors.groupingBy(AttendanceLog::getEmployeeId));
 
         Predicate<AttendanceReportRowDTO> predicate = dto ->
                 contains(dto.getEmployeeId(), employeeCode) &&
@@ -163,27 +167,51 @@ public class AttendanceReportService {
                         matchesShiftType(dto.getShiftType(), shiftType);
 
         List<AttendanceReportRowDTO> rows = new ArrayList<>();
-        for (AttendanceLog log : earliest.values()) {
-            Employee employee = employeeMap.get(log.getEmployeeId());
-            if (employee == null) continue;
+        for (Map.Entry<Long, List<AttendanceLog>> entry : logsByEmployee.entrySet()) {
+            Employee employee = employeeMap.get(entry.getKey());
+            if (employee == null) {
+                continue;
+            }
 
-            AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
-            dto.setEmployeePk(employee.getId());
-            dto.setEmployeeId(employee.getEmployeeId());
-            dto.setFullName((safe(employee.getFirstName()) + " " + safe(employee.getLastName())).trim());
-            dto.setFin(employee.getFinNumber());
-            dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
-            dto.setPosition(positionNames.get(employee.getPositionId()));
-            dto.setArea(employee.getArea());
-            dto.setDate(log.getCheckInTime().toLocalDate());
-            dto.setCheckInTime(log.getCheckInTime());
-            // Use the employee's assigned shift type
-            dto.setShiftType(employee.getShiftType());
-            faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
-                    .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
+            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+                final LocalDate currentDate = date;
+                List<AttendanceLog> dayLogs = entry.getValue().stream()
+                        .filter(log -> attendanceInferenceService.overlapsDay(log, currentDate))
+                        .toList();
+                if (dayLogs.isEmpty()) {
+                    continue;
+                }
 
-            if (predicate.test(dto)) {
-                rows.add(dto);
+                AttendanceInferenceService.AttendanceInference inference =
+                        attendanceInferenceService.inferDay(dayLogs, currentDate);
+                if (inference.firstEntry() == null && !inference.currentlyInside()) {
+                    continue;
+                }
+
+                AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
+                dto.setEmployeePk(employee.getId());
+                dto.setEmployeeId(employee.getEmployeeId());
+                dto.setFullName((safe(employee.getFirstName()) + " " + safe(employee.getLastName())).trim());
+                dto.setFin(employee.getFinNumber());
+                dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
+                dto.setPosition(positionNames.get(employee.getPositionId()));
+                dto.setArea(employee.getArea());
+                dto.setDate(currentDate);
+                dto.setCheckInTime(inference.firstEntry());
+                dto.setCheckOutTime(inference.lastExit());
+                dto.setWorkedMinutes(inference.workedMinutes());
+                dto.setVerificationMethod(normalizeVerificationMethod(dayLogs.stream()
+                        .map(AttendanceLog::getVerificationMethod)
+                        .filter(method -> method != null && !method.isBlank())
+                        .findFirst()
+                        .orElse(null)));
+                dto.setShiftType(employee.getShiftType());
+                faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
+                        .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
+
+                if (predicate.test(dto)) {
+                    rows.add(dto);
+                }
             }
         }
 
@@ -193,17 +221,11 @@ public class AttendanceReportService {
                 .toList();
     }
 
-    /**
-     * If no shiftType filter is provided, all records match.
-     * If a filter is given, match employees whose shiftType contains the filter value (case-insensitive).
-     */
     private boolean matchesShiftType(String employeeShiftType, String filter) {
         if (filter == null || filter.isBlank()) {
             return true;
         }
         if (employeeShiftType == null || employeeShiftType.isBlank()) {
-            // Employee has no shift type set — include them when no specific filter is chosen,
-            // but exclude when a specific shift is selected.
             return false;
         }
         return employeeShiftType.equalsIgnoreCase(filter) ||
@@ -219,5 +241,34 @@ public class AttendanceReportService {
 
     private String safe(String value) {
         return value == null ? "" : value;
+    }
+
+    private String formatDuration(Integer workedMinutes) {
+        if (workedMinutes == null || workedMinutes <= 0) {
+            return "";
+        }
+        int hours = workedMinutes / 60;
+        int minutes = workedMinutes % 60;
+        return String.format("%02d:%02d", hours, minutes);
+    }
+
+    private String normalizeVerificationMethod(String method) {
+        if (method == null || method.isBlank()) {
+            return null;
+        }
+        String lower = method.trim().toLowerCase(Locale.ROOT);
+        if (lower.contains("face")) {
+            return "face";
+        }
+        if (lower.contains("card") || lower.contains("mifare")) {
+            return "card";
+        }
+        if (lower.contains("finger")) {
+            return "finger";
+        }
+        if ("isapi_punch".equals(lower) || "door_session".equals(lower)) {
+            return "device";
+        }
+        return lower;
     }
 }

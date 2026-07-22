@@ -34,7 +34,6 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -100,7 +99,7 @@ public class AttendanceService {
     @Transactional
     public DailyAttendanceSummaryDTO generateDailySummary(Long employeeId, LocalDate date) {
         List<AttendanceLog> logs = findDayLogs(employeeId, date);
-        AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs);
+        AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs, date);
         Employee employee = employeeRepository.findById(employeeId).orElse(null);
         ScheduleSettings scheduleSettings = resolveScheduleSettings(employee, date);
 
@@ -115,7 +114,7 @@ public class AttendanceService {
         summary.setIsAdditionalDay(false);
         summary.setIsExtraDay(false);
 
-        if (logs.isEmpty()) {
+        if (inference.firstEntry() == null && !inference.currentlyInside()) {
             summary.setCheckInTime(null);
             summary.setCheckOutTime(null);
             summary.setAttendanceStatus(AttendanceStatus.ABSENT);
@@ -139,12 +138,12 @@ public class AttendanceService {
         Employee employee = getAccessibleEmployee(employeeId);
         Long tenantId = TenantContext.getTenantId();
 
-        LocalDateTime rangeStart = start.atStartOfDay();
+        // Include previous-day sessions that may cross midnight into `start`.
+        LocalDateTime rangeStart = start.minusDays(1).atStartOfDay();
         LocalDateTime rangeEnd = end.atTime(23, 59, 59);
         List<AttendanceLog> logs = tenantId != null
                 ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTimeBetween(tenantId, employeeId, rangeStart, rangeEnd)
                 : attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(employeeId, rangeStart, rangeEnd);
-        Map<LocalDate, List<AttendanceLog>> logsByDate = groupLogsByDate(logs);
 
         Map<LocalDate, DailyAttendanceSummary> summariesByDate = summaryRepository
                 .findByEmployeeIdAndAttendanceDateBetween(employeeId, start, end)
@@ -161,31 +160,34 @@ public class AttendanceService {
 
         List<EmployeeAttendanceRowDTO> rows = new ArrayList<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            DailyAttendanceSummary summary = summariesByDate.get(date);
-            List<AttendanceLog> dayLogs = logsByDate.getOrDefault(date, List.of());
-            boolean onLeave = overlapsLeave(approvedLeaves, date) || overlapsPermission(approvedPermissions, date);
-            AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(dayLogs);
+            final LocalDate currentDate = date;
+            DailyAttendanceSummary summary = summariesByDate.get(currentDate);
+            List<AttendanceLog> dayLogs = logs.stream()
+                    .filter(log -> attendanceInferenceService.overlapsDay(log, currentDate))
+                    .toList();
+            boolean onLeave = overlapsLeave(approvedLeaves, currentDate) || overlapsPermission(approvedPermissions, currentDate);
+            AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(dayLogs, currentDate);
 
-            LocalDateTime firstCheckIn = summary != null && summary.getCheckInTime() != null
-                    ? summary.getCheckInTime()
-                    : inference.firstEntry();
-            LocalDateTime lastCheckOut = summary != null && summary.getCheckOutTime() != null
-                    ? summary.getCheckOutTime()
-                    : inference.lastExit();
+            // Prefer live day-clipped inference for hours/times so midnight splits stay correct.
+            LocalDateTime firstCheckIn = inference.firstEntry();
+            LocalDateTime lastCheckOut = inference.lastExit();
+            double hoursWorked = inference.workedHours();
 
-            double hoursWorked = summary != null && summary.getHoursWorked() != null
-                    ? summary.getHoursWorked()
-                    : inference.workedHours();
+            if (summary != null && summary.getHoursWorked() != null && dayLogs.isEmpty()) {
+                hoursWorked = summary.getHoursWorked();
+                firstCheckIn = summary.getCheckInTime();
+                lastCheckOut = summary.getCheckOutTime();
+            }
 
             EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
-            row.setDate(date);
+            row.setDate(currentDate);
             row.setCheckInTime(toOffsetDateTime(firstCheckIn));
             row.setCheckOutTime(toOffsetDateTime(lastCheckOut));
             row.setHoursWorked(hoursWorked);
-            row.setStatus(determineDailyStatus(summary, inference, onLeave, date, timetable.orElse(null)));
-            row.setNotes(buildNotes(approvedLeaves, approvedPermissions, date));
+            row.setStatus(determineDailyStatus(summary, inference, onLeave, currentDate, timetable.orElse(null)));
+            row.setNotes(buildNotes(approvedLeaves, approvedPermissions, currentDate));
             row.setShiftType(employee.getShiftType());
-            row.setSessions(toSessionDtos(dayLogs));
+            row.setSessions(toSessionDtos(inference.segments()));
             rows.add(row);
         }
 
@@ -359,36 +361,23 @@ public class AttendanceService {
     }
 
     private List<AttendanceLog> findDayLogs(Long employeeId, LocalDate date) {
-        return attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
+        // Fetch previous day too — night shifts that start yesterday may continue past midnight.
+        List<AttendanceLog> candidates = attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
                 employeeId,
-                date.atStartOfDay(),
+                date.minusDays(1).atStartOfDay(),
                 date.plusDays(1).atStartOfDay().minusNanos(1)
         );
+        return candidates.stream()
+                .filter(log -> attendanceInferenceService.overlapsDay(log, date))
+                .toList();
     }
 
-    private Map<LocalDate, List<AttendanceLog>> groupLogsByDate(List<AttendanceLog> logs) {
-        Map<LocalDate, List<AttendanceLog>> grouped = new LinkedHashMap<>();
-        for (AttendanceLog log : logs) {
-            LocalDate date = log.getCheckInTime() != null
-                    ? log.getCheckInTime().toLocalDate()
-                    : log.getCheckOutTime() != null ? log.getCheckOutTime().toLocalDate() : null;
-            if (date == null) {
-                continue;
-            }
-            grouped.computeIfAbsent(date, ignored -> new ArrayList<>()).add(log);
-        }
-        return grouped;
-    }
-
-    private List<AttendanceSessionDTO> toSessionDtos(List<AttendanceLog> dayLogs) {
-        return dayLogs.stream()
-                .sorted(Comparator.comparing(
-                        AttendanceLog::getCheckInTime,
-                        Comparator.nullsLast(Comparator.naturalOrder())))
-                .map(log -> {
+    private List<AttendanceSessionDTO> toSessionDtos(List<AttendanceInferenceService.SessionSegment> segments) {
+        return segments.stream()
+                .map(segment -> {
                     AttendanceSessionDTO session = new AttendanceSessionDTO();
-                    session.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
-                    session.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
+                    session.setCheckInTime(toOffsetDateTime(segment.checkInTime()));
+                    session.setCheckOutTime(toOffsetDateTime(segment.checkOutTime()));
                     return session;
                 })
                 .collect(Collectors.toList());

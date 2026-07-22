@@ -311,6 +311,9 @@ export interface AttendanceReportRow {
   area?: string
   date: string
   checkInTime?: string
+  checkOutTime?: string
+  workedMinutes?: number
+  verificationMethod?: string
   shiftType?: string
 }
 

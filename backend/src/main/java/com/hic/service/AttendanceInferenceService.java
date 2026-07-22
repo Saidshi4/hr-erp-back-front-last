@@ -4,79 +4,173 @@ import com.hic.model.AttendanceLog;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
+/**
+ * Day-aware attendance inference.
+ * <p>
+ * Calendar-day rule: minutes worked in {@code [day 00:00, next day 00:00)} belong to that day.
+ * A session that crosses midnight is split — pre-midnight minutes go to the previous day,
+ * post-midnight minutes go to the next day.
+ */
 @Service
 public class AttendanceInferenceService {
 
     private static final Duration DUPLICATE_PUNCH_WINDOW = Duration.ofSeconds(60);
 
     public AttendanceInference inferDay(List<AttendanceLog> logs) {
-        List<LocalDateTime> orderedPunches = normalizePunches(logs);
-        if (orderedPunches.isEmpty()) {
-            return new AttendanceInference(null, null, 0, false);
+        if (logs == null || logs.isEmpty()) {
+            return new AttendanceInference(null, null, 0, false, List.of());
+        }
+        LocalDate day = logs.stream()
+                .map(AttendanceLog::getCheckInTime)
+                .filter(Objects::nonNull)
+                .map(LocalDateTime::toLocalDate)
+                .min(LocalDate::compareTo)
+                .orElse(LocalDate.now());
+        return inferDay(logs, day);
+    }
+
+    public AttendanceInference inferDay(List<AttendanceLog> logs, LocalDate day) {
+        if (day == null) {
+            return inferDay(logs);
+        }
+        if (logs == null || logs.isEmpty()) {
+            return new AttendanceInference(null, null, 0, false, List.of());
         }
 
-        LocalDateTime firstEntry = orderedPunches.get(0);
+        LocalDateTime dayStart = day.atStartOfDay();
+        LocalDateTime dayEnd = day.plusDays(1).atStartOfDay();
+
+        List<SessionSegment> segments = new ArrayList<>();
+        LocalDateTime firstEntry = null;
         LocalDateTime lastExit = null;
         int workedMinutes = 0;
         boolean currentlyInside = false;
 
-        for (int i = 0; i < orderedPunches.size(); i += 2) {
-            LocalDateTime entry = orderedPunches.get(i);
-            currentlyInside = true;
+        List<AttendanceLog> ordered = dedupeSessions(logs);
 
-            if (i + 1 >= orderedPunches.size()) {
-                break;
+        for (AttendanceLog log : ordered) {
+            LocalDateTime entry = log.getCheckInTime();
+            if (entry == null) {
+                continue;
+            }
+            LocalDateTime exit = log.getCheckOutTime();
+
+            if (exit == null) {
+                // Open session: overlaps this day if it started before tomorrow.
+                if (!entry.isBefore(dayEnd)) {
+                    continue;
+                }
+                LocalDateTime clippedStart = entry.isBefore(dayStart) ? dayStart : entry;
+                if (clippedStart.isBefore(dayEnd)) {
+                    if (firstEntry == null || clippedStart.isBefore(firstEntry)) {
+                        firstEntry = clippedStart;
+                    }
+                    currentlyInside = true;
+                    segments.add(new SessionSegment(clippedStart, null));
+                }
+                continue;
             }
 
-            LocalDateTime exit = orderedPunches.get(i + 1);
             if (!exit.isAfter(entry)) {
                 continue;
             }
+            // No overlap with [dayStart, dayEnd)
+            if (!entry.isBefore(dayEnd) || !exit.isAfter(dayStart)) {
+                continue;
+            }
 
-            workedMinutes += (int) Duration.between(entry, exit).toMinutes();
-            lastExit = exit;
-            currentlyInside = false;
+            LocalDateTime clippedStart = entry.isBefore(dayStart) ? dayStart : entry;
+            LocalDateTime clippedEnd = exit.isAfter(dayEnd) ? dayEnd : exit;
+            if (!clippedEnd.isAfter(clippedStart)) {
+                continue;
+            }
+
+            workedMinutes += (int) Duration.between(clippedStart, clippedEnd).toMinutes();
+            if (firstEntry == null || clippedStart.isBefore(firstEntry)) {
+                firstEntry = clippedStart;
+            }
+            if (lastExit == null || clippedEnd.isAfter(lastExit)) {
+                lastExit = clippedEnd;
+            }
+            segments.add(new SessionSegment(clippedStart, clippedEnd));
         }
 
-        return new AttendanceInference(firstEntry, lastExit, workedMinutes, currentlyInside);
+        return new AttendanceInference(firstEntry, lastExit, workedMinutes, currentlyInside, List.copyOf(segments));
     }
 
-    private List<LocalDateTime> normalizePunches(List<AttendanceLog> logs) {
-        List<LocalDateTime> orderedPunches = logs.stream()
-                .flatMap(log -> Stream.of(log.getCheckInTime(), log.getCheckOutTime()))
-                .filter(Objects::nonNull)
-                .sorted(Comparator.naturalOrder())
+    /**
+     * Returns true when a session overlaps the calendar day {@code [day 00:00, next 00:00)}.
+     */
+    public boolean overlapsDay(AttendanceLog log, LocalDate day) {
+        if (log == null || day == null || log.getCheckInTime() == null) {
+            return false;
+        }
+        LocalDateTime dayStart = day.atStartOfDay();
+        LocalDateTime dayEnd = day.plusDays(1).atStartOfDay();
+        LocalDateTime entry = log.getCheckInTime();
+        LocalDateTime exit = log.getCheckOutTime();
+
+        if (exit == null) {
+            return entry.isBefore(dayEnd);
+        }
+        if (!exit.isAfter(entry)) {
+            return false;
+        }
+        return entry.isBefore(dayEnd) && exit.isAfter(dayStart);
+    }
+
+    private List<AttendanceLog> dedupeSessions(List<AttendanceLog> logs) {
+        List<AttendanceLog> ordered = logs.stream()
+                .filter(log -> log.getCheckInTime() != null)
+                .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
+                        .thenComparing(log -> log.getCheckOutTime() != null ? log.getCheckOutTime() : LocalDateTime.MAX))
                 .toList();
 
-        List<LocalDateTime> normalized = new ArrayList<>();
-        for (LocalDateTime punch : orderedPunches) {
-            if (normalized.isEmpty()) {
-                normalized.add(punch);
+        List<AttendanceLog> deduped = new ArrayList<>();
+        for (AttendanceLog log : ordered) {
+            if (deduped.isEmpty()) {
+                deduped.add(log);
                 continue;
             }
-
-            LocalDateTime previous = normalized.get(normalized.size() - 1);
-            if (Duration.between(previous, punch).abs().compareTo(DUPLICATE_PUNCH_WINDOW) <= 0) {
+            AttendanceLog previous = deduped.get(deduped.size() - 1);
+            boolean sameStart = Duration.between(previous.getCheckInTime(), log.getCheckInTime()).abs()
+                    .compareTo(DUPLICATE_PUNCH_WINDOW) <= 0;
+            boolean sameEnd = previous.getCheckOutTime() != null && log.getCheckOutTime() != null
+                    && Duration.between(previous.getCheckOutTime(), log.getCheckOutTime()).abs()
+                    .compareTo(DUPLICATE_PUNCH_WINDOW) <= 0;
+            if (sameStart && (sameEnd || previous.getCheckOutTime() == null || log.getCheckOutTime() == null)) {
+                // Prefer the longer / more complete session
+                if (previous.getCheckOutTime() == null && log.getCheckOutTime() != null) {
+                    deduped.set(deduped.size() - 1, log);
+                }
                 continue;
             }
-            normalized.add(punch);
+            deduped.add(log);
         }
-        return normalized;
+        return deduped;
+    }
+
+    public record SessionSegment(LocalDateTime checkInTime, LocalDateTime checkOutTime) {
     }
 
     public record AttendanceInference(
             LocalDateTime firstEntry,
             LocalDateTime lastExit,
             int workedMinutes,
-            boolean currentlyInside
+            boolean currentlyInside,
+            List<SessionSegment> segments
     ) {
+        public AttendanceInference(LocalDateTime firstEntry, LocalDateTime lastExit, int workedMinutes, boolean currentlyInside) {
+            this(firstEntry, lastExit, workedMinutes, currentlyInside, List.of());
+        }
+
         public double workedHours() {
             return workedMinutes / 60.0;
         }

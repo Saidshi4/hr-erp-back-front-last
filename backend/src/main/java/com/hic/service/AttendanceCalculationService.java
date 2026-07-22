@@ -50,7 +50,7 @@ public class AttendanceCalculationService {
         }
 
         List<AttendanceLog> logs = findDayLogs(employeeId, workDate);
-        AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs);
+        AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs, workDate);
         LocalDateTime firstEntry = inference.firstEntry();
         LocalDateTime lastExit = inference.lastExit();
         record.setEntryTime(firstEntry);
@@ -66,7 +66,7 @@ public class AttendanceCalculationService {
             record.setStatus("ON_LEAVE");
         } else if (holidayService.isHoliday(workDate)) {
             record.setStatus("HOLIDAY");
-        } else if (firstEntry == null) {
+        } else if (firstEntry == null && !inference.currentlyInside()) {
             record.setStatus("ABSENT");
         } else {
             record.setStatus("PRESENT");
@@ -76,11 +76,11 @@ public class AttendanceCalculationService {
     }
 
     public LocalDateTime getFirstEntry(Long employeeId, LocalDate workDate) {
-        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate)).firstEntry();
+        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate), workDate).firstEntry();
     }
 
     public LocalDateTime getLastExit(Long employeeId, LocalDate workDate) {
-        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate)).lastExit();
+        return attendanceInferenceService.inferDay(findDayLogs(employeeId, workDate), workDate).lastExit();
     }
 
     @Transactional
@@ -105,10 +105,13 @@ public class AttendanceCalculationService {
     }
 
     private List<AttendanceLog> findDayLogs(Long employeeId, LocalDate workDate) {
-        return attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
+        List<AttendanceLog> candidates = attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
                 employeeId,
-                workDate.atStartOfDay(),
+                workDate.minusDays(1).atStartOfDay(),
                 workDate.plusDays(1).atStartOfDay().minusNanos(1)
         );
+        return candidates.stream()
+                .filter(log -> attendanceInferenceService.overlapsDay(log, workDate))
+                .toList();
     }
 }

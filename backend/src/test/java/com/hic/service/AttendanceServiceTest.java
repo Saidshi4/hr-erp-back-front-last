@@ -254,8 +254,12 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void generateDailySummary_multiPunchDay_usesFirstInFinalOutAndIntervalHours() {
+    void generateDailySummary_multiPunchDay_standardUsesFirstInLastOutSpan() {
         LocalDate date = LocalDate.of(2024, 1, 15);
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setShiftType("STANDARD");
+
         AttendanceLog morning = new AttendanceLog();
         morning.setEmployeeId(1L);
         morning.setCheckInTime(LocalDateTime.of(2024, 1, 15, 9, 0));
@@ -271,6 +275,7 @@ class AttendanceServiceTest {
         evening.setCheckInTime(LocalDateTime.of(2024, 1, 15, 15, 0));
         evening.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 17, 0));
 
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
                 .thenReturn(List.of(morning, noon, evening));
         when(summaryRepository.findByEmployeeIdAndAttendanceDate(1L, date))
@@ -283,8 +288,89 @@ class AttendanceServiceTest {
         assertThat(result.getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(9, 0));
         assertThat(result.getCheckOutTime()).isNotNull();
         assertThat(result.getCheckOutTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(17, 0));
-        assertThat(result.getHoursWorked()).isEqualTo(410 / 60.0);
+        assertThat(result.getHoursWorked()).isEqualTo(8.0);
         assertThat(result.getAttendanceStatus()).isEqualTo(AttendanceStatus.PRESENT);
+    }
+
+    @Test
+    void generateDailySummary_multiPunchDay_flexibleSumsIntervalsAndIgnoresLate() {
+        LocalDate date = LocalDate.of(2024, 1, 15);
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setShiftType("FLEXIBLE");
+        employee.setTimetableId(3L);
+
+        Timetable timetable = new Timetable();
+        timetable.setId(3L);
+        timetable.setStartTime(java.time.LocalTime.of(9, 0));
+        timetable.setAllowedLateMinutes(0);
+        timetable.setShiftType("FLEXIBLE");
+
+        AttendanceLog morning = new AttendanceLog();
+        morning.setEmployeeId(1L);
+        morning.setCheckInTime(LocalDateTime.of(2024, 1, 15, 9, 0));
+        morning.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 11, 0));
+
+        AttendanceLog midday = new AttendanceLog();
+        midday.setEmployeeId(1L);
+        midday.setCheckInTime(LocalDateTime.of(2024, 1, 15, 13, 0));
+        midday.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 15, 30));
+
+        AttendanceLog evening = new AttendanceLog();
+        evening.setEmployeeId(1L);
+        evening.setCheckInTime(LocalDateTime.of(2024, 1, 15, 17, 0));
+        evening.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 18, 0));
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(timetableRepository.findById(3L)).thenReturn(Optional.of(timetable));
+        when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(morning, midday, evening));
+        when(summaryRepository.findByEmployeeIdAndAttendanceDate(1L, date))
+                .thenReturn(Optional.empty());
+        when(summaryRepository.save(any(DailyAttendanceSummary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DailyAttendanceSummaryDTO result = attendanceService.generateDailySummary(1L, date);
+
+        assertThat(result.getHoursWorked()).isEqualTo(5.5);
+        assertThat(result.getAttendanceStatus()).isEqualTo(AttendanceStatus.PRESENT);
+    }
+
+    @Test
+    void getEmployeeAttendance_flexibleShift_doesNotMarkLate() {
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setBranchId(1L);
+        employee.setTimetableId(3L);
+        employee.setShiftType("FIRST_ENTRY");
+
+        Timetable timetable = new Timetable();
+        timetable.setId(3L);
+        timetable.setStartTime(java.time.LocalTime.of(9, 0));
+        timetable.setAllowedLateMinutes(0);
+        timetable.setShiftType("FIRST_ENTRY");
+
+        AttendanceLog lateLog = new AttendanceLog();
+        lateLog.setEmployeeId(1L);
+        lateLog.setCheckInTime(LocalDateTime.of(2024, 1, 16, 11, 0));
+        lateLog.setCheckOutTime(LocalDateTime.of(2024, 1, 16, 15, 0));
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(lateLog));
+        when(summaryRepository.findByEmployeeIdAndAttendanceDateBetween(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
+                .thenReturn(List.of());
+        when(leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
+                .thenReturn(List.of());
+        when(employeePermissionRepository.findByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
+                .thenReturn(List.of());
+        when(timetableRepository.findById(3L)).thenReturn(Optional.of(timetable));
+
+        List<EmployeeAttendanceRowDTO> result = attendanceService.getEmployeeAttendance(
+                1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16));
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getStatus()).isEqualTo(AttendanceStatus.PRESENT);
+        assertThat(result.get(0).getHoursWorked()).isEqualTo(4.0);
     }
 
     @Test

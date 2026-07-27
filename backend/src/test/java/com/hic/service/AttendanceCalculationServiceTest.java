@@ -61,8 +61,13 @@ class AttendanceCalculationServiceTest {
     }
 
     @Test
-    void calculateForDay_multiPunchDay_sumsWorkedIntervals() {
+    void calculateForDay_multiPunchDay_standardShiftUsesFirstInLastOutSpan() {
         LocalDate workDate = LocalDate.of(2024, 1, 15);
+
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setTenantId(7L);
+        employee.setShiftType("STANDARD");
 
         AttendanceLog morning = new AttendanceLog();
         morning.setEmployeeId(1L);
@@ -79,6 +84,7 @@ class AttendanceCalculationServiceTest {
         evening.setCheckInTime(LocalDateTime.of(2024, 1, 15, 15, 0));
         evening.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 17, 0));
 
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(attendanceRecordRepository.findByEmployeeIdAndWorkDate(1L, workDate)).thenReturn(Optional.empty());
         when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
                 .thenReturn(List.of(morning, noon, evening));
@@ -90,9 +96,50 @@ class AttendanceCalculationServiceTest {
 
         assertThat(record.getEntryTime()).isEqualTo(LocalDateTime.of(2024, 1, 15, 9, 0));
         assertThat(record.getExitTime()).isEqualTo(LocalDateTime.of(2024, 1, 15, 17, 0));
-        assertThat(record.getWorkedMinutes()).isEqualTo(410);
+        assertThat(record.getWorkedMinutes()).isEqualTo(480);
         assertThat(record.getStatus()).isEqualTo("PRESENT");
         assertThat(record.getTenantId()).isEqualTo(7L);
+    }
+
+    @Test
+    void calculateForDay_multiPunchDay_flexibleShiftSumsIntervals() {
+        LocalDate workDate = LocalDate.of(2024, 1, 15);
+
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setTenantId(7L);
+        employee.setShiftType("FLEXIBLE");
+
+        AttendanceLog morning = new AttendanceLog();
+        morning.setEmployeeId(1L);
+        morning.setCheckInTime(LocalDateTime.of(2024, 1, 15, 9, 0));
+        morning.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 11, 0));
+
+        AttendanceLog midday = new AttendanceLog();
+        midday.setEmployeeId(1L);
+        midday.setCheckInTime(LocalDateTime.of(2024, 1, 15, 13, 0));
+        midday.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 15, 30));
+
+        AttendanceLog evening = new AttendanceLog();
+        evening.setEmployeeId(1L);
+        evening.setCheckInTime(LocalDateTime.of(2024, 1, 15, 17, 0));
+        evening.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 18, 0));
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(attendanceRecordRepository.findByEmployeeIdAndWorkDate(1L, workDate)).thenReturn(Optional.empty());
+        when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(morning, midday, evening));
+        when(leaveService.hasActiveLeave(1L, workDate)).thenReturn(false);
+        when(holidayService.isHoliday(workDate)).thenReturn(false);
+        when(attendanceRecordRepository.save(any(AttendanceRecord.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        AttendanceRecord record = attendanceCalculationService.calculateForDay(1L, workDate);
+
+        assertThat(record.getEntryTime()).isEqualTo(LocalDateTime.of(2024, 1, 15, 9, 0));
+        assertThat(record.getExitTime()).isEqualTo(LocalDateTime.of(2024, 1, 15, 18, 0));
+        // 2h + 2.5h + 1h = 330 minutes (gaps excluded)
+        assertThat(record.getWorkedMinutes()).isEqualTo(330);
+        assertThat(record.getStatus()).isEqualTo("PRESENT");
     }
 
     @Test

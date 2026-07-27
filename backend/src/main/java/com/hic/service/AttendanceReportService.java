@@ -199,7 +199,7 @@ public class AttendanceReportService {
                 dto.setDate(currentDate);
                 dto.setCheckInTime(inference.firstEntry());
                 dto.setCheckOutTime(inference.lastExit());
-                dto.setWorkedMinutes(inference.workedMinutes());
+                dto.setWorkedMinutes(inference.workedMinutesForShift(employee.getShiftType()));
                 dto.setVerificationMethod(normalizeVerificationMethod(dayLogs.stream()
                         .map(AttendanceLog::getVerificationMethod)
                         .filter(method -> method != null && !method.isBlank())

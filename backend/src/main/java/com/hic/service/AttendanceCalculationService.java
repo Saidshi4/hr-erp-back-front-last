@@ -56,8 +56,9 @@ public class AttendanceCalculationService {
         record.setEntryTime(firstEntry);
         record.setExitTime(lastExit);
 
-        record.setWorkedMinutes(inference.workedMinutes());
-        int workedMinutes = inference.workedMinutes();
+        String shiftType = employee != null ? employee.getShiftType() : record.getShiftType();
+        int workedMinutes = inference.workedMinutesForShift(shiftType);
+        record.setWorkedMinutes(workedMinutes);
         record.setOvertimeMinutes(Math.max(workedMinutes - 8 * 60, 0));
         record.setLateMinutes(0);
         record.setEarlyLeaveMinutes(0);

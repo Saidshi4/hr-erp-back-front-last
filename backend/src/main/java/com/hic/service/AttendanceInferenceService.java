@@ -1,6 +1,7 @@
 package com.hic.service;
 
 import com.hic.model.AttendanceLog;
+import com.hic.util.ShiftTypes;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -17,6 +18,12 @@ import java.util.Objects;
  * Calendar-day rule: minutes worked in {@code [day 00:00, next day 00:00)} belong to that day.
  * A session that crosses midnight is split — pre-midnight minutes go to the previous day,
  * post-midnight minutes go to the next day.
+ * <p>
+ * Worked minutes depend on shift type:
+ * <ul>
+ *   <li>Standard / Night — span from first check-in to last check-out</li>
+ *   <li>Flexible — sum of each closed check-in/check-out interval</li>
+ * </ul>
  */
 @Service
 public class AttendanceInferenceService {
@@ -171,8 +178,32 @@ public class AttendanceInferenceService {
             this(firstEntry, lastExit, workedMinutes, currentlyInside, List.of());
         }
 
+        /** Sum of closed check-in/check-out intervals (flexible-shift basis). */
+        public int intervalWorkedMinutes() {
+            return workedMinutes;
+        }
+
+        /** First check-in → last check-out span (standard/night basis). */
+        public int spanWorkedMinutes() {
+            if (firstEntry == null || lastExit == null || !lastExit.isAfter(firstEntry)) {
+                return 0;
+            }
+            return (int) Duration.between(firstEntry, lastExit).toMinutes();
+        }
+
+        /**
+         * Flexible shifts sum each interval; standard/night use first-in to last-out span.
+         */
+        public int workedMinutesForShift(String shiftType) {
+            return ShiftTypes.isFlexible(shiftType) ? intervalWorkedMinutes() : spanWorkedMinutes();
+        }
+
         public double workedHours() {
             return workedMinutes / 60.0;
+        }
+
+        public double workedHoursForShift(String shiftType) {
+            return workedMinutesForShift(shiftType) / 60.0;
         }
     }
 }

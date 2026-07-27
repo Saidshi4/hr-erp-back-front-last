@@ -66,6 +66,31 @@ class AttendanceInferenceServiceTest {
         assertThat(service.overlapsDay(log, LocalDate.of(2026, 4, 28))).isFalse();
     }
 
+    @Test
+    void multiSessionDay_standardUsesSpan_flexibleSumsIntervals() {
+        AttendanceLog morning = session(
+                LocalDateTime.of(2026, 4, 26, 9, 0),
+                LocalDateTime.of(2026, 4, 26, 11, 0)
+        );
+        AttendanceLog midday = session(
+                LocalDateTime.of(2026, 4, 26, 13, 0),
+                LocalDateTime.of(2026, 4, 26, 15, 30)
+        );
+        AttendanceLog evening = session(
+                LocalDateTime.of(2026, 4, 26, 17, 0),
+                LocalDateTime.of(2026, 4, 26, 18, 0)
+        );
+
+        var day = service.inferDay(List.of(morning, midday, evening), LocalDate.of(2026, 4, 26));
+
+        assertThat(day.intervalWorkedMinutes()).isEqualTo(330);
+        assertThat(day.spanWorkedMinutes()).isEqualTo(9 * 60);
+        assertThat(day.workedMinutesForShift("STANDARD")).isEqualTo(9 * 60);
+        assertThat(day.workedMinutesForShift("NIGHT")).isEqualTo(9 * 60);
+        assertThat(day.workedMinutesForShift("FLEXIBLE")).isEqualTo(330);
+        assertThat(day.workedMinutesForShift("FIRST_ENTRY")).isEqualTo(330);
+    }
+
     private static AttendanceLog session(LocalDateTime in, LocalDateTime out) {
         AttendanceLog log = new AttendanceLog();
         log.setEmployeeId(1L);

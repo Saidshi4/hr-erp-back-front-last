@@ -99,7 +99,7 @@ export default function EmployeesPage() {
   const [filterDept, setFilterDept] = useState<string>('')
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterShift, setFilterShift] = useState<string>('')
-  const [filterArea, setFilterArea] = useState<string>('')
+  const [filterBranch, setFilterBranch] = useState<string>('')
   const [showWizard, setShowWizard] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
@@ -573,11 +573,10 @@ export default function EmployeesPage() {
     const matchDept = !filterDept || String(e.departmentId) === filterDept
     const matchStatus = !filterStatus || e.employmentStatus === filterStatus
     const matchShift = !filterShift || e.shiftType === filterShift
-    const matchArea = !filterArea || e.area === filterArea
-    return matchSearch && matchDept && matchStatus && matchShift && matchArea
+    const matchBranch = !filterBranch || String(e.branchId) === filterBranch
+    return matchSearch && matchDept && matchStatus && matchShift && matchBranch
   })
 
-  const uniqueAreas = Array.from(new Set(employees.map((e) => e.area).filter(Boolean))) as string[]
   const uniqueShifts = Array.from(new Set(employees.map((e) => e.shiftType).filter(Boolean))) as string[]
 
   const activeCount = employees.filter((e) => e.employmentStatus === 'ACTIVE').length
@@ -659,9 +658,9 @@ export default function EmployeesPage() {
             {uniqueShifts.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
 
-          <select value={filterArea} onChange={e => setFilterArea(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-400">
-            <option value="">Bütün ərazilər</option>
-            {uniqueAreas.map(a => <option key={a} value={a}>{a}</option>)}
+          <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-400">
+            <option value="">Bütün filiallar</option>
+            {branches.map(b => <option key={b.id} value={String(b.id)}>{b.name}</option>)}
           </select>
         </div>
 
@@ -692,7 +691,7 @@ export default function EmployeesPage() {
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ATA ADI</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">DEPARTAMENT</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">VƏZİFƏ</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ƏRAZİ</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">FİLİAL</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">STATUS</th>
                 </tr>
               </thead>
@@ -771,7 +770,7 @@ export default function EmployeesPage() {
                       <td className="px-4 py-3 text-gray-600">{emp.fatherName || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{emp.departmentName || '—'}</td>
                       <td className="px-4 py-3 text-gray-600">{emp.positionName || '—'}</td>
-                      <td className="px-4 py-3 text-gray-600">{emp.area || '—'}</td>
+                      <td className="px-4 py-3 text-gray-600">{emp.branchName || branchLabelById(emp.branchId)}</td>
                       <td className="px-4 py-3">
                         <span className="px-2 py-0.5 rounded-full text-xs font-medium"
                           style={emp.employmentStatus === 'ACTIVE'

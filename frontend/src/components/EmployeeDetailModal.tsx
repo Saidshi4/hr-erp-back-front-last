@@ -178,6 +178,10 @@ export default function EmployeeDetailModal({
                 <h4 className="text-base font-bold text-[#1f2d6b] mb-3">Məşğulluq məlumatları</h4>
                 <div className="space-y-2 text-sm">
                   <div className="grid grid-cols-2">
+                    <span className="text-[#98a2c8]">FİLİAL</span>
+                    <span className="text-right font-semibold text-[#1f2d6b]">{branchDisplay}</span>
+                  </div>
+                  <div className="grid grid-cols-2">
                     <span className="text-[#98a2c8]">DEPARTAMENT</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.departmentName || '—'}</span>
                   </div>
@@ -224,10 +228,6 @@ export default function EmployeeDetailModal({
                     <p className="font-semibold text-[#9f1239]">{employee.faceId || 'X'}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 text-sm">
-                  <span className="text-[#98a2c8]">ƏRAZİ CİHAZLARI</span>
-                  <span className="text-right font-semibold text-[#1f2d6b]">{employee.area || '—'}</span>
-                </div>
               </div>
 
               <div className="bg-white rounded-3xl p-5">
@@ -248,10 +248,6 @@ export default function EmployeeDetailModal({
                   <div className="grid grid-cols-2">
                     <span className="text-[#98a2c8]">TƏCİLİ ƏLAQƏ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">{employee.emergencyContact || '—'}</span>
-                  </div>
-                  <div className="grid grid-cols-2">
-                    <span className="text-[#98a2c8]">FİLİAL / OFİS MƏKANI</span>
-                    <span className="text-right font-semibold text-[#1f2d6b]">{branchDisplay}</span>
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="text-[#98a2c8]">ÜNVAN</span>

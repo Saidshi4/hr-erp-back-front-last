@@ -49,34 +49,6 @@ public class AttendanceReportService {
     private final TimetableRepository timetableRepository;
     private final AttendanceInferenceService attendanceInferenceService;
 
-    /**
-     * Attendance Reports: exactly one summarized record per employee per day
-     * (first check-in, last check-out, worked duration by shift type).
-     * Never returns raw per-log rows — that belongs to {@link AttendanceService#getRawLogs}.
-     */
-    public PaginatedResponse<AttendanceReportRowDTO> getDailySummary(
-            LocalDate start,
-            LocalDate end,
-            String shiftType,
-            String employeeCode,
-            String name,
-            String fin,
-            String position,
-            String department,
-            String area,
-            int page,
-            int size
-    ) {
-        List<AttendanceReportRowDTO> allRows = queryDailySummaryRows(
-                start, end, shiftType, employeeCode, name, fin, position, department, area
-        );
-        int fromIndex = Math.min(page * size, allRows.size());
-        int toIndex = Math.min(fromIndex + size, allRows.size());
-        int totalPages = size > 0 ? (int) Math.ceil((double) allRows.size() / size) : 0;
-        return PaginatedResponse.of(allRows.subList(fromIndex, toIndex), allRows.size(), totalPages, page, size);
-    }
-
-    /** @deprecated Prefer {@link #getDailySummary}; kept for existing controller wiring. */
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
             LocalDate start,
             LocalDate end,
@@ -90,7 +62,13 @@ public class AttendanceReportService {
             int page,
             int size
     ) {
-        return getDailySummary(start, end, shiftType, employeeCode, name, fin, position, department, area, page, size);
+        List<AttendanceReportRowDTO> allRows = queryRows(
+                start, end, shiftType, employeeCode, name, fin, position, department, area
+        );
+        int fromIndex = Math.min(page * size, allRows.size());
+        int toIndex = Math.min(fromIndex + size, allRows.size());
+        int totalPages = size > 0 ? (int) Math.ceil((double) allRows.size() / size) : 0;
+        return PaginatedResponse.of(allRows.subList(fromIndex, toIndex), allRows.size(), totalPages, page, size);
     }
 
     public byte[] exportExcel(
@@ -104,7 +82,7 @@ public class AttendanceReportService {
             String department,
             String area
     ) {
-        List<AttendanceReportRowDTO> rows = queryDailySummaryRows(start, end, shiftType, employeeCode, name, fin, position, department, area);
+        List<AttendanceReportRowDTO> rows = queryRows(start, end, shiftType, employeeCode, name, fin, position, department, area);
         try (Workbook workbook = new XSSFWorkbook()) {
             Sheet sheet = workbook.createSheet("Attendance Reports");
             Row header = sheet.createRow(0);
@@ -141,7 +119,7 @@ public class AttendanceReportService {
         }
     }
 
-    private List<AttendanceReportRowDTO> queryDailySummaryRows(
+    private List<AttendanceReportRowDTO> queryRows(
             LocalDate start,
             LocalDate end,
             String shiftType,
@@ -236,8 +214,10 @@ public class AttendanceReportService {
                 dto.setPosition(positionNames.get(employee.getPositionId()));
                 dto.setArea(employee.getArea());
                 dto.setDate(currentDate);
+                // One summarized row per employee/day: first IN + last OUT always.
                 dto.setCheckInTime(inference.firstEntry());
                 dto.setCheckOutTime(inference.lastExit());
+                // Flexible = sum of intervals; Standard/Night = last OUT − first IN.
                 dto.setWorkedMinutes(inference.workedMinutesForShift(scheduleShiftType));
                 dto.setVerificationMethod(normalizeVerificationMethod(dayLogs.stream()
                         .map(AttendanceLog::getVerificationMethod)

@@ -81,13 +81,13 @@ class AttendanceReportServiceTest {
         when(positionRepository.findAllById(any())).thenReturn(List.of());
         when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
 
-        PaginatedResponse<AttendanceReportRowDTO> all = attendanceReportService.getDailySummary(
+        PaginatedResponse<AttendanceReportRowDTO> all = attendanceReportService.getReport(
                 day, day, "", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> flexibleOnly = attendanceReportService.getDailySummary(
+        PaginatedResponse<AttendanceReportRowDTO> flexibleOnly = attendanceReportService.getReport(
                 day, day, "FLEXIBLE", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> standardOnly = attendanceReportService.getDailySummary(
+        PaginatedResponse<AttendanceReportRowDTO> standardOnly = attendanceReportService.getReport(
                 day, day, "STANDARD", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> nightOnly = attendanceReportService.getDailySummary(
+        PaginatedResponse<AttendanceReportRowDTO> nightOnly = attendanceReportService.getReport(
                 day, day, "NIGHT", null, null, null, null, null, null, 0, 50);
 
         assertThat(all.getContent()).extracting(AttendanceReportRowDTO::getFullName)
@@ -99,6 +99,57 @@ class AttendanceReportServiceTest {
         assertThat(nightOnly.getContent()).isEmpty();
 
         assertThat(flexibleOnly.getContent().get(0).getShiftType()).isEqualTo("FLEXIBLE");
+    }
+
+    @Test
+    void getReport_oneRowPerEmployeeDay_flexibleSumsIntervals_standardUsesSpan() {
+        LocalDate day = LocalDate.of(2026, 7, 1);
+
+        Employee flexible = employee(1L, "F-1", "Flex", "Worker", 10L, "FLEXIBLE");
+        Employee standard = employee(2L, "S-1", "Std", "Worker", 11L, "STANDARD");
+
+        Timetable flexibleTimetable = new Timetable();
+        flexibleTimetable.setId(10L);
+        flexibleTimetable.setShiftType("FLEXIBLE");
+        Timetable standardTimetable = new Timetable();
+        standardTimetable.setId(11L);
+        standardTimetable.setShiftType("STANDARD");
+
+        // Same punches for both: 09-11, 13-15:30, 17-18 → intervals 330 min, span 540 min
+        List<AttendanceLog> punches = List.of(
+                log(1L, day.atTime(9, 0), day.atTime(11, 0)),
+                log(1L, day.atTime(13, 0), day.atTime(15, 30)),
+                log(1L, day.atTime(17, 0), day.atTime(18, 0)),
+                log(2L, day.atTime(9, 0), day.atTime(11, 0)),
+                log(2L, day.atTime(13, 0), day.atTime(15, 30)),
+                log(2L, day.atTime(17, 0), day.atTime(18, 0))
+        );
+
+        when(attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(punches);
+        when(employeeRepository.findAllById(any())).thenReturn(List.of(flexible, standard));
+        when(timetableRepository.findAllById(any())).thenReturn(List.of(flexibleTimetable, standardTimetable));
+        when(departmentRepository.findAllById(any())).thenReturn(List.of());
+        when(positionRepository.findAllById(any())).thenReturn(List.of());
+        when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
+
+        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getReport(
+                day, day, "", null, null, null, null, null, null, 0, 50);
+
+        assertThat(rows.getContent()).hasSize(2);
+
+        AttendanceReportRowDTO flexRow = rows.getContent().stream()
+                .filter(r -> r.getEmployeePk().equals(1L)).findFirst().orElseThrow();
+        AttendanceReportRowDTO stdRow = rows.getContent().stream()
+                .filter(r -> r.getEmployeePk().equals(2L)).findFirst().orElseThrow();
+
+        assertThat(flexRow.getCheckInTime()).isEqualTo(day.atTime(9, 0));
+        assertThat(flexRow.getCheckOutTime()).isEqualTo(day.atTime(18, 0));
+        assertThat(flexRow.getWorkedMinutes()).isEqualTo(330);
+
+        assertThat(stdRow.getCheckInTime()).isEqualTo(day.atTime(9, 0));
+        assertThat(stdRow.getCheckOutTime()).isEqualTo(day.atTime(18, 0));
+        assertThat(stdRow.getWorkedMinutes()).isEqualTo(9 * 60);
     }
 
     @Test
@@ -118,7 +169,7 @@ class AttendanceReportServiceTest {
         when(positionRepository.findAllById(any())).thenReturn(List.of());
         when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
 
-        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getDailySummary(
+        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getReport(
                 day, day, "FIRST_ENTRY", null, null, null, null, null, null, 0, 50);
 
         assertThat(rows.getContent()).hasSize(1);

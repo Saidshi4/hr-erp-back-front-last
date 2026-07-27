@@ -48,10 +48,9 @@ public class AttendanceController {
             @RequestParam String start,
             @RequestParam String end) {
         try {
-            // Attendance page: date params → raw logs (1 DB row = 1 response row).
             LocalDate parsedStart = LocalDate.parse(start);
             LocalDate parsedEnd = LocalDate.parse(end);
-            List<EmployeeAttendanceRowDTO> rows = attendanceService.getRawLogs(employeeId, parsedStart, parsedEnd);
+            List<EmployeeAttendanceRowDTO> rows = attendanceService.getEmployeeAttendance(employeeId, parsedStart, parsedEnd);
             return ResponseEntity.ok(ApiResponse.success(rows));
         } catch (DateTimeParseException ignored) {
             LocalDateTime parsedStart = LocalDateTime.parse(start);
@@ -104,7 +103,7 @@ public class AttendanceController {
             @RequestParam(required = false) String area,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ResponseEntity.ok(ApiResponse.success(attendanceReportService.getDailySummary(
+        return ResponseEntity.ok(ApiResponse.success(attendanceReportService.getReport(
                 start, end, shiftType, employeeId, name, fin, position, department, area, page, size
         )));
     }

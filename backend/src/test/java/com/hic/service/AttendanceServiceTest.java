@@ -374,6 +374,48 @@ class AttendanceServiceTest {
     }
 
     @Test
+    void getEmployeeAttendance_multiPunchDay_returnsOneRowPerLog() {
+        Employee employee = new Employee();
+        employee.setId(1L);
+        employee.setBranchId(1L);
+        employee.setShiftType("STANDARD");
+
+        AttendanceLog first = new AttendanceLog();
+        first.setEmployeeId(1L);
+        first.setCheckInTime(LocalDateTime.of(2024, 1, 15, 22, 44));
+        first.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 22, 46));
+
+        AttendanceLog second = new AttendanceLog();
+        second.setEmployeeId(1L);
+        second.setCheckInTime(LocalDateTime.of(2024, 1, 15, 22, 47));
+        second.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 22, 48));
+
+        AttendanceLog third = new AttendanceLog();
+        third.setEmployeeId(1L);
+        third.setCheckInTime(LocalDateTime.of(2024, 1, 15, 23, 12));
+        third.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 23, 16));
+
+        when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
+        when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(first, second, third));
+        when(summaryRepository.findByEmployeeIdAndAttendanceDateBetween(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
+                .thenReturn(List.of());
+        when(leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
+                .thenReturn(List.of());
+        when(employeePermissionRepository.findByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
+                .thenReturn(List.of());
+
+        List<EmployeeAttendanceRowDTO> result = attendanceService.getEmployeeAttendance(
+                1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15));
+
+        assertThat(result).hasSize(3);
+        assertThat(result.get(0).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(22, 44));
+        assertThat(result.get(1).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(22, 47));
+        assertThat(result.get(2).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(23, 12));
+        assertThat(result.get(0).getHoursWorked()).isCloseTo(2 / 60.0, org.assertj.core.data.Offset.offset(0.01));
+    }
+
+    @Test
     void generateDailySummary_todayAfterFinalExit_marksWorkdayComplete() {
         LocalDate today = LocalDate.now();
         AttendanceLog firstSession = new AttendanceLog();

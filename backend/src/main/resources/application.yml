@@ -7,6 +7,10 @@ spring:
     username: ${SPRING_DATASOURCE_USERNAME:hic_user}
     password: ${SPRING_DATASOURCE_PASSWORD:hic_password}
     driver-class-name: org.postgresql.Driver
+  jackson:
+    time-zone: Asia/Baku
+    serialization:
+      write-dates-as-timestamps: false
   jpa:
     hibernate:
       ddl-auto: validate

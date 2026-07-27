@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import client from '../api/client.ts'
 import { doorRoleLabel, statusLabel } from '../i18n/labels.ts'
+import { formatAttendanceDateTime } from '../utils/dateTime.ts'
 
 interface DashboardStats {
   totalEmployees: number
@@ -249,7 +250,7 @@ export default function DashboardPage() {
                   </div>
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">
-                      {eventTime ? new Date(String(eventTime).endsWith('Z') ? eventTime : eventTime + 'Z').toLocaleString('az-AZ', { timeZone: 'Asia/Baku' }) : '—'}
+                      {eventTime ? formatAttendanceDateTime(String(eventTime)) : '—'}
                     </p>
                     <span
                       className="text-xs px-2 py-0.5 rounded-full font-medium"

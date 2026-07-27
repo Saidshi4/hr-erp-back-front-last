@@ -10,6 +10,7 @@ import {
 } from '../types'
 import { useDebounce } from '../hooks/useSearch.ts'
 import { t } from '../i18n/index.ts'
+import { formatAttendanceTime } from '../utils/dateTime.ts'
 
 type PeriodType = 'THIS_MONTH' | 'LAST_MONTH' | 'THIS_YEAR' | 'LAST_YEAR' | 'CUSTOM'
 
@@ -87,8 +88,7 @@ function getPresetPeriod(periodType: PeriodType, selectedMonth: number, selected
 }
 
 function formatTime(value?: string) {
-  if (!value) return '—'
-  return new Date(value).toLocaleTimeString('az-AZ', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Baku' })
+  return formatAttendanceTime(value)
 }
 
 function formatWorkedHours(hours?: number) {

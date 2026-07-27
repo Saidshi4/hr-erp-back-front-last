@@ -114,13 +114,29 @@ function TimetableModal({ initial, onSave, onClose }: {
   const [error, setError] = useState('')
 
   const set = (k: keyof Timetable, v: unknown) => setForm(f => ({ ...f, [k]: v }))
+  const isFlexible = (form.shiftType ?? '').toUpperCase() === 'FLEXIBLE'
 
   const handleSave = async () => {
     if (!form.name?.trim()) { setError('Növbə adı daxil edilməlidir'); return }
     if (!form.shiftType) { setError('Növbə növü seçilməlidir'); return }
-    if (!form.startTime || !form.endTime) { setError('Başlanğıc və bitmə vaxtı seçilməlidir'); return }
+    if (!isFlexible && (!form.startTime || !form.endTime)) {
+      setError('Başlanğıc və bitmə vaxtı seçilməlidir')
+      return
+    }
     setSaving(true)
-    try { await onSave(form); onClose() }
+    try {
+      const payload: Partial<Timetable> = { ...form }
+      if (isFlexible) {
+        // Flexible has no fixed hours / late grace — placeholders for NOT NULL DB columns.
+        payload.startTime = '00:00'
+        payload.endTime = '23:59'
+        payload.allowedLateMinutes = 0
+        payload.allowedEarlyLeaveMinutes = 0
+        payload.crossesMidnight = false
+      }
+      await onSave(payload)
+      onClose()
+    }
     catch { setError('Xəta baş verdi') }
     finally { setSaving(false) }
   }
@@ -154,42 +170,51 @@ function TimetableModal({ initial, onSave, onClose }: {
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Başlanğıc vaxtı *</label>
-              <input type="time" value={form.startTime} onChange={e => set('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Bitmə vaxtı *</label>
-              <input type="time" value={form.endTime} onChange={e => set('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Fasilə (dəq.)</label>
-              <input
-                type="number"
-                min={0}
-                max={120}
-                value={form.breakMinutes ?? 0}
-                onChange={e => set('breakMinutes', Number(e.target.value))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Gecikmə toleransı (dəq.)</label>
-              <select value={form.allowedLateMinutes ?? 10} onChange={e => set('allowedLateMinutes', Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                {LATE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-          </div>
+          {!isFlexible && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Başlanğıc vaxtı *</label>
+                  <input type="time" value={form.startTime} onChange={e => set('startTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Bitmə vaxtı *</label>
+                  <input type="time" value={form.endTime} onChange={e => set('endTime', e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fasilə (dəq.)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    value={form.breakMinutes ?? 0}
+                    onChange={e => set('breakMinutes', Number(e.target.value))}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Gecikmə toleransı (dəq.)</label>
+                  <select value={form.allowedLateMinutes ?? 10} onChange={e => set('allowedLateMinutes', Number(e.target.value))} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                    {LATE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="crossesMidnight" checked={!!form.crossesMidnight} onChange={e => set('crossesMidnight', e.target.checked)} className="rounded" />
+                <label htmlFor="crossesMidnight" className="text-sm text-gray-700">Gecəyarısını keçir</label>
+              </div>
+            </>
+          )}
+          {isFlexible && (
+            <p className="text-sm text-slate-500 rounded-lg bg-slate-50 px-3 py-2">
+              Çevik növbədə sabit başlanğıc/bitmə vaxtı və gecikmə yoxdur. Yalnız iş intervalarının cəmi hesablanır.
+            </p>
+          )}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Açıqlama</label>
             <textarea value={form.description ?? ''} onChange={e => set('description', e.target.value)} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="crossesMidnight" checked={!!form.crossesMidnight} onChange={e => set('crossesMidnight', e.target.checked)} className="rounded" />
-            <label htmlFor="crossesMidnight" className="text-sm text-gray-700">Gecəyarısını keçir</label>
           </div>
         </div>
         <div className="flex gap-3 mt-5 justify-end">
@@ -256,14 +281,20 @@ function TimetableTab() {
                 </div>
               </div>
               <div className="text-xs text-gray-500 space-y-1">
-                <div className="flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                  <span>{t.startTime} – {t.endTime}</span>
-                </div>
-                <div className="flex gap-3 flex-wrap">
-                  {(t.breakMinutes ?? 0) > 0 && <span>Fasilə: <strong>{t.breakMinutes} dəq.</strong></span>}
-                  <span>Gecikmə: <strong>{t.allowedLateMinutes ?? 0} dəq.</strong></span>
-                </div>
+                {(t.shiftType ?? '').toUpperCase() === 'FLEXIBLE' ? (
+                  <span>Çevik saatlar — sabit vaxt / gecikmə yoxdur</span>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-1">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                      <span>{t.startTime} – {t.endTime}</span>
+                    </div>
+                    <div className="flex gap-3 flex-wrap">
+                      {(t.breakMinutes ?? 0) > 0 && <span>Fasilə: <strong>{t.breakMinutes} dəq.</strong></span>}
+                      <span>Gecikmə: <strong>{t.allowedLateMinutes ?? 0} dəq.</strong></span>
+                    </div>
+                  </>
+                )}
               </div>
               {t.description && <p className="text-xs text-gray-400 truncate">{t.description}</p>}
             </div>

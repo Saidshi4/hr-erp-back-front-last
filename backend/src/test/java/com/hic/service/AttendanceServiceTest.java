@@ -19,6 +19,7 @@ import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
 import com.hic.repository.TimetableRepository;
 import com.hic.repository.WorkScheduleRepository;
+import com.hic.util.AppTimeZone;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -375,7 +376,7 @@ class AttendanceServiceTest {
 
     @Test
     void generateDailySummary_todayAfterFinalExit_marksWorkdayComplete() {
-        LocalDate today = LocalDate.now();
+        LocalDate today = AppTimeZone.today();
         AttendanceLog firstSession = new AttendanceLog();
         firstSession.setEmployeeId(1L);
         firstSession.setCheckInTime(today.atTime(9, 0));

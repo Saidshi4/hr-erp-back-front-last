@@ -22,6 +22,7 @@ import com.hic.repository.EmployeeRepository;
 import com.hic.repository.LeaveRequestRepository;
 import com.hic.repository.TimetableRepository;
 import com.hic.repository.WorkScheduleRepository;
+import com.hic.util.AppTimeZone;
 import com.hic.util.ShiftTypes;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +34,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -372,10 +372,7 @@ public class AttendanceService {
     }
 
     private OffsetDateTime toOffsetDateTime(LocalDateTime localDateTime) {
-        if (localDateTime == null) {
-            return null;
-        }
-        return localDateTime.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        return AppTimeZone.toOffsetDateTime(localDateTime);
     }
 
     private List<AttendanceLog> findDayLogs(Long employeeId, LocalDate date) {
@@ -447,7 +444,7 @@ public class AttendanceService {
                 && Duration.between(scheduleSettings.startTime(), inference.firstEntry().toLocalTime()).toMinutes()
                 > scheduleSettings.allowedLateMinutes();
 
-        if (!date.equals(LocalDate.now())) {
+        if (!date.equals(AppTimeZone.today())) {
             return late ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
         }
 

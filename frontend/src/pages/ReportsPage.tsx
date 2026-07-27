@@ -7,6 +7,7 @@ import { employeeApi } from '../api/employeeApi.ts'
 import { useAttendanceReportStore } from '../store/attendanceReportStore.ts'
 import { t } from '../i18n/index.ts'
 import { Position, Department } from '../types'
+import { formatAttendanceTime } from '../utils/dateTime.ts'
 
 const SHIFT_TABS = [
   { labelKey: 'reports.allShifts' as const, value: '' },
@@ -16,13 +17,7 @@ const SHIFT_TABS = [
 ]
 
 function formatClock(value?: string) {
-  if (!value) return '—'
-  const normalized = value.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(value) ? value : `${value}Z`
-  return new Date(normalized).toLocaleTimeString('az-AZ', {
-    hour: '2-digit',
-    minute: '2-digit',
-    timeZone: 'Asia/Baku',
-  })
+  return formatAttendanceTime(value)
 }
 
 function formatDuration(minutes?: number) {

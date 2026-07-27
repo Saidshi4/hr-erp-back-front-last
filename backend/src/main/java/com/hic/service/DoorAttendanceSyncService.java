@@ -9,6 +9,7 @@ import com.hic.model.Employee;
 import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.DeviceConfigRepository;
 import com.hic.repository.EmployeeRepository;
+import com.hic.util.AppTimeZone;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -319,11 +319,11 @@ public class DoorAttendanceSyncService {
     ) {
         List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> punches = new ArrayList<>();
         OffsetDateTime rangeStart = start == null
-                ? OffsetDateTime.now(ZoneId.systemDefault()).minusDays(7)
-                : start.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+                ? AppTimeZone.nowOffset().minusDays(7)
+                : start.atZone(AppTimeZone.ZONE).toOffsetDateTime();
         OffsetDateTime rangeEnd = end == null
-                ? OffsetDateTime.now(ZoneId.systemDefault())
-                : end.atZone(ZoneId.systemDefault()).toOffsetDateTime();
+                ? AppTimeZone.nowOffset()
+                : end.atZone(AppTimeZone.ZONE).toOffsetDateTime();
 
         int page = 0;
         while (true) {
@@ -348,7 +348,7 @@ public class DoorAttendanceSyncService {
     }
 
     private LocalDateTime toLocalDateTime(OffsetDateTime time) {
-        return time.atZoneSameInstant(ZoneId.systemDefault()).toLocalDateTime();
+        return AppTimeZone.toLocalDateTime(time);
     }
 
     private Employee resolveEmployee(Long tenantId, Long deviceConfigId, String employeeCode) {

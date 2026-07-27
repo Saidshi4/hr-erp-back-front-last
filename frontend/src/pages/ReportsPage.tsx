@@ -10,9 +10,9 @@ import { Position, Department } from '../types'
 
 const SHIFT_TABS = [
   { labelKey: 'reports.allShifts' as const, value: '' },
-  { labelKey: 'reports.freeShift' as const, value: 'FIRST_ENTRY' },
-  { labelKey: 'reports.standardShift' as const, value: 'STANDARD_SHIFT' },
-  { labelKey: 'reports.exactShift' as const, value: 'LATE_SHIFT' },
+  { labelKey: 'reports.freeShift' as const, value: 'FLEXIBLE' },
+  { labelKey: 'reports.standardShift' as const, value: 'STANDARD' },
+  { labelKey: 'reports.exactShift' as const, value: 'NIGHT' },
 ]
 
 function formatClock(value?: string) {

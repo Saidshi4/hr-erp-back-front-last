@@ -6,11 +6,14 @@ import com.hic.model.AttendanceLog;
 import com.hic.model.Department;
 import com.hic.model.Employee;
 import com.hic.model.Position;
+import com.hic.model.Timetable;
 import com.hic.repository.AttendanceLogRepository;
 import com.hic.repository.DepartmentRepository;
 import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
+import com.hic.repository.TimetableRepository;
+import com.hic.util.ShiftTypes;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.ss.usermodel.Row;
@@ -25,6 +28,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,6 +46,7 @@ public class AttendanceReportService {
     private final DepartmentRepository departmentRepository;
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
+    private final TimetableRepository timetableRepository;
     private final AttendanceInferenceService attendanceInferenceService;
 
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
@@ -143,6 +148,15 @@ public class AttendanceReportService {
         Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e));
 
+        Set<Long> timetableIds = employeeMap.values().stream()
+                .map(Employee::getTimetableId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Long, Timetable> timetableMap = timetableIds.isEmpty()
+                ? Map.of()
+                : timetableRepository.findAllById(timetableIds).stream()
+                .collect(Collectors.toMap(Timetable::getId, t -> t, (left, right) -> left, HashMap::new));
+
         Set<Long> departmentIds = employeeMap.values().stream()
                 .map(Employee::getDepartmentId).filter(Objects::nonNull).collect(Collectors.toSet());
         Set<Long> positionIds = employeeMap.values().stream()
@@ -164,7 +178,7 @@ public class AttendanceReportService {
                         contains(dto.getPosition(), position) &&
                         contains(dto.getDepartment(), department) &&
                         contains(dto.getArea(), area) &&
-                        matchesShiftType(dto.getShiftType(), shiftType);
+                        ShiftTypes.matchesFilter(dto.getShiftType(), shiftType);
 
         List<AttendanceReportRowDTO> rows = new ArrayList<>();
         for (Map.Entry<Long, List<AttendanceLog>> entry : logsByEmployee.entrySet()) {
@@ -172,6 +186,9 @@ public class AttendanceReportService {
             if (employee == null) {
                 continue;
             }
+
+            // Always use the employee's assigned work schedule type — never infer from punches.
+            String scheduleShiftType = resolveAssignedScheduleShiftType(employee, timetableMap);
 
             for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
                 final LocalDate currentDate = date;
@@ -199,13 +216,13 @@ public class AttendanceReportService {
                 dto.setDate(currentDate);
                 dto.setCheckInTime(inference.firstEntry());
                 dto.setCheckOutTime(inference.lastExit());
-                dto.setWorkedMinutes(inference.workedMinutesForShift(employee.getShiftType()));
+                dto.setWorkedMinutes(inference.workedMinutesForShift(scheduleShiftType));
                 dto.setVerificationMethod(normalizeVerificationMethod(dayLogs.stream()
                         .map(AttendanceLog::getVerificationMethod)
                         .filter(method -> method != null && !method.isBlank())
                         .findFirst()
                         .orElse(null)));
-                dto.setShiftType(employee.getShiftType());
+                dto.setShiftType(scheduleShiftType);
                 faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
                         .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
 
@@ -221,15 +238,17 @@ public class AttendanceReportService {
                 .toList();
     }
 
-    private boolean matchesShiftType(String employeeShiftType, String filter) {
-        if (filter == null || filter.isBlank()) {
-            return true;
+    /**
+     * Prefer timetable.shiftType from the employee's assigned work schedule; fall back to employee.shiftType.
+     */
+    private String resolveAssignedScheduleShiftType(Employee employee, Map<Long, Timetable> timetableMap) {
+        if (employee.getTimetableId() != null) {
+            Timetable timetable = timetableMap.get(employee.getTimetableId());
+            if (timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()) {
+                return timetable.getShiftType();
+            }
         }
-        if (employeeShiftType == null || employeeShiftType.isBlank()) {
-            return false;
-        }
-        return employeeShiftType.equalsIgnoreCase(filter) ||
-                employeeShiftType.toUpperCase(Locale.ROOT).contains(filter.toUpperCase(Locale.ROOT));
+        return employee.getShiftType();
     }
 
     private boolean contains(String value, String filter) {

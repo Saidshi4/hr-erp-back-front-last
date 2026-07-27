@@ -23,6 +23,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -47,7 +48,6 @@ public class AttendanceReportService {
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
     private final TimetableRepository timetableRepository;
-    private final AttendanceInferenceService attendanceInferenceService;
 
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
             LocalDate start,
@@ -190,21 +190,18 @@ public class AttendanceReportService {
             // Always use the employee's assigned work schedule type — never infer from punches.
             String scheduleShiftType = resolveAssignedScheduleShiftType(employee, timetableMap);
 
-            for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-                final LocalDate currentDate = date;
-                List<AttendanceLog> dayLogs = entry.getValue().stream()
-                        .filter(log -> attendanceInferenceService.overlapsDay(log, currentDate))
-                        .toList();
-                if (dayLogs.isEmpty()) {
-                    continue;
-                }
+            // Detailed logs: one response row per attendance_logs pair (not daily aggregation).
+            List<AttendanceLog> employeeLogs = entry.getValue().stream()
+                    .filter(log -> log.getCheckInTime() != null)
+                    .filter(log -> {
+                        LocalDate punchDate = log.getCheckInTime().toLocalDate();
+                        return !punchDate.isBefore(start) && !punchDate.isAfter(end);
+                    })
+                    .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
+                            .thenComparing(log -> log.getId() != null ? log.getId() : 0L))
+                    .toList();
 
-                AttendanceInferenceService.AttendanceInference inference =
-                        attendanceInferenceService.inferDay(dayLogs, currentDate);
-                if (inference.firstEntry() == null && !inference.currentlyInside()) {
-                    continue;
-                }
-
+            for (AttendanceLog log : employeeLogs) {
                 AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
                 dto.setEmployeePk(employee.getId());
                 dto.setEmployeeId(employee.getEmployeeId());
@@ -213,17 +210,16 @@ public class AttendanceReportService {
                 dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
                 dto.setPosition(positionNames.get(employee.getPositionId()));
                 dto.setArea(employee.getArea());
-                dto.setDate(currentDate);
-                // One summarized row per employee/day: first IN + last OUT always.
-                dto.setCheckInTime(inference.firstEntry());
-                dto.setCheckOutTime(inference.lastExit());
-                // Flexible = sum of intervals; Standard/Night = last OUT − first IN.
-                dto.setWorkedMinutes(inference.workedMinutesForShift(scheduleShiftType));
-                dto.setVerificationMethod(normalizeVerificationMethod(dayLogs.stream()
-                        .map(AttendanceLog::getVerificationMethod)
-                        .filter(method -> method != null && !method.isBlank())
-                        .findFirst()
-                        .orElse(null)));
+                dto.setDate(log.getCheckInTime().toLocalDate());
+                dto.setCheckInTime(log.getCheckInTime());
+                dto.setCheckOutTime(log.getCheckOutTime());
+                if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
+                    dto.setWorkedMinutes((int) Duration.between(
+                            log.getCheckInTime(), log.getCheckOutTime()).toMinutes());
+                } else {
+                    dto.setWorkedMinutes(0);
+                }
+                dto.setVerificationMethod(normalizeVerificationMethod(log.getVerificationMethod()));
                 dto.setShiftType(scheduleShiftType);
                 faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
                         .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));

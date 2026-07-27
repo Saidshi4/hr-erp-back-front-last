@@ -99,13 +99,6 @@ function formatWorkedHours(hours?: number) {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
-/** Sərbəst / çevik növbə — bütün giriş-çıxış sessiyaları göstərilir. */
-function isFlexibleShift(shiftType?: string | null) {
-  if (!shiftType) return false
-  const normalized = shiftType.trim().toUpperCase()
-  return normalized === 'FIRST_ENTRY' || normalized === 'FLEXIBLE' || normalized === 'SERBEST'
-}
-
 export default function AttendancePage() {
   const now = new Date()
   const currentMonth = now.getMonth()
@@ -250,7 +243,6 @@ export default function AttendancePage() {
   ]
 
   const yearOptions = Array.from({ length: 7 }, (_, index) => currentYear - 3 + index)
-  const showAllSessions = isFlexibleShift(selectedEmployee?.shiftType)
 
   return (
     <Layout>
@@ -388,7 +380,6 @@ export default function AttendancePage() {
                 <div className="mt-4 rounded-xl bg-purple-50 px-4 py-3 text-sm text-purple-900">
                   {t('attendance.viewingAttendanceFor')} <span className="font-semibold">{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
                   {selectedEmployee.departmentName ? ` · ${selectedEmployee.departmentName}` : ''}
-                  {showAllSessions ? ' · Sərbəst növbə' : ''}
                 </div>
               )}
             </div>
@@ -436,77 +427,32 @@ export default function AttendancePage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                      {attendanceRows.flatMap((row) => {
-                        const sessions = row.sessions?.length
-                          ? row.sessions
-                          : (row.checkInTime || row.checkOutTime)
-                            ? [{ checkInTime: row.checkInTime, checkOutTime: row.checkOutTime }]
-                            : []
-
-                        // No punches that day — keep a single summary row (absent / leave / etc.)
-                        if (sessions.length === 0) {
-                          return [(
-                            <tr key={row.date}>
-                              <td className="px-5 py-4 font-medium text-slate-900">{new Date(row.date).toLocaleDateString()}</td>
-                              <td className="px-5 py-4">—</td>
-                              <td className="px-5 py-4">—</td>
-                              <td className="px-5 py-4 font-semibold text-slate-900">—</td>
-                              <td className="px-5 py-4">
-                                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
-                                  {statusLabels[row.status]}
-                                </span>
-                              </td>
-                              <td className="px-5 py-4 text-slate-500">{row.notes || '—'}</td>
-                            </tr>
-                          )]
-                        }
-
-                        // One table row per giriş log. Open session (no çıxış yet) still shows.
-                        return sessions.map((session, index) => {
-                          const open = !session.checkOutTime
-                          const sessionHours = session.checkInTime && session.checkOutTime
-                            ? (new Date(session.checkOutTime).getTime() - new Date(session.checkInTime).getTime()) / 3_600_000
-                            : undefined
-
-                          return (
-                            <tr key={`${row.date}-${session.checkInTime ?? index}`}>
-                              <td className="px-5 py-4 font-medium text-slate-900">
-                                {new Date(row.date).toLocaleDateString()}
-                                {sessions.length > 1 && (
-                                  <div className="mt-0.5 text-xs font-normal text-slate-400">
-                                    Log {index + 1}/{sessions.length}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-5 py-4 text-slate-800">{formatTime(session.checkInTime)}</td>
-                              <td className="px-5 py-4">
-                                {open ? (
-                                  <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
-                                    Çıxış gözlənilir
-                                  </span>
-                                ) : (
-                                  formatTime(session.checkOutTime)
-                                )}
-                              </td>
-                              <td className="px-5 py-4 font-semibold text-slate-900">
-                                {open ? '—' : formatWorkedHours(sessionHours)}
-                              </td>
-                              <td className="px-5 py-4">
-                                {index === 0 ? (
-                                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
-                                    {open ? 'İşdə' : statusLabels[row.status]}
-                                  </span>
-                                ) : (
-                                  <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${open ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
-                                    {open ? 'İşdə' : 'Tamamlanıb'}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-5 py-4 text-slate-500">{index === 0 ? (row.notes || '—') : '—'}</td>
-                            </tr>
-                          )
-                        })
-                      })}
+                      {attendanceRows.map((row) => (
+                        <tr key={row.date}>
+                          <td className="px-5 py-4 font-medium text-slate-900">
+                            {new Date(row.date).toLocaleDateString()}
+                          </td>
+                          <td className="px-5 py-4 text-slate-800">{formatTime(row.checkInTime)}</td>
+                          <td className="px-5 py-4">
+                            {row.checkInTime && !row.checkOutTime ? (
+                              <span className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                Çıxış gözlənilir
+                              </span>
+                            ) : (
+                              formatTime(row.checkOutTime)
+                            )}
+                          </td>
+                          <td className="px-5 py-4 font-semibold text-slate-900">
+                            {formatWorkedHours(row.hoursWorked)}
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusStyles[row.status]}`}>
+                              {statusLabels[row.status]}
+                            </span>
+                          </td>
+                          <td className="px-5 py-4 text-slate-500">{row.notes || '—'}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

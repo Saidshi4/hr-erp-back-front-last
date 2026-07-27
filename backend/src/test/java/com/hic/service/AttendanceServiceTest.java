@@ -184,7 +184,7 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void getEmployeeAttendance_marksLeaveDaysAndLateDays() {
+    void getEmployeeAttendance_returnsOneRowPerLog_noDailyAggregation() {
         Employee employee = new Employee();
         employee.setId(1L);
         employee.setBranchId(1L);
@@ -195,33 +195,34 @@ class AttendanceServiceTest {
         timetable.setStartTime(java.time.LocalTime.of(9, 0));
         timetable.setAllowedLateMinutes(10);
 
-        AttendanceLog lateLog = new AttendanceLog();
-        lateLog.setEmployeeId(1L);
-        lateLog.setCheckInTime(LocalDateTime.of(2024, 1, 16, 9, 20));
-        lateLog.setCheckOutTime(LocalDateTime.of(2024, 1, 16, 18, 0));
+        AttendanceLog first = new AttendanceLog();
+        first.setId(1L);
+        first.setEmployeeId(1L);
+        first.setCheckInTime(LocalDateTime.of(2024, 1, 16, 9, 20));
+        first.setCheckOutTime(LocalDateTime.of(2024, 1, 16, 12, 0));
 
-        LeaveRequest leaveRequest = new LeaveRequest();
-        leaveRequest.setEmployeeId(1L);
-        leaveRequest.setStartDate(LocalDate.of(2024, 1, 15));
-        leaveRequest.setEndDate(LocalDate.of(2024, 1, 15));
+        AttendanceLog second = new AttendanceLog();
+        second.setId(2L);
+        second.setEmployeeId(1L);
+        second.setCheckInTime(LocalDateTime.of(2024, 1, 16, 13, 0));
+        second.setCheckOutTime(LocalDateTime.of(2024, 1, 16, 18, 0));
 
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
-                .thenReturn(List.of(lateLog));
-        when(summaryRepository.findByEmployeeIdAndAttendanceDateBetween(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of());
-        when(leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of(leaveRequest));
-        when(employeePermissionRepository.findByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of());
+                .thenReturn(List.of(first, second));
         when(timetableRepository.findById(3L)).thenReturn(Optional.of(timetable));
-        List<EmployeeAttendanceRowDTO> result = attendanceService.getEmployeeAttendance(
-                1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 16));
+
+        List<EmployeeAttendanceRowDTO> result = attendanceService.getRawLogs(
+                1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16));
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getStatus()).isEqualTo(AttendanceStatus.ON_LEAVE);
-        assertThat(result.get(1).getStatus()).isEqualTo(AttendanceStatus.LATE);
-        assertThat(result.get(1).getHoursWorked()).isCloseTo(8.67, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(result.get(0).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(9, 20));
+        assertThat(result.get(0).getCheckOutTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(12, 0));
+        assertThat(result.get(1).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(13, 0));
+        assertThat(result.get(1).getCheckOutTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(18, 0));
+        // Per-interval hours — not first-in/last-out span of the whole day
+        assertThat(result.get(0).getHoursWorked()).isCloseTo(2.67, org.assertj.core.data.Offset.offset(0.01));
+        assertThat(result.get(1).getHoursWorked()).isEqualTo(5.0);
     }
 
     @Test
@@ -336,7 +337,7 @@ class AttendanceServiceTest {
     }
 
     @Test
-    void getEmployeeAttendance_flexibleShift_doesNotMarkLate() {
+    void getEmployeeAttendance_flexibleShift_returnsRawLogWithoutDailySpan() {
         Employee employee = new Employee();
         employee.setId(1L);
         employee.setBranchId(1L);
@@ -350,6 +351,7 @@ class AttendanceServiceTest {
         timetable.setShiftType("FIRST_ENTRY");
 
         AttendanceLog lateLog = new AttendanceLog();
+        lateLog.setId(1L);
         lateLog.setEmployeeId(1L);
         lateLog.setCheckInTime(LocalDateTime.of(2024, 1, 16, 11, 0));
         lateLog.setCheckOutTime(LocalDateTime.of(2024, 1, 16, 15, 0));
@@ -357,20 +359,15 @@ class AttendanceServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
                 .thenReturn(List.of(lateLog));
-        when(summaryRepository.findByEmployeeIdAndAttendanceDateBetween(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of());
-        when(leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of());
-        when(employeePermissionRepository.findByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16)))
-                .thenReturn(List.of());
         when(timetableRepository.findById(3L)).thenReturn(Optional.of(timetable));
 
-        List<EmployeeAttendanceRowDTO> result = attendanceService.getEmployeeAttendance(
+        List<EmployeeAttendanceRowDTO> result = attendanceService.getRawLogs(
                 1L, LocalDate.of(2024, 1, 16), LocalDate.of(2024, 1, 16));
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getStatus()).isEqualTo(AttendanceStatus.PRESENT);
         assertThat(result.get(0).getHoursWorked()).isEqualTo(4.0);
+        assertThat(result.get(0).getCheckInTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(11, 0));
+        assertThat(result.get(0).getCheckOutTime().toLocalTime()).isEqualTo(java.time.LocalTime.of(15, 0));
     }
 
     @Test
@@ -381,16 +378,19 @@ class AttendanceServiceTest {
         employee.setShiftType("STANDARD");
 
         AttendanceLog first = new AttendanceLog();
+        first.setId(1L);
         first.setEmployeeId(1L);
         first.setCheckInTime(LocalDateTime.of(2024, 1, 15, 22, 44));
         first.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 22, 46));
 
         AttendanceLog second = new AttendanceLog();
+        second.setId(2L);
         second.setEmployeeId(1L);
         second.setCheckInTime(LocalDateTime.of(2024, 1, 15, 22, 47));
         second.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 22, 48));
 
         AttendanceLog third = new AttendanceLog();
+        third.setId(3L);
         third.setEmployeeId(1L);
         third.setCheckInTime(LocalDateTime.of(2024, 1, 15, 23, 12));
         third.setCheckOutTime(LocalDateTime.of(2024, 1, 15, 23, 16));
@@ -398,14 +398,8 @@ class AttendanceServiceTest {
         when(employeeRepository.findById(1L)).thenReturn(Optional.of(employee));
         when(attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(eq(1L), any(), any()))
                 .thenReturn(List.of(first, second, third));
-        when(summaryRepository.findByEmployeeIdAndAttendanceDateBetween(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
-                .thenReturn(List.of());
-        when(leaveRequestRepository.findApprovedByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
-                .thenReturn(List.of());
-        when(employeePermissionRepository.findByEmployeeIdAndDateRange(1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15)))
-                .thenReturn(List.of());
 
-        List<EmployeeAttendanceRowDTO> result = attendanceService.getEmployeeAttendance(
+        List<EmployeeAttendanceRowDTO> result = attendanceService.getRawLogs(
                 1L, LocalDate.of(2024, 1, 15), LocalDate.of(2024, 1, 15));
 
         assertThat(result).hasSize(3);

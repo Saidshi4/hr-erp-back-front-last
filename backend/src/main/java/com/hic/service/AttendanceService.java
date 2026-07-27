@@ -136,80 +136,78 @@ public class AttendanceService {
                 .stream().map(this::toSummaryDTO).collect(Collectors.toList());
     }
 
-    public List<EmployeeAttendanceRowDTO> getEmployeeAttendance(Long employeeId, LocalDate start, LocalDate end) {
+    /**
+     * Raw attendance logs for the Attendance page.
+     * One {@code attendance_logs} database row = one response row. No daily aggregation.
+     */
+    public List<EmployeeAttendanceRowDTO> getRawLogs(Long employeeId, LocalDate start, LocalDate end) {
         Employee employee = getAccessibleEmployee(employeeId);
-        AttendanceContext context = loadAttendanceContext(employee, employeeId, start, end);
+        Long tenantId = TenantContext.getTenantId();
 
-        List<EmployeeAttendanceRowDTO> rows = new ArrayList<>();
-        List<AttendanceLog> sortedLogs = context.logs().stream()
+        LocalDateTime rangeStart = start.atStartOfDay();
+        LocalDateTime rangeEnd = end.plusDays(1).atStartOfDay().minusNanos(1);
+
+        List<AttendanceLog> logs = tenantId != null
+                ? attendanceLogRepository.findByTenantIdAndEmployeeIdAndCheckInTimeBetween(
+                        tenantId, employeeId, rangeStart, rangeEnd)
+                : attendanceLogRepository.findByEmployeeIdAndCheckInTimeBetween(
+                        employeeId, rangeStart, rangeEnd);
+
+        String shiftType = resolveShiftType(employee, getEmployeeTimetable(employee, tenantId).orElse(null));
+
+        return logs.stream()
                 .filter(log -> log.getCheckInTime() != null)
-                .filter(log -> overlapsAnyDayInRange(log, start, end))
-                .sorted(Comparator.comparing(AttendanceLog::getCheckInTime))
-                .toList();
+                .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
+                        .thenComparing(log -> log.getId() != null ? log.getId() : 0L))
+                .map(log -> toRawLogRow(log, shiftType))
+                .collect(Collectors.toList());
+    }
 
-        for (AttendanceLog log : sortedLogs) {
-            LocalDate displayDate = log.getCheckInTime().toLocalDate();
-            DayAttendanceContext day = buildDayContext(context, displayDate);
+    /** @deprecated Prefer {@link #getRawLogs}; kept as alias for the attendance endpoint. */
+    public List<EmployeeAttendanceRowDTO> getEmployeeAttendance(Long employeeId, LocalDate start, LocalDate end) {
+        return getRawLogs(employeeId, start, end);
+    }
 
-            EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
-            row.setDate(displayDate);
-            row.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
-            row.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
-            if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
-                row.setHoursWorked(Duration.between(log.getCheckInTime(), log.getCheckOutTime()).toMinutes() / 60.0);
-            }
-            row.setStatus(day.status());
-            row.setNotes(day.notes());
-            row.setShiftType(day.shiftType());
-            rows.add(row);
+    private EmployeeAttendanceRowDTO toRawLogRow(AttendanceLog log, String shiftType) {
+        EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
+        row.setDate(log.getCheckInTime().toLocalDate());
+        row.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
+        row.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
+        if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
+            row.setHoursWorked(Duration.between(log.getCheckInTime(), log.getCheckOutTime()).toMinutes() / 60.0);
         }
-
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            final LocalDate currentDate = date;
-            boolean hasLog = sortedLogs.stream()
-                    .anyMatch(log -> attendanceInferenceService.overlapsDay(log, currentDate));
-            if (hasLog) {
-                continue;
-            }
-
-            DayAttendanceContext day = buildDayContext(context, currentDate);
-            if (day.status() == AttendanceStatus.ON_LEAVE || day.status() == AttendanceStatus.ABSENT) {
-                EmployeeAttendanceRowDTO row = new EmployeeAttendanceRowDTO();
-                row.setDate(currentDate);
-                row.setStatus(day.status());
-                row.setNotes(day.notes());
-                row.setShiftType(day.shiftType());
-                rows.add(row);
-            }
+        // Per-log status only — never day-level aggregation (first-in/last-out).
+        if (log.getCheckOutTime() == null) {
+            row.setStatus(AttendanceStatus.PRESENT);
+        } else {
+            row.setStatus(AttendanceStatus.WORKDAY_COMPLETE);
         }
-
-        rows.sort(Comparator
-                .comparing(EmployeeAttendanceRowDTO::getDate)
-                .thenComparing(row -> row.getCheckInTime(), Comparator.nullsLast(Comparator.naturalOrder())));
-        return rows;
+        row.setShiftType(shiftType);
+        return row;
     }
 
     public EmployeeAttendanceSummaryDTO getEmployeeAttendanceSummary(Long employeeId, LocalDate start, LocalDate end) {
-        List<EmployeeAttendanceRowDTO> rows = buildDailyAttendanceRows(employeeId, start, end);
+        // Summary cards use daily totals; this is separate from raw log listing.
+        List<EmployeeAttendanceRowDTO> dailyRows = buildDailyAttendanceRows(employeeId, start, end);
         EmployeeAttendanceSummaryDTO summary = new EmployeeAttendanceSummaryDTO();
-        summary.setTotalDays(rows.size());
-        summary.setWorkingDays(rows.stream()
+        summary.setTotalDays(dailyRows.size());
+        summary.setWorkingDays(dailyRows.stream()
                 .filter(row -> row.getStatus() == AttendanceStatus.PRESENT
                         || row.getStatus() == AttendanceStatus.LATE
                         || row.getStatus() == AttendanceStatus.WORKDAY_COMPLETE)
                 .count());
-        summary.setTotalHours(rows.stream()
+        summary.setTotalHours(dailyRows.stream()
                 .map(EmployeeAttendanceRowDTO::getHoursWorked)
                 .filter(java.util.Objects::nonNull)
                 .mapToDouble(Double::doubleValue)
                 .sum());
-        summary.setAbsentDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.ABSENT).count());
-        summary.setLateDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.LATE).count());
-        summary.setLeaveDays(rows.stream().filter(row -> row.getStatus() == AttendanceStatus.ON_LEAVE).count());
+        summary.setAbsentDays(dailyRows.stream().filter(row -> row.getStatus() == AttendanceStatus.ABSENT).count());
+        summary.setLateDays(dailyRows.stream().filter(row -> row.getStatus() == AttendanceStatus.LATE).count());
+        summary.setLeaveDays(dailyRows.stream().filter(row -> row.getStatus() == AttendanceStatus.ON_LEAVE).count());
         return summary;
     }
 
-    /** One summarized row per calendar day — used for summary cards on the Attendance page. */
+    /** One summarized row per calendar day — used only by attendance summary cards, not the log list. */
     private List<EmployeeAttendanceRowDTO> buildDailyAttendanceRows(Long employeeId, LocalDate start, LocalDate end) {
         Employee employee = getAccessibleEmployee(employeeId);
         AttendanceContext context = loadAttendanceContext(employee, employeeId, start, end);
@@ -293,15 +291,6 @@ public class AttendanceService {
         );
         String notes = buildNotes(context.approvedLeaves(), context.approvedPermissions(), date);
         return new DayAttendanceContext(status, notes, context.shiftType());
-    }
-
-    private boolean overlapsAnyDayInRange(AttendanceLog log, LocalDate start, LocalDate end) {
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            if (attendanceInferenceService.overlapsDay(log, date)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private record AttendanceContext(

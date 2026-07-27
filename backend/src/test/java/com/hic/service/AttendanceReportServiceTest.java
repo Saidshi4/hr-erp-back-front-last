@@ -81,13 +81,13 @@ class AttendanceReportServiceTest {
         when(positionRepository.findAllById(any())).thenReturn(List.of());
         when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
 
-        PaginatedResponse<AttendanceReportRowDTO> all = attendanceReportService.getReport(
+        PaginatedResponse<AttendanceReportRowDTO> all = attendanceReportService.getDailySummary(
                 day, day, "", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> flexibleOnly = attendanceReportService.getReport(
+        PaginatedResponse<AttendanceReportRowDTO> flexibleOnly = attendanceReportService.getDailySummary(
                 day, day, "FLEXIBLE", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> standardOnly = attendanceReportService.getReport(
+        PaginatedResponse<AttendanceReportRowDTO> standardOnly = attendanceReportService.getDailySummary(
                 day, day, "STANDARD", null, null, null, null, null, null, 0, 50);
-        PaginatedResponse<AttendanceReportRowDTO> nightOnly = attendanceReportService.getReport(
+        PaginatedResponse<AttendanceReportRowDTO> nightOnly = attendanceReportService.getDailySummary(
                 day, day, "NIGHT", null, null, null, null, null, null, 0, 50);
 
         assertThat(all.getContent()).extracting(AttendanceReportRowDTO::getFullName)
@@ -118,7 +118,7 @@ class AttendanceReportServiceTest {
         when(positionRepository.findAllById(any())).thenReturn(List.of());
         when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
 
-        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getReport(
+        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getDailySummary(
                 day, day, "FIRST_ENTRY", null, null, null, null, null, null, 0, 50);
 
         assertThat(rows.getContent()).hasSize(1);

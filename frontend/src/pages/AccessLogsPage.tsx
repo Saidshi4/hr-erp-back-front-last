@@ -6,6 +6,12 @@ import { useDeviceStore } from '../store/deviceStore.ts'
 import { AccessLog } from '../types'
 import { doorRoleLabel } from '../i18n/labels.ts'
 import { t } from '../i18n/index.ts'
+import {
+  appDateBoundaryToIso,
+  daysAgoInAppTimeZone,
+  formatAttendanceDateTime,
+  todayInAppTimeZone,
+} from '../utils/dateTime.ts'
 
 function eventLabel(doorRole?: string | null) {
   const upper = doorRole?.toUpperCase()
@@ -22,12 +28,9 @@ function eventBadgeStyle(doorRole?: string | null): { background: string; color:
 }
 
 export default function AccessLogsPage() {
-  const today = new Date().toISOString().split('T')[0]
-  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
   const { devices, fetchDevices } = useDeviceStore()
-  const [startDate, setStartDate] = useState(weekAgo)
-  const [endDate, setEndDate] = useState(today)
+  const [startDate, setStartDate] = useState(() => daysAgoInAppTimeZone(7))
+  const [endDate, setEndDate] = useState(() => todayInAppTimeZone())
   const [deviceIdFilter, setDeviceIdFilter] = useState('')
   const [search, setSearch] = useState('')
   const [logs, setLogs] = useState<AccessLog[]>([])
@@ -71,15 +74,16 @@ export default function AccessLogsPage() {
     setLoading(true)
     setError(null)
     try {
-      const employeeNo = search.trim() || undefined
       const selectedDevice = devices.find((d) => String(d.id) === deviceIdFilter.trim())
       const isapiDeviceId = selectedDevice
         ? Number(selectedDevice.deviceId || selectedDevice.id)
         : NaN
       const deviceId = selectedDevice && !Number.isNaN(isapiDeviceId) ? isapiDeviceId : undefined
-      const start = startDate ? new Date(`${startDate}T00:00:00`).toISOString() : undefined
-      const end = endDate ? new Date(`${endDate}T23:59:59`).toISOString() : undefined
-      const res = await attendanceApi.getAccessLogs({ employeeNo, deviceId, start, end })
+      // Asia/Baku day boundaries as Instant — never UTC calendar dates via toISOString().
+      const start = startDate ? appDateBoundaryToIso(startDate, false) : undefined
+      const end = endDate ? appDateBoundaryToIso(endDate, true) : undefined
+      // Keep free-text search client-side only; sending it as employeeNo zeroes ISAPI hits.
+      const res = await attendanceApi.getAccessLogs({ deviceId, start, end })
       setLogs(res.data?.data ?? [])
       setPage(0)
       setFetched(true)
@@ -88,7 +92,13 @@ export default function AccessLogsPage() {
     } finally {
       setLoading(false)
     }
-  }, [search, deviceIdFilter, startDate, endDate, devices])
+  }, [deviceIdFilter, startDate, endDate, devices])
+
+  // Initial load only — date/device changes use the Search button (avoids request storms).
+  useEffect(() => {
+    void fetchLogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filteredLogs = useMemo(() => logs.filter((log) => {
     const normalizedSearch = search.trim().toLowerCase()
@@ -287,9 +297,7 @@ export default function AccessLogsPage() {
                         <div className="hidden md:block text-center min-w-[150px]">
                           <p className="text-xs text-gray-400 mb-0.5">{t('accessLogs.accessTime')}</p>
                           <p className="text-sm font-medium text-gray-700">
-                            {log.punchTime
-                              ? new Date(log.punchTime).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-                              : '—'}
+                            {formatAttendanceDateTime(log.punchTime)}
                           </p>
                         </div>
 

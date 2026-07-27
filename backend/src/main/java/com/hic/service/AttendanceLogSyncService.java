@@ -69,7 +69,43 @@ public class AttendanceLogSyncService {
             Integer page,
             Integer size
     ) {
-        java.net.URI url = UriComponentsBuilder
+        // Single-page fetch when caller paginates explicitly (door sync loops pages itself).
+        if (page != null || size != null) {
+            return filterToTenantDevices(mapPunches(exchangeForList(buildPunchesUri(
+                    deviceId, employeeNo, start, end, page != null ? page : 0, size != null ? size : 500
+            ))));
+        }
+
+        // Access-logs UI sends a date range without page/size — pull all pages so recent
+        // punches are not truncated by ISAPI's default 50 ASC window.
+        int pageSize = 500;
+        int currentPage = 0;
+        List<IsapiPunchResponse> all = new java.util.ArrayList<>();
+        while (currentPage < 100) {
+            List<IsapiPunchResponse> batch = exchangeForList(buildPunchesUri(
+                    deviceId, employeeNo, start, end, currentPage, pageSize
+            ));
+            if (batch.isEmpty()) {
+                break;
+            }
+            all.addAll(batch);
+            if (batch.size() < pageSize) {
+                break;
+            }
+            currentPage++;
+        }
+        return filterToTenantDevices(mapPunches(all));
+    }
+
+    private java.net.URI buildPunchesUri(
+            Long deviceId,
+            String employeeNo,
+            OffsetDateTime start,
+            OffsetDateTime end,
+            Integer page,
+            Integer size
+    ) {
+        return UriComponentsBuilder
                 .fromHttpUrl(basePunchesUrl())
                 .queryParamIfPresent("deviceId", Optional.ofNullable(deviceId))
                 .queryParamIfPresent("employeeNo", Optional.ofNullable(normalizeToNull(employeeNo)))
@@ -78,9 +114,6 @@ public class AttendanceLogSyncService {
                 .queryParamIfPresent("page", Optional.ofNullable(page))
                 .queryParamIfPresent("size", Optional.ofNullable(size))
                 .build().toUri();
-
-        List<IsapiPunchResponse> punches = exchangeForList(url);
-        return filterToTenantDevices(mapPunches(punches));
     }
 
     private List<AttendanceLogSyncDTO.AttendanceLogEntryDTO> mapPunches(List<IsapiPunchResponse> punches) {

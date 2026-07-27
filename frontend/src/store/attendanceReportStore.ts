@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { attendanceApi } from '../api/attendanceApi.ts'
 import { AttendanceReportFilters, AttendanceReportRow, ApiResponse, PaginatedResponse } from '../types'
+import { monthStartInAppTimeZone, todayInAppTimeZone } from '../utils/dateTime.ts'
 
 interface AttendanceReportState {
   rows: AttendanceReportRow[]
@@ -11,14 +12,16 @@ interface AttendanceReportState {
   totalPages: number
   loading: boolean
   error: string | null
+  lastSyncedRange: string | null
   setFilters: (filters: AttendanceReportFilters) => void
   setPage: (page: number) => void
   fetchReport: () => Promise<void>
 }
 
 const defaultFilters: AttendanceReportFilters = {
-  start: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-  end: new Date().toISOString().split('T')[0],
+  // Match Attendance page: Asia/Baku month-to-date (never UTC via toISOString).
+  start: monthStartInAppTimeZone(),
+  end: todayInAppTimeZone(),
   shiftType: '',   // empty = no filter, show all shifts
 }
 
@@ -31,12 +34,26 @@ export const useAttendanceReportStore = create<AttendanceReportState>((set, get)
   totalPages: 0,
   loading: false,
   error: null,
+  lastSyncedRange: null,
   setFilters: (filters) => set({ filters, page: 0 }),
   setPage: (page) => set({ page }),
   fetchReport: async () => {
     set({ loading: true, error: null })
     try {
-      const { filters, page, size } = get()
+      const { filters, page, size, lastSyncedRange } = get()
+      const rangeKey = `${filters.start}|${filters.end}`
+      // Sync once per date range so pagination does not re-hit devices every page flip.
+      if (lastSyncedRange !== rangeKey) {
+        try {
+          await attendanceApi.syncAll({
+            start: `${filters.start}T00:00:00`,
+            end: `${filters.end}T23:59:59`,
+          })
+          set({ lastSyncedRange: rangeKey })
+        } catch {
+          // Still attempt to load existing local rows if sync is temporarily unavailable.
+        }
+      }
       const res = await attendanceApi.getReport({ ...filters, page, size })
       const payload: ApiResponse<PaginatedResponse<AttendanceReportRow>> = res.data
       const data = payload?.data

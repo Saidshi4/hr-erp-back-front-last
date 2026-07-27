@@ -3,7 +3,7 @@ package com.hic.dto;
 import lombok.Data;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 public class AttendanceReportRowDTO {
@@ -16,8 +16,8 @@ public class AttendanceReportRowDTO {
     private String position;
     private String area;
     private LocalDate date;
-    private LocalDateTime checkInTime;
-    private LocalDateTime checkOutTime;
+    private OffsetDateTime checkInTime;
+    private OffsetDateTime checkOutTime;
     /** Worked duration in minutes for the day. */
     private Integer workedMinutes;
     private String verificationMethod;

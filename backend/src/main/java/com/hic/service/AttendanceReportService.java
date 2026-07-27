@@ -13,6 +13,7 @@ import com.hic.repository.EmployeeRepository;
 import com.hic.repository.FaceDataRepository;
 import com.hic.repository.PositionRepository;
 import com.hic.repository.TimetableRepository;
+import com.hic.util.AppTimeZone;
 import com.hic.util.ShiftTypes;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +28,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -48,6 +50,7 @@ public class AttendanceReportService {
     private final PositionRepository positionRepository;
     private final FaceDataRepository faceDataRepository;
     private final TimetableRepository timetableRepository;
+    private final AttendanceInferenceService attendanceInferenceService;
 
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
             LocalDate start,
@@ -105,8 +108,10 @@ public class AttendanceReportService {
                 excelRow.createCell(4).setCellValue(safe(row.getPosition()));
                 excelRow.createCell(5).setCellValue(safe(row.getArea()));
                 excelRow.createCell(6).setCellValue(row.getDate() != null ? row.getDate().toString() : "");
-                excelRow.createCell(7).setCellValue(row.getCheckInTime() != null ? row.getCheckInTime().toLocalTime().toString() : "");
-                excelRow.createCell(8).setCellValue(row.getCheckOutTime() != null ? row.getCheckOutTime().toLocalTime().toString() : "");
+                excelRow.createCell(7).setCellValue(row.getCheckInTime() != null
+                        ? row.getCheckInTime().toLocalTime().withNano(0).toString() : "");
+                excelRow.createCell(8).setCellValue(row.getCheckOutTime() != null
+                        ? row.getCheckOutTime().toLocalTime().withNano(0).toString() : "");
                 excelRow.createCell(9).setCellValue(formatDuration(row.getWorkedMinutes()));
                 excelRow.createCell(10).setCellValue(safe(row.getVerificationMethod()));
                 excelRow.createCell(11).setCellValue(safe(row.getShiftType()));
@@ -191,12 +196,11 @@ public class AttendanceReportService {
             String scheduleShiftType = resolveAssignedScheduleShiftType(employee, timetableMap);
 
             // Detailed logs: one response row per attendance_logs pair (not daily aggregation).
+            // Include any session that overlaps the selected range (night shifts / open sessions),
+            // not only rows whose check-in calendar date falls inside [start, end].
             List<AttendanceLog> employeeLogs = entry.getValue().stream()
                     .filter(log -> log.getCheckInTime() != null)
-                    .filter(log -> {
-                        LocalDate punchDate = log.getCheckInTime().toLocalDate();
-                        return !punchDate.isBefore(start) && !punchDate.isAfter(end);
-                    })
+                    .filter(log -> overlapsReportRange(log, start, end))
                     .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
                             .thenComparing(log -> log.getId() != null ? log.getId() : 0L))
                     .toList();
@@ -211,8 +215,8 @@ public class AttendanceReportService {
                 dto.setPosition(positionNames.get(employee.getPositionId()));
                 dto.setArea(employee.getArea());
                 dto.setDate(log.getCheckInTime().toLocalDate());
-                dto.setCheckInTime(log.getCheckInTime());
-                dto.setCheckOutTime(log.getCheckOutTime());
+                dto.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
+                dto.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
                 if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
                     dto.setWorkedMinutes((int) Duration.between(
                             log.getCheckInTime(), log.getCheckOutTime()).toMinutes());
@@ -247,6 +251,33 @@ public class AttendanceReportService {
             }
         }
         return employee.getShiftType();
+    }
+
+    /**
+     * True when the session interval overlaps any calendar day in {@code [start, end]}.
+     * Open sessions are limited to check-ins on/after {@code start - 1 day} so ancient
+     * unfinished sessions do not flood every report window.
+     */
+    private boolean overlapsReportRange(AttendanceLog log, LocalDate start, LocalDate end) {
+        LocalDateTime entry = log.getCheckInTime();
+        if (entry == null) {
+            return false;
+        }
+        LocalDateTime exit = log.getCheckOutTime();
+        if (exit == null) {
+            LocalDate inDate = entry.toLocalDate();
+            return !inDate.isBefore(start.minusDays(1)) && !inDate.isAfter(end);
+        }
+        for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+            if (attendanceInferenceService.overlapsDay(log, day)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private OffsetDateTime toOffsetDateTime(LocalDateTime localDateTime) {
+        return AppTimeZone.toOffsetDateTime(localDateTime);
     }
 
     private boolean contains(String value, String filter) {

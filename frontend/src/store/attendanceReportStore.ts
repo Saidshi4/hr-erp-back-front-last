@@ -25,6 +25,9 @@ const defaultFilters: AttendanceReportFilters = {
   shiftType: '',   // empty = no filter, show all shifts
 }
 
+/** In-flight sync promises shared across store callers (Strict Mode double-fetch safe). */
+const syncInFlightByRange = new Map<string, Promise<void>>()
+
 export const useAttendanceReportStore = create<AttendanceReportState>((set, get) => ({
   rows: [],
   filters: defaultFilters,
@@ -44,14 +47,33 @@ export const useAttendanceReportStore = create<AttendanceReportState>((set, get)
       const rangeKey = `${filters.start}|${filters.end}`
       // Sync once per date range so pagination does not re-hit devices every page flip.
       if (lastSyncedRange !== rangeKey) {
-        try {
-          await attendanceApi.syncAll({
-            start: `${filters.start}T00:00:00`,
-            end: `${filters.end}T23:59:59`,
-          })
+        let syncPromise = syncInFlightByRange.get(rangeKey)
+        if (!syncPromise) {
+          // Mark range claimed immediately so concurrent callers share one sync.
           set({ lastSyncedRange: rangeKey })
-        } catch {
-          // Still attempt to load existing local rows if sync is temporarily unavailable.
+          syncPromise = attendanceApi
+            .syncAll({
+              start: `${filters.start}T00:00:00`,
+              end: `${filters.end}T23:59:59`,
+            })
+            .then(() => undefined)
+            .catch(() => {
+              // Allow retry on next load if sync failed; still load local rows below.
+              if (get().lastSyncedRange === rangeKey) {
+                set({ lastSyncedRange: null })
+              }
+            })
+            .finally(() => {
+              syncInFlightByRange.delete(rangeKey)
+            })
+          syncInFlightByRange.set(rangeKey, syncPromise)
+        }
+        await syncPromise
+      } else {
+        // Another caller already claimed this range — wait for its in-flight sync.
+        const inFlight = syncInFlightByRange.get(rangeKey)
+        if (inFlight) {
+          await inFlight
         }
       }
       const res = await attendanceApi.getReport({ ...filters, page, size })

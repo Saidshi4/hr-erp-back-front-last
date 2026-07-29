@@ -7,6 +7,8 @@ import java.time.OffsetDateTime;
 
 @Data
 public class AttendanceReportRowDTO {
+    /** Primary key of attendance_logs (stable UI key). */
+    private Long attendanceLogId;
     private Long employeePk;
     private String employeeId;
     private String photoUrl;

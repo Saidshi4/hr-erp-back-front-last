@@ -2,7 +2,6 @@ package com.hic.service;
 
 import com.hic.dto.AttendanceLogSyncDTO;
 import com.hic.dto.DoorAttendanceSyncResultDTO;
-import com.hic.exception.BadRequestException;
 import com.hic.model.AttendanceLog;
 import com.hic.model.DeviceConfig;
 import com.hic.model.Employee;
@@ -13,6 +12,8 @@ import com.hic.util.AppTimeZone;
 import com.hic.util.TenantContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,9 +26,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @RequiredArgsConstructor
@@ -43,10 +44,40 @@ public class DoorAttendanceSyncService {
     private final AttendanceCalculationService attendanceCalculationService;
     private final AttendanceService attendanceService;
 
+    /** Serializes sync per tenant so UI + scheduler cannot create duplicate sessions. */
+    private final ConcurrentHashMap<Long, Object> tenantSyncLocks = new ConcurrentHashMap<>();
+    private final Object nullTenantSyncLock = new Object();
 
+    /** Spring proxy for transactional self-invocation; null in plain unit tests. */
+    private DoorAttendanceSyncService self;
+
+    @Autowired
+    @Lazy
+    void setSelf(DoorAttendanceSyncService self) {
+        this.self = self;
+    }
+
+    /**
+     * Entry-point for device → attendance_logs sync. Lock wraps the full transaction so
+     * a second concurrent sync cannot race check-then-insert before the first commits.
+     */
+    public DoorAttendanceSyncResultDTO syncAllDevices(
+            LocalDateTime start,
+            LocalDateTime end,
+            Integer limit
+    ) {
+        Long tenantId = TenantContext.getTenantId();
+        Object lock = tenantId != null
+                ? tenantSyncLocks.computeIfAbsent(tenantId, ignored -> new Object())
+                : nullTenantSyncLock;
+        synchronized (lock) {
+            DoorAttendanceSyncService runner = self != null ? self : this;
+            return runner.syncAllDevicesInTransaction(start, end, limit);
+        }
+    }
 
     @Transactional
-    public DoorAttendanceSyncResultDTO syncAllDevices(
+    public DoorAttendanceSyncResultDTO syncAllDevicesInTransaction(
             LocalDateTime start,
             LocalDateTime end,
             Integer limit

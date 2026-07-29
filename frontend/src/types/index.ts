@@ -301,6 +301,7 @@ export interface EmployeePermission {
 }
 
 export interface AttendanceReportRow {
+  attendanceLogId?: number
   employeePk: number
   employeeId: string
   photoUrl?: string

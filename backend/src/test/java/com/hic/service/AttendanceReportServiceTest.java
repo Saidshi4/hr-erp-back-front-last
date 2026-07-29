@@ -28,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,6 +48,9 @@ class AttendanceReportServiceTest {
     @BeforeEach
     void setTenant() {
         TenantContext.setTenantId(1L);
+        // Pass-through unless a test stubs a tighter behavior.
+        lenient().when(attendanceInferenceService.dedupeSessions(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
     }
 
     @AfterEach
@@ -192,6 +196,48 @@ class AttendanceReportServiceTest {
         assertThat(rows.getContent().get(0).getCheckInTime().toLocalDateTime())
                 .isEqualTo(day.minusDays(1).atTime(22, 0));
         assertThat(rows.getContent().get(0).getWorkedMinutes()).isEqualTo(8 * 60);
+    }
+
+    @Test
+    void getReport_collapsesDuplicateSessionsFromSyncRace() {
+        LocalDate day = LocalDate.of(2026, 7, 28);
+        Employee employee = employee(1L, "HO-1", "Leyla", "-", 10L, "FLEXIBLE");
+
+        Timetable timetable = new Timetable();
+        timetable.setId(10L);
+        timetable.setShiftType("FLEXIBLE");
+
+        LocalDateTime in = day.atTime(12, 55);
+        LocalDateTime out = day.atTime(14, 54);
+        AttendanceLog first = log(1L, in, out);
+        first.setId(101L);
+        AttendanceLog duplicateA = log(1L, in, out);
+        duplicateA.setId(102L);
+        AttendanceLog duplicateB = log(1L, in, out);
+        duplicateB.setId(103L);
+        AttendanceLog other = log(1L, day.atTime(0, 4), day.atTime(3, 18));
+        other.setId(100L);
+
+        when(attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(first, duplicateA, duplicateB, other));
+        when(employeeRepository.findAllById(any())).thenReturn(List.of(employee));
+        when(timetableRepository.findAllById(any())).thenReturn(List.of(timetable));
+        when(departmentRepository.findAllById(any())).thenReturn(List.of());
+        when(positionRepository.findAllById(any())).thenReturn(List.of());
+        when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
+        when(attendanceInferenceService.overlapsDay(any(), any())).thenReturn(true);
+        when(attendanceInferenceService.dedupeSessions(any())).thenAnswer(invocation -> {
+            List<AttendanceLog> logs = invocation.getArgument(0);
+            return new AttendanceInferenceService().dedupeSessions(logs);
+        });
+
+        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getReport(
+                day, day, "", null, null, null, null, null, null, 0, 50);
+
+        assertThat(rows.getContent()).hasSize(2);
+        assertThat(rows.getContent())
+                .extracting(AttendanceReportRowDTO::getAttendanceLogId)
+                .containsExactlyInAnyOrder(100L, 101L);
     }
 
     private static Employee employee(Long id, String code, String first, String last, Long timetableId, String shiftType) {

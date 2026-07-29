@@ -223,8 +223,8 @@ export default function ReportsPage() {
                 <tr><td colSpan={11} className="px-4 py-6 text-sm text-gray-500 text-center">Yüklənir...</td></tr>
               ) : rows.length === 0 ? (
                 <tr><td colSpan={11} className="px-4 py-6 text-sm text-gray-500 text-center">Məlumat tapılmadı</td></tr>
-              ) : rows.map((row) => (
-                <tr key={`${row.employeePk}-${row.date}-${row.checkInTime}`} className="border-t border-gray-100 hover:bg-gray-50">
+              ) : rows.map((row, index) => (
+                <tr key={row.attendanceLogId ?? `${row.employeePk}-${row.date}-${row.checkInTime}-${index}`} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.employeeId}</td>
                   <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{row.fullName}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.fin ?? '—'}</td>

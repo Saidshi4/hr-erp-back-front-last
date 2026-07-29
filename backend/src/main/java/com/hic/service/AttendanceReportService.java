@@ -195,18 +195,22 @@ public class AttendanceReportService {
             // Always use the employee's assigned work schedule type — never infer from punches.
             String scheduleShiftType = resolveAssignedScheduleShiftType(employee, timetableMap);
 
-            // Detailed logs: one response row per attendance_logs pair (not daily aggregation).
+            // Detailed logs: one response row per unique attendance session (not daily aggregation).
             // Include any session that overlaps the selected range (night shifts / open sessions),
             // not only rows whose check-in calendar date falls inside [start, end].
-            List<AttendanceLog> employeeLogs = entry.getValue().stream()
-                    .filter(log -> log.getCheckInTime() != null)
-                    .filter(log -> overlapsReportRange(log, start, end))
-                    .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
-                            .thenComparing(log -> log.getId() != null ? log.getId() : 0L))
-                    .toList();
+            // Dedupe collapses identical copies created by concurrent device sync races.
+            List<AttendanceLog> employeeLogs = attendanceInferenceService.dedupeSessions(
+                    entry.getValue().stream()
+                            .filter(log -> log.getCheckInTime() != null)
+                            .filter(log -> overlapsReportRange(log, start, end))
+                            .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)
+                                    .thenComparing(log -> log.getId() != null ? log.getId() : 0L))
+                            .toList()
+            );
 
             for (AttendanceLog log : employeeLogs) {
                 AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
+                dto.setAttendanceLogId(log.getId());
                 dto.setEmployeePk(employee.getId());
                 dto.setEmployeeId(employee.getEmployeeId());
                 dto.setFullName((safe(employee.getFirstName()) + " " + safe(employee.getLastName())).trim());

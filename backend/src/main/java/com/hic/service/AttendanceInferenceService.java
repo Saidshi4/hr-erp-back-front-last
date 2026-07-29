@@ -133,7 +133,11 @@ public class AttendanceInferenceService {
         return entry.isBefore(dayEnd) && exit.isAfter(dayStart);
     }
 
-    private List<AttendanceLog> dedupeSessions(List<AttendanceLog> logs) {
+    /**
+     * Collapses near-identical sessions (same check-in / check-out within
+     * {@link #DUPLICATE_PUNCH_WINDOW}) that can appear after concurrent device syncs.
+     */
+    public List<AttendanceLog> dedupeSessions(List<AttendanceLog> logs) {
         List<AttendanceLog> ordered = logs.stream()
                 .filter(log -> log.getCheckInTime() != null)
                 .sorted(Comparator.comparing(AttendanceLog::getCheckInTime)

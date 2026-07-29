@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -43,6 +44,8 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class AttendanceReportService {
+
+    private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final AttendanceLogRepository attendanceLogRepository;
     private final EmployeeRepository employeeRepository;
@@ -91,11 +94,11 @@ public class AttendanceReportService {
             Row header = sheet.createRow(0);
             String[] headers = {
                     "ID", "Name", "FIN", "Department", "Position", "Area",
-                    "Date", "Check-in", "Check-out", "Worked", "Method", "Shift"
+                    "Check-in", "Check-out", "Worked", "Method", "Shift"
             };
             for (int i = 0; i < headers.length; i++) {
                 header.createCell(i).setCellValue(headers[i]);
-                sheet.setColumnWidth(i, 5500);
+                sheet.setColumnWidth(i, i == 6 || i == 7 ? 6500 : 5500);
             }
 
             int rowNum = 1;
@@ -107,14 +110,11 @@ public class AttendanceReportService {
                 excelRow.createCell(3).setCellValue(safe(row.getDepartment()));
                 excelRow.createCell(4).setCellValue(safe(row.getPosition()));
                 excelRow.createCell(5).setCellValue(safe(row.getArea()));
-                excelRow.createCell(6).setCellValue(row.getDate() != null ? row.getDate().toString() : "");
-                excelRow.createCell(7).setCellValue(row.getCheckInTime() != null
-                        ? row.getCheckInTime().toLocalTime().withNano(0).toString() : "");
-                excelRow.createCell(8).setCellValue(row.getCheckOutTime() != null
-                        ? row.getCheckOutTime().toLocalTime().withNano(0).toString() : "");
-                excelRow.createCell(9).setCellValue(formatDuration(row.getWorkedMinutes()));
-                excelRow.createCell(10).setCellValue(safe(row.getVerificationMethod()));
-                excelRow.createCell(11).setCellValue(safe(row.getShiftType()));
+                excelRow.createCell(6).setCellValue(formatDateTime(row.getCheckInTime()));
+                excelRow.createCell(7).setCellValue(formatDateTime(row.getCheckOutTime()));
+                excelRow.createCell(8).setCellValue(formatDuration(row.getWorkedMinutes()));
+                excelRow.createCell(9).setCellValue(safe(row.getVerificationMethod()));
+                excelRow.createCell(10).setCellValue(safe(row.getShiftType()));
             }
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             workbook.write(outputStream);
@@ -302,6 +302,14 @@ public class AttendanceReportService {
         int hours = workedMinutes / 60;
         int minutes = workedMinutes % 60;
         return String.format("%02d:%02d", hours, minutes);
+    }
+
+    /** Full date+time so overnight flexible/night sessions show distinct calendar days. */
+    private String formatDateTime(OffsetDateTime value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toLocalDateTime().withNano(0).format(DATE_TIME_FORMAT);
     }
 
     private String normalizeVerificationMethod(String method) {

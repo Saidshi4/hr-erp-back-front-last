@@ -75,7 +75,7 @@ export function formatAttendanceTime(value?: string | null): string {
   })
 }
 
-/** Format date+time for dashboards; same zone rules as {@link formatAttendanceTime}. */
+/** Format date+time for dashboards/reports; same zone rules as {@link formatAttendanceTime}. */
 export function formatAttendanceDateTime(value?: string | null): string {
   if (!value) return '—'
 
@@ -89,5 +89,16 @@ export function formatAttendanceDateTime(value?: string | null): string {
 
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
-  return date.toLocaleString('az-AZ', { timeZone: APP_TIME_ZONE })
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: APP_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  })
+  const parts = formatter.formatToParts(date)
+  const lookup = (type: string) => parts.find((p) => p.type === type)?.value ?? ''
+  return `${lookup('year')}-${lookup('month')}-${lookup('day')} ${lookup('hour')}:${lookup('minute')}`
 }

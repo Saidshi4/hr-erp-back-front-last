@@ -7,7 +7,7 @@ import { employeeApi } from '../api/employeeApi.ts'
 import { useAttendanceReportStore } from '../store/attendanceReportStore.ts'
 import { t } from '../i18n/index.ts'
 import { Position, Department } from '../types'
-import { formatAttendanceTime } from '../utils/dateTime.ts'
+import { formatAttendanceDateTime } from '../utils/dateTime.ts'
 
 const SHIFT_TABS = [
   { labelKey: 'reports.allShifts' as const, value: '' },
@@ -16,8 +16,8 @@ const SHIFT_TABS = [
   { labelKey: 'reports.exactShift' as const, value: 'NIGHT' },
 ]
 
-function formatClock(value?: string) {
-  return formatAttendanceTime(value)
+function formatDateTime(value?: string) {
+  return formatAttendanceDateTime(value)
 }
 
 function formatDuration(minutes?: number) {
@@ -208,7 +208,6 @@ export default function ReportsPage() {
                   t('reports.department'),
                   t('reports.position'),
                   t('reports.area'),
-                  t('reports.date'),
                   t('reports.checkIn'),
                   t('reports.checkOut'),
                   t('reports.workedDuration'),
@@ -220,20 +219,19 @@ export default function ReportsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={11} className="px-4 py-6 text-sm text-gray-500 text-center">Yüklənir...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-6 text-sm text-gray-500 text-center">Yüklənir...</td></tr>
               ) : rows.length === 0 ? (
-                <tr><td colSpan={11} className="px-4 py-6 text-sm text-gray-500 text-center">Məlumat tapılmadı</td></tr>
+                <tr><td colSpan={10} className="px-4 py-6 text-sm text-gray-500 text-center">Məlumat tapılmadı</td></tr>
               ) : rows.map((row, index) => (
-                <tr key={row.attendanceLogId ?? `${row.employeePk}-${row.date}-${row.checkInTime}-${index}`} className="border-t border-gray-100 hover:bg-gray-50">
+                <tr key={row.attendanceLogId ?? `${row.employeePk}-${row.checkInTime}-${index}`} className="border-t border-gray-100 hover:bg-gray-50">
                   <td className="px-4 py-3 whitespace-nowrap text-gray-700">{row.employeeId}</td>
                   <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-900">{row.fullName}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.fin ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#7c3aed' }}>{row.department ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#7c3aed' }}>{row.position ?? '—'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-gray-600">{row.area ?? '—'}</td>
-                  <td className="px-4 py-3 whitespace-nowrap font-medium" style={{ color: '#7c3aed' }}>{row.date}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-800">{formatClock(row.checkInTime)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-gray-800">{formatClock(row.checkOutTime)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-800">{formatDateTime(row.checkInTime)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-gray-800">{formatDateTime(row.checkOutTime)}</td>
                   <td className="px-4 py-3 whitespace-nowrap font-semibold text-gray-900">{formatDuration(row.workedMinutes)}</td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span

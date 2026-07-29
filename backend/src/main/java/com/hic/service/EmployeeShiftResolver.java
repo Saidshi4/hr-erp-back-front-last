@@ -1,5 +1,6 @@
 package com.hic.service;
 
+import com.hic.model.AttendanceLog;
 import com.hic.model.Employee;
 import com.hic.model.EmployeeShiftAssignment;
 import com.hic.model.Timetable;
@@ -29,7 +30,10 @@ public class EmployeeShiftResolver {
     private final EmployeeShiftAssignmentRepository assignmentRepository;
     private final TimetableRepository timetableRepository;
 
-    public record ResolvedShift(Long timetableId, String shiftType) {
+    public record ResolvedShift(Long timetableId, String shiftType, boolean knownFromHistory) {
+        public ResolvedShift(Long timetableId, String shiftType) {
+            this(timetableId, shiftType, false);
+        }
     }
 
     /**
@@ -38,15 +42,15 @@ public class EmployeeShiftResolver {
      */
     public ResolvedShift resolve(Employee employee, LocalDate date) {
         if (employee == null) {
-            return new ResolvedShift(null, null);
+            return new ResolvedShift(null, null, false);
         }
         Long tenantId = TenantContext.getTenantId() != null ? TenantContext.getTenantId() : employee.getTenantId();
         if (tenantId != null && employee.getId() != null && date != null) {
             return assignmentRepository.findActiveByEmployeeAndDate(tenantId, employee.getId(), date)
-                    .map(a -> fromAssignment(a, employee))
-                    .orElseGet(() -> fromEmployeeSnapshot(employee));
+                    .map(a -> fromAssignment(a, employee, true))
+                    .orElseGet(() -> fromEmployeeSnapshot(employee, null, false));
         }
-        return fromEmployeeSnapshot(employee);
+        return fromEmployeeSnapshot(employee, null, false);
     }
 
     /**
@@ -81,7 +85,7 @@ public class EmployeeShiftResolver {
             Map<Long, Timetable> timetableMap
     ) {
         if (employee == null) {
-            return new ResolvedShift(null, null);
+            return new ResolvedShift(null, null, false);
         }
         if (date != null && assignmentsByEmployee != null) {
             List<EmployeeShiftAssignment> assignments = assignmentsByEmployee.getOrDefault(employee.getId(), List.of());
@@ -93,14 +97,46 @@ public class EmployeeShiftResolver {
                     String shiftType = timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()
                             ? timetable.getShiftType()
                             : employee.getShiftType();
-                    return new ResolvedShift(assignment.getTimetableId(), shiftType);
+                    return new ResolvedShift(assignment.getTimetableId(), shiftType, true);
                 }
             }
         }
-        return fromEmployeeSnapshot(employee, timetableMap);
+        return fromEmployeeSnapshot(employee, timetableMap, false);
     }
 
-    private boolean covers(EmployeeShiftAssignment assignment, LocalDate date) {
+    /**
+     * Prefer stamp on the log itself, then assignment history. Snapshot fallback is unmarked
+     * so reports do not retroactively collapse old punches after a schedule change.
+     */
+    public ResolvedShift resolveForLog(
+            Employee employee,
+            AttendanceLog log,
+            Map<Long, List<EmployeeShiftAssignment>> assignmentsByEmployee,
+            Map<Long, Timetable> timetableMap
+    ) {
+        if (log != null && log.getShiftType() != null && !log.getShiftType().isBlank()) {
+            return new ResolvedShift(log.getTimetableId(), log.getShiftType(), true);
+        }
+        LocalDate asOf = log != null && log.getCheckInTime() != null ? log.getCheckInTime().toLocalDate() : null;
+        if (asOf != null && assignmentsByEmployee != null && employee != null) {
+            List<EmployeeShiftAssignment> assignments = assignmentsByEmployee.getOrDefault(employee.getId(), List.of());
+            for (EmployeeShiftAssignment assignment : assignments) {
+                if (covers(assignment, asOf)) {
+                    Timetable timetable = timetableMap != null
+                            ? timetableMap.get(assignment.getTimetableId())
+                            : null;
+                    String shiftType = timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()
+                            ? timetable.getShiftType()
+                            : employee.getShiftType();
+                    return new ResolvedShift(assignment.getTimetableId(), shiftType, true);
+                }
+            }
+        }
+        ResolvedShift snapshot = fromEmployeeSnapshot(employee, timetableMap, false);
+        return new ResolvedShift(snapshot.timetableId(), snapshot.shiftType(), false);
+    }
+
+    public boolean covers(EmployeeShiftAssignment assignment, LocalDate date) {
         if (assignment == null || date == null || assignment.getEffectiveStartDate() == null) {
             return false;
         }
@@ -110,31 +146,30 @@ public class EmployeeShiftResolver {
         return assignment.getEffectiveEndDate() == null || !date.isAfter(assignment.getEffectiveEndDate());
     }
 
-    private ResolvedShift fromAssignment(EmployeeShiftAssignment assignment, Employee employee) {
+    private ResolvedShift fromAssignment(EmployeeShiftAssignment assignment, Employee employee, boolean known) {
         Timetable timetable = timetableRepository.findById(assignment.getTimetableId()).orElse(null);
         String shiftType = timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()
                 ? timetable.getShiftType()
                 : employee.getShiftType();
-        return new ResolvedShift(assignment.getTimetableId(), shiftType);
+        return new ResolvedShift(assignment.getTimetableId(), shiftType, known);
     }
 
-    private ResolvedShift fromEmployeeSnapshot(Employee employee) {
-        return fromEmployeeSnapshot(employee, null);
-    }
-
-    private ResolvedShift fromEmployeeSnapshot(Employee employee, Map<Long, Timetable> timetableMap) {
+    private ResolvedShift fromEmployeeSnapshot(Employee employee, Map<Long, Timetable> timetableMap, boolean known) {
+        if (employee == null) {
+            return new ResolvedShift(null, null, known);
+        }
         if (employee.getTimetableId() != null) {
             Timetable timetable = timetableMap != null
                     ? timetableMap.get(employee.getTimetableId())
-                    : timetableRepository.findById(employee.getTimetableId()).orElse(null);
-            if (timetable == null && timetableMap == null) {
+                    : null;
+            if (timetable == null) {
                 timetable = timetableRepository.findById(employee.getTimetableId()).orElse(null);
             }
             if (timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()) {
-                return new ResolvedShift(timetable.getId(), timetable.getShiftType());
+                return new ResolvedShift(timetable.getId(), timetable.getShiftType(), known);
             }
         }
-        return new ResolvedShift(employee.getTimetableId(), employee.getShiftType());
+        return new ResolvedShift(employee.getTimetableId(), employee.getShiftType(), known);
     }
 
     /** Collect timetable ids referenced by assignments and employee snapshots. */

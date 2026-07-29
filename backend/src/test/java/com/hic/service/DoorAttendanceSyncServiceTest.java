@@ -33,6 +33,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -46,6 +47,7 @@ class DoorAttendanceSyncServiceTest {
     @Mock private DeviceConfigRepository deviceConfigRepository;
     @Mock private AttendanceCalculationService attendanceCalculationService;
     @Mock private AttendanceService attendanceService;
+    @Mock private EmployeeShiftResolver employeeShiftResolver;
 
     @InjectMocks
     private DoorAttendanceSyncService doorAttendanceSyncService;
@@ -56,6 +58,8 @@ class DoorAttendanceSyncServiceTest {
     void setUp() {
         TenantContext.setTenantId(1L);
         logIdSeq.set(1);
+        lenient().when(employeeShiftResolver.resolve(any(), any()))
+                .thenReturn(new EmployeeShiftResolver.ResolvedShift(null, "FLEXIBLE", true));
     }
 
     @AfterEach

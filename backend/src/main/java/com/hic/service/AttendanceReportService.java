@@ -203,54 +203,35 @@ public class AttendanceReportService {
                             .toList()
             );
 
-            List<AttendanceLog> flexibleLogs = new ArrayList<>();
+            List<LabeledSession> sessionLogs = new ArrayList<>();
             Map<LocalDate, List<AttendanceLog>> standardByDay = new HashMap<>();
             Map<LocalDate, String> standardShiftTypeByDay = new HashMap<>();
 
             for (AttendanceLog log : employeeLogs) {
-                LocalDate asOf = log.getCheckInTime().toLocalDate();
-                EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolveFromCache(
-                        employee, asOf, assignmentsByEmployee, timetableMap);
-                String scheduleShiftType = resolved.shiftType();
+                EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolveForLog(
+                        employee, log, assignmentsByEmployee, timetableMap);
+                String scheduleShiftType = resolved.shiftType() != null ? resolved.shiftType() : employee.getShiftType();
+                boolean knownStandard = resolved.knownFromHistory()
+                        && ShiftTypes.STANDARD.equals(ShiftTypes.canonical(resolved.shiftType()));
 
-                if (scheduleShiftType == null || ShiftTypes.isFlexible(scheduleShiftType)) {
-                    // Flexible (or unknown without assignment history): one row per session.
-                    flexibleLogs.add(log);
-                    continue;
-                }
-
-                if (ShiftTypes.STANDARD.equals(ShiftTypes.canonical(scheduleShiftType))) {
-                    // STANDARD: contribute to calendar-day first-in / last-out rows.
+                if (knownStandard) {
+                    // Only collapse when we KNOW this punch belonged to STANDARD (stamp or assignment).
                     for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
                         if (!attendanceInferenceService.overlapsDay(log, day)) {
                             continue;
                         }
-                        EmployeeShiftResolver.ResolvedShift dayShift = employeeShiftResolver.resolveFromCache(
-                                employee, day, assignmentsByEmployee, timetableMap);
-                        if (!ShiftTypes.STANDARD.equals(ShiftTypes.canonical(dayShift.shiftType()))) {
-                            continue;
-                        }
                         standardByDay.computeIfAbsent(day, ignored -> new ArrayList<>()).add(log);
-                        standardShiftTypeByDay.put(day, dayShift.shiftType());
+                        standardShiftTypeByDay.putIfAbsent(day, scheduleShiftType);
                     }
                 } else {
-                    // NIGHT / other non-flexible — keep one row per session with as-of shift type.
-                    AttendanceReportRowDTO dto = buildSessionRow(
-                            employee, log, scheduleShiftType, departmentNames, positionNames);
-                    if (predicate.test(dto)) {
-                        rows.add(dto);
-                    }
+                    // Flexible, night, or unmarked history after schedule change: keep every session.
+                    sessionLogs.add(new LabeledSession(log, scheduleShiftType));
                 }
             }
 
-            // Flexible: one row per session, classified by schedule active on check-in day.
-            for (AttendanceLog log : flexibleLogs) {
-                LocalDate asOf = log.getCheckInTime().toLocalDate();
-                EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolveFromCache(
-                        employee, asOf, assignmentsByEmployee, timetableMap);
-                String scheduleShiftType = resolved.shiftType() != null ? resolved.shiftType() : employee.getShiftType();
+            for (LabeledSession labeled : sessionLogs) {
                 AttendanceReportRowDTO dto = buildSessionRow(
-                        employee, log, scheduleShiftType, departmentNames, positionNames);
+                        employee, labeled.log(), labeled.shiftType(), departmentNames, positionNames);
                 if (predicate.test(dto)) {
                     rows.add(dto);
                 }
@@ -284,6 +265,9 @@ public class AttendanceReportService {
                 .sorted(Comparator.comparing(AttendanceReportRowDTO::getDate, Comparator.nullsLast(Comparator.reverseOrder()))
                         .thenComparing(AttendanceReportRowDTO::getCheckInTime, Comparator.nullsLast(Comparator.naturalOrder())))
                 .toList();
+    }
+
+    private record LabeledSession(AttendanceLog log, String shiftType) {
     }
 
     private AttendanceReportRowDTO buildSessionRow(

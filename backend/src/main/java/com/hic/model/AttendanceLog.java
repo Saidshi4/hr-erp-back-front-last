@@ -38,6 +38,16 @@ public class AttendanceLog {
     @Column(name = "verification_method")
     private String verificationMethod;
 
+    /**
+     * Schedule type frozen at session creation (or backfilled from assignment history).
+     * Keeps historical punches under the schedule they were worked on.
+     */
+    @Column(name = "shift_type")
+    private String shiftType;
+
+    @Column(name = "timetable_id")
+    private Long timetableId;
+
     @Column(name = "status")
     private String status;
 

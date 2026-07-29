@@ -43,6 +43,7 @@ public class DoorAttendanceSyncService {
     private final DeviceConfigRepository deviceConfigRepository;
     private final AttendanceCalculationService attendanceCalculationService;
     private final AttendanceService attendanceService;
+    private final EmployeeShiftResolver employeeShiftResolver;
 
     /** Serializes sync per tenant so UI + scheduler cannot create duplicate sessions. */
     private final ConcurrentHashMap<Long, Object> tenantSyncLocks = new ConcurrentHashMap<>();
@@ -328,6 +329,10 @@ public class DoorAttendanceSyncService {
         logEntry.setEventType("DOOR_SESSION");
         logEntry.setVerificationMethod("ISAPI_PUNCH");
         logEntry.setStatus("ACTIVE");
+        EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolve(
+                employee, entryTime != null ? entryTime.toLocalDate() : null);
+        logEntry.setShiftType(resolved.shiftType());
+        logEntry.setTimetableId(resolved.timetableId());
         return attendanceLogRepository.save(logEntry);
     }
 

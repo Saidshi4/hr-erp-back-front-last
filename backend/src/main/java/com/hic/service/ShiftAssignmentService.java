@@ -17,6 +17,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -43,10 +45,11 @@ public class ShiftAssignmentService {
             throw new BadRequestException("Only active employees can be assigned to shifts");
         }
 
-        List<EmployeeShiftAssignment> overlaps = assignmentRepository.findOverlappingAssignments(tenantId, employeeId, startDate, endDate, null);
-        if (!overlaps.isEmpty()) {
-            throw new BadRequestException("Employee already has an overlapping active shift assignment");
-        }
+        Long previousTimetableId = employee.getTimetableId();
+        // Preserve prior schedule history when the employee only had a live snapshot.
+        ensureHistoricalAssignment(tenantId, employee, previousTimetableId, startDate);
+        // Close prior overlapping ACTIVE rows so schedule changes keep historical coverage intact.
+        closeOverlappingAssignments(tenantId, employeeId, startDate, endDate, null);
 
         EmployeeShiftAssignment assignment = new EmployeeShiftAssignment();
         assignment.setTenantId(tenantId);
@@ -64,6 +67,99 @@ public class ShiftAssignmentService {
         employeeRepository.save(employee);
 
         return toDTO(saved);
+    }
+
+    /**
+     * Keeps {@code employee_shift_assignments} in sync when an employee's timetable is changed
+     * from the employee form (not only from the shift-assignment UI).
+     * <p>
+     * If the employee previously had a timetable but no covering assignment history, a closed
+     * historical row is created so past attendance stays classified under the old schedule.
+     */
+    @Transactional
+    public void syncScheduleFromEmployee(Employee employee, Long previousTimetableId, Long newTimetableId, LocalDate effectiveFrom) {
+        if (employee == null || employee.getId() == null) {
+            return;
+        }
+        Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : requireTenant();
+        if (Objects.equals(previousTimetableId, newTimetableId)) {
+            return;
+        }
+        LocalDate start = effectiveFrom != null ? effectiveFrom : LocalDate.now();
+        ensureHistoricalAssignment(tenantId, employee, previousTimetableId, start);
+        closeOverlappingAssignments(tenantId, employee.getId(), start, null, null);
+
+        if (newTimetableId == null) {
+            return;
+        }
+        Timetable timetable = timetableRepository.findById(newTimetableId).orElse(null);
+        if (timetable == null) {
+            return;
+        }
+
+        EmployeeShiftAssignment assignment = new EmployeeShiftAssignment();
+        assignment.setTenantId(tenantId);
+        assignment.setEmployeeId(employee.getId());
+        assignment.setTimetableId(newTimetableId);
+        assignment.setEffectiveStartDate(start);
+        assignment.setEffectiveEndDate(null);
+        assignment.setAssignedBy(TenantContext.getUserId());
+        assignment.setStatus(EmployeeShiftAssignment.Status.ACTIVE);
+        assignmentRepository.save(assignment);
+
+        employee.setShiftType(timetable.getShiftType());
+    }
+
+    /**
+     * When the live employee snapshot is about to change and no assignment covers the day before
+     * the change, invent a closed historical assignment for the prior timetable.
+     */
+    private void ensureHistoricalAssignment(Long tenantId, Employee employee, Long previousTimetableId, LocalDate newStart) {
+        if (previousTimetableId == null || newStart == null) {
+            return;
+        }
+        LocalDate previousDay = newStart.minusDays(1);
+        Optional<EmployeeShiftAssignment> coveringPreviousDay =
+                assignmentRepository.findActiveByEmployeeAndDate(tenantId, employee.getId(), previousDay);
+        if (coveringPreviousDay.isPresent()) {
+            return;
+        }
+        LocalDate historyStart = employee.getHireDate() != null ? employee.getHireDate() : previousDay;
+        if (historyStart.isAfter(previousDay)) {
+            historyStart = previousDay;
+        }
+        EmployeeShiftAssignment historical = new EmployeeShiftAssignment();
+        historical.setTenantId(tenantId);
+        historical.setEmployeeId(employee.getId());
+        historical.setTimetableId(previousTimetableId);
+        historical.setEffectiveStartDate(historyStart);
+        historical.setEffectiveEndDate(previousDay);
+        historical.setAssignedBy(TenantContext.getUserId());
+        historical.setStatus(EmployeeShiftAssignment.Status.ACTIVE);
+        assignmentRepository.save(historical);
+    }
+
+    private void closeOverlappingAssignments(
+            Long tenantId,
+            Long employeeId,
+            LocalDate startDate,
+            LocalDate endDate,
+            Long excludeId
+    ) {
+        List<EmployeeShiftAssignment> overlaps = assignmentRepository.findOverlappingAssignments(
+                tenantId, employeeId, startDate, endDate, excludeId);
+        LocalDate closeOn = startDate.minusDays(1);
+        for (EmployeeShiftAssignment prior : overlaps) {
+            if (prior.getEffectiveStartDate() != null && !prior.getEffectiveStartDate().isAfter(closeOn)) {
+                prior.setEffectiveEndDate(closeOn);
+            } else {
+                prior.setStatus(EmployeeShiftAssignment.Status.INACTIVE);
+                if (prior.getEffectiveEndDate() == null || prior.getEffectiveEndDate().isAfter(startDate)) {
+                    prior.setEffectiveEndDate(startDate);
+                }
+            }
+            assignmentRepository.save(prior);
+        }
     }
 
     @Transactional

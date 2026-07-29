@@ -68,6 +68,9 @@ class AttendanceServiceTest {
     @Spy
     private AttendanceInferenceService attendanceInferenceService = new AttendanceInferenceService();
 
+    @Mock
+    private EmployeeShiftResolver employeeShiftResolver;
+
     @InjectMocks
     private AttendanceService attendanceService;
 
@@ -76,6 +79,14 @@ class AttendanceServiceTest {
 
     @BeforeEach
     void setUp() {
+        lenient().when(employeeShiftResolver.resolve(any(), any())).thenAnswer(invocation -> {
+            Employee employee = invocation.getArgument(0);
+            if (employee == null) {
+                return new EmployeeShiftResolver.ResolvedShift(null, null);
+            }
+            return new EmployeeShiftResolver.ResolvedShift(employee.getTimetableId(), employee.getShiftType());
+        });
+
         testLog = new AttendanceLog();
         testLog.setId(1L);
         testLog.setEmployeeId(1L);

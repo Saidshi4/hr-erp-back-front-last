@@ -24,6 +24,7 @@ public class AttendanceCalculationService {
     private final HolidayService holidayService;
     private final LeaveService leaveService;
     private final AttendanceInferenceService attendanceInferenceService;
+    private final EmployeeShiftResolver employeeShiftResolver;
 
     @Transactional
     public AttendanceRecord calculateForDay(Long employeeId, LocalDate workDate) {
@@ -44,9 +45,13 @@ public class AttendanceCalculationService {
             throw new IllegalStateException("Tenant context is required for attendance calculation");
         }
         record.setTenantId(tenantId);
+
+        EmployeeShiftResolver.ResolvedShift resolved = employee != null
+                ? employeeShiftResolver.resolve(employee, workDate)
+                : new EmployeeShiftResolver.ResolvedShift(null, null);
         if (employee != null) {
-            record.setShiftType(employee.getShiftType());
-            record.setTimetableId(employee.getTimetableId());
+            record.setShiftType(resolved.shiftType());
+            record.setTimetableId(resolved.timetableId());
         }
 
         List<AttendanceLog> logs = findDayLogs(employeeId, workDate);
@@ -56,7 +61,9 @@ public class AttendanceCalculationService {
         record.setEntryTime(firstEntry);
         record.setExitTime(lastExit);
 
-        String shiftType = employee != null ? employee.getShiftType() : record.getShiftType();
+        String shiftType = resolved.shiftType() != null
+                ? resolved.shiftType()
+                : (employee != null ? employee.getShiftType() : record.getShiftType());
         int workedMinutes = inference.workedMinutesForShift(shiftType);
         record.setWorkedMinutes(workedMinutes);
         record.setOvertimeMinutes(Math.max(workedMinutes - 8 * 60, 0));

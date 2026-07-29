@@ -24,6 +24,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -47,12 +48,19 @@ class AttendanceCalculationServiceTest {
     @Spy
     private AttendanceInferenceService attendanceInferenceService = new AttendanceInferenceService();
 
+    @Mock
+    private EmployeeShiftResolver employeeShiftResolver;
+
     @InjectMocks
     private AttendanceCalculationService attendanceCalculationService;
 
     @BeforeEach
     void setTenant() {
         TenantContext.setTenantId(7L);
+        lenient().when(employeeShiftResolver.resolve(any(), any())).thenAnswer(invocation -> {
+            Employee employee = invocation.getArgument(0);
+            return new EmployeeShiftResolver.ResolvedShift(employee.getTimetableId(), employee.getShiftType());
+        });
     }
 
     @AfterEach

@@ -30,6 +30,14 @@ public interface EmployeeShiftAssignmentRepository extends JpaRepository<Employe
                                                                   @Param("employeeId") Long employeeId,
                                                                   @Param("date") LocalDate date);
 
+    @Query("SELECT e FROM EmployeeShiftAssignment e WHERE e.tenantId = :tenantId AND e.employeeId IN :employeeIds " +
+           "AND e.status = 'ACTIVE' AND e.effectiveStartDate <= :endDate " +
+           "AND (e.effectiveEndDate IS NULL OR e.effectiveEndDate >= :startDate)")
+    List<EmployeeShiftAssignment> findActiveForEmployeesInDateRange(@Param("tenantId") Long tenantId,
+                                                                    @Param("employeeIds") java.util.Collection<Long> employeeIds,
+                                                                    @Param("startDate") LocalDate startDate,
+                                                                    @Param("endDate") LocalDate endDate);
+
     @Query("SELECT e FROM EmployeeShiftAssignment e WHERE e.tenantId = :tenantId AND e.employeeId = :employeeId " +
            "AND e.status = 'ACTIVE' AND (:excludeId IS NULL OR e.id <> :excludeId) " +
            "AND e.effectiveStartDate <= COALESCE(:endDate, e.effectiveStartDate) " +

@@ -41,6 +41,7 @@ class AttendanceReportServiceTest {
     @Mock private FaceDataRepository faceDataRepository;
     @Mock private TimetableRepository timetableRepository;
     @Mock private AttendanceInferenceService attendanceInferenceService;
+    @Mock private EmployeeShiftResolver employeeShiftResolver;
 
     @InjectMocks
     private AttendanceReportService attendanceReportService;
@@ -51,6 +52,36 @@ class AttendanceReportServiceTest {
         // Pass-through unless a test stubs a tighter behavior.
         lenient().when(attendanceInferenceService.dedupeSessions(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(attendanceInferenceService.inferDay(any(), any())).thenAnswer(invocation ->
+                new AttendanceInferenceService().inferDay(invocation.getArgument(0), invocation.getArgument(1)));
+        lenient().when(employeeShiftResolver.loadAssignmentsByEmployee(any(), any(), any(), any()))
+                .thenReturn(java.util.Map.of());
+        lenient().when(employeeShiftResolver.collectTimetableIds(any(), any())).thenAnswer(invocation -> {
+            Iterable<Employee> employees = invocation.getArgument(0);
+            java.util.Set<Long> ids = new java.util.HashSet<>();
+            if (employees != null) {
+                for (Employee employee : employees) {
+                    if (employee.getTimetableId() != null) {
+                        ids.add(employee.getTimetableId());
+                    }
+                }
+            }
+            return ids;
+        });
+        lenient().when(employeeShiftResolver.resolveFromCache(any(), any(), any(), any())).thenAnswer(invocation -> {
+            Employee employee = invocation.getArgument(0);
+            if (employee == null) {
+                return new EmployeeShiftResolver.ResolvedShift(null, null);
+            }
+            @SuppressWarnings("unchecked")
+            java.util.Map<Long, Timetable> timetableMap = invocation.getArgument(3);
+            Long timetableId = employee.getTimetableId();
+            Timetable timetable = timetableMap != null && timetableId != null ? timetableMap.get(timetableId) : null;
+            String shiftType = timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()
+                    ? timetable.getShiftType()
+                    : employee.getShiftType();
+            return new EmployeeShiftResolver.ResolvedShift(timetableId, shiftType);
+        });
     }
 
     @AfterEach
@@ -238,6 +269,92 @@ class AttendanceReportServiceTest {
         assertThat(rows.getContent())
                 .extracting(AttendanceReportRowDTO::getAttendanceLogId)
                 .containsExactlyInAnyOrder(100L, 101L);
+    }
+
+    @Test
+    void getReport_standardShiftCollapsesToOneRowPerDay() {
+        LocalDate day = LocalDate.of(2026, 7, 28);
+        Employee employee = employee(1L, "STD-1", "Sara", "Standard", 11L, "STANDARD");
+
+        Timetable timetable = new Timetable();
+        timetable.setId(11L);
+        timetable.setShiftType("STANDARD");
+
+        AttendanceLog first = log(1L, day.atTime(9, 0), day.atTime(12, 0));
+        first.setId(1L);
+        AttendanceLog second = log(1L, day.atTime(13, 0), day.atTime(18, 0));
+        second.setId(2L);
+
+        when(attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(first, second));
+        when(employeeRepository.findAllById(any())).thenReturn(List.of(employee));
+        when(timetableRepository.findAllById(any())).thenReturn(List.of(timetable));
+        when(departmentRepository.findAllById(any())).thenReturn(List.of());
+        when(positionRepository.findAllById(any())).thenReturn(List.of());
+        when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
+        when(attendanceInferenceService.overlapsDay(any(), eq(day))).thenReturn(true);
+        when(attendanceInferenceService.inferDay(any(), eq(day))).thenAnswer(invocation ->
+                new AttendanceInferenceService().inferDay(invocation.getArgument(0), day));
+
+        PaginatedResponse<AttendanceReportRowDTO> rows = attendanceReportService.getReport(
+                day, day, "STANDARD", null, null, null, null, null, null, 0, 50);
+
+        assertThat(rows.getContent()).hasSize(1);
+        assertThat(rows.getContent().get(0).getCheckInTime().toLocalDateTime()).isEqualTo(day.atTime(9, 0));
+        assertThat(rows.getContent().get(0).getCheckOutTime().toLocalDateTime()).isEqualTo(day.atTime(18, 0));
+        assertThat(rows.getContent().get(0).getWorkedMinutes()).isEqualTo(9 * 60);
+    }
+
+    @Test
+    void getReport_keepsHistoricalFlexibleRowsAfterScheduleChange() {
+        LocalDate flexibleDay = LocalDate.of(2026, 7, 20);
+        LocalDate standardDay = LocalDate.of(2026, 7, 28);
+        Employee employee = employee(1L, "HO-1", "Leyla", "-", 11L, "STANDARD");
+
+        Timetable standardTimetable = new Timetable();
+        standardTimetable.setId(11L);
+        standardTimetable.setShiftType("STANDARD");
+
+        AttendanceLog flexibleLog = log(1L, flexibleDay.atTime(10, 0), flexibleDay.atTime(11, 0));
+        flexibleLog.setId(10L);
+        AttendanceLog standardMorning = log(1L, standardDay.atTime(9, 0), standardDay.atTime(12, 0));
+        standardMorning.setId(20L);
+        AttendanceLog standardAfternoon = log(1L, standardDay.atTime(13, 0), standardDay.atTime(18, 0));
+        standardAfternoon.setId(21L);
+
+        when(attendanceLogRepository.findByTenantIdAndCheckInTimeBetween(eq(1L), any(), any()))
+                .thenReturn(List.of(flexibleLog, standardMorning, standardAfternoon));
+        when(employeeRepository.findAllById(any())).thenReturn(List.of(employee));
+        when(timetableRepository.findAllById(any())).thenReturn(List.of(standardTimetable));
+        when(departmentRepository.findAllById(any())).thenReturn(List.of());
+        when(positionRepository.findAllById(any())).thenReturn(List.of());
+        when(faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(any())).thenReturn(Optional.empty());
+        when(attendanceInferenceService.overlapsDay(any(), any())).thenAnswer(invocation -> {
+            AttendanceLog log = invocation.getArgument(0);
+            LocalDate day = invocation.getArgument(1);
+            return new AttendanceInferenceService().overlapsDay(log, day);
+        });
+        when(attendanceInferenceService.inferDay(any(), eq(standardDay))).thenAnswer(invocation ->
+                new AttendanceInferenceService().inferDay(invocation.getArgument(0), standardDay));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            LocalDate date = invocation.getArgument(1);
+            if (date != null && !date.isAfter(LocalDate.of(2026, 7, 25))) {
+                return new EmployeeShiftResolver.ResolvedShift(10L, "FLEXIBLE");
+            }
+            return new EmployeeShiftResolver.ResolvedShift(11L, "STANDARD");
+        }).when(employeeShiftResolver).resolveFromCache(any(), any(), any(), any());
+
+        PaginatedResponse<AttendanceReportRowDTO> flexibleOnly = attendanceReportService.getReport(
+                flexibleDay, standardDay, "FLEXIBLE", null, null, null, null, null, null, 0, 50);
+        PaginatedResponse<AttendanceReportRowDTO> standardOnly = attendanceReportService.getReport(
+                flexibleDay, standardDay, "STANDARD", null, null, null, null, null, null, 0, 50);
+
+        assertThat(flexibleOnly.getContent()).hasSize(1);
+        assertThat(flexibleOnly.getContent().get(0).getDate()).isEqualTo(flexibleDay);
+        assertThat(standardOnly.getContent()).hasSize(1);
+        assertThat(standardOnly.getContent().get(0).getDate()).isEqualTo(standardDay);
+        assertThat(standardOnly.getContent().get(0).getCheckInTime().toLocalDateTime()).isEqualTo(standardDay.atTime(9, 0));
+        assertThat(standardOnly.getContent().get(0).getCheckOutTime().toLocalDateTime()).isEqualTo(standardDay.atTime(18, 0));
     }
 
     private static Employee employee(Long id, String code, String first, String last, Long timetableId, String shiftType) {

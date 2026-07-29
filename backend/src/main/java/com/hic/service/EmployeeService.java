@@ -56,6 +56,7 @@ public class EmployeeService {
     private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
     private final UserScopeService userScopeService;
     private final TenantRepository tenantRepository;
+    private final ShiftAssignmentService shiftAssignmentService;
 
     public PaginatedResponse<EmployeeResponseDTO> getAll(int page, int size, String sortBy) {
         return getAll(page, size, sortBy, null);
@@ -191,6 +192,11 @@ public class EmployeeService {
         }
 
         Employee saved = employeeRepository.save(employee);
+        if (saved.getTimetableId() != null) {
+            LocalDate effectiveFrom = saved.getHireDate() != null ? saved.getHireDate() : LocalDate.now();
+            shiftAssignmentService.syncScheduleFromEmployee(saved, null, saved.getTimetableId(), effectiveFrom);
+            saved = employeeRepository.save(saved);
+        }
         List<Long> deviceIdsToAssign = resolveDeviceIdsByBranch(saved, tenantId);
         List<Long> assignedDeviceIds = replaceEmployeeDeviceAccess(saved, deviceIdsToAssign, tenantId);
         syncEmployeeToDevicesSafely(saved, assignedDeviceIds);
@@ -204,7 +210,12 @@ public class EmployeeService {
 
         validateDepartmentExists(dto.getDepartmentId());
         Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : TenantContext.getTenantId();
+        Long previousTimetableId = employee.getTimetableId();
         mapDtoToEmployee(dto, employee);
+        if (!java.util.Objects.equals(previousTimetableId, employee.getTimetableId())) {
+            shiftAssignmentService.syncScheduleFromEmployee(
+                    employee, previousTimetableId, employee.getTimetableId(), LocalDate.now());
+        }
 
         Employee saved = employeeRepository.save(employee);
         // Refresh home-branch devices but keep any cross-branch access already granted.

@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -54,6 +55,7 @@ public class AttendanceService {
     private final WorkScheduleRepository workScheduleRepository;
     private final UserScopeService userScopeService;
     private final AttendanceInferenceService attendanceInferenceService;
+    private final EmployeeShiftResolver employeeShiftResolver;
 
     private static final LocalTime DEFAULT_SHIFT_START = LocalTime.of(9, 0);
     private static final LocalTime DEFAULT_SHIFT_END = LocalTime.of(17, 0);
@@ -102,7 +104,7 @@ public class AttendanceService {
         List<AttendanceLog> logs = findDayLogs(employeeId, date);
         AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(logs, date);
         Employee employee = employeeRepository.findById(employeeId).orElse(null);
-        String shiftType = resolveShiftType(employee);
+        String shiftType = resolveShiftType(employee, date);
         ScheduleSettings scheduleSettings = resolveScheduleSettings(employee, date);
 
         Optional<DailyAttendanceSummary> existing = summaryRepository.findByEmployeeIdAndAttendanceDate(employeeId, date);
@@ -171,7 +173,9 @@ public class AttendanceService {
             AttendanceInferenceService.AttendanceInference inference = attendanceInferenceService.inferDay(dayLogs, currentDate);
 
             // Prefer live day-clipped inference for hours/times so midnight splits stay correct.
-            String shiftType = resolveShiftType(employee, timetable.orElse(null));
+            // Shift type is resolved as-of this calendar day so schedule changes do not rewrite history.
+            String shiftType = resolveShiftType(employee, currentDate);
+            Optional<Timetable> dayTimetable = resolveTimetableForDate(employee, currentDate, timetable);
             LocalDateTime firstCheckIn = inference.firstEntry();
             LocalDateTime lastCheckOut = inference.lastExit();
             double hoursWorked = inference.workedHoursForShift(shiftType);
@@ -187,7 +191,7 @@ public class AttendanceService {
             row.setCheckInTime(toOffsetDateTime(firstCheckIn));
             row.setCheckOutTime(toOffsetDateTime(lastCheckOut));
             row.setHoursWorked(hoursWorked);
-            row.setStatus(determineDailyStatus(summary, inference, onLeave, currentDate, timetable.orElse(null), shiftType));
+            row.setStatus(determineDailyStatus(summary, inference, onLeave, currentDate, dayTimetable.orElse(null), shiftType));
             row.setNotes(buildNotes(approvedLeaves, approvedPermissions, currentDate));
             row.setShiftType(shiftType);
             row.setSessions(toSessionDtos(inference.segments()));
@@ -344,17 +348,32 @@ public class AttendanceService {
     }
 
     private String resolveShiftType(Employee employee) {
-        return resolveShiftType(employee, null);
+        return resolveShiftType(employee, LocalDate.now());
     }
 
-    private String resolveShiftType(Employee employee, Timetable timetable) {
-        if (employee != null && employee.getShiftType() != null && !employee.getShiftType().isBlank()) {
-            return employee.getShiftType();
+    private String resolveShiftType(Employee employee, LocalDate date) {
+        if (employee == null) {
+            return null;
         }
-        if (timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()) {
-            return timetable.getShiftType();
+        EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolve(employee, date);
+        if (resolved.shiftType() != null && !resolved.shiftType().isBlank()) {
+            return resolved.shiftType();
         }
-        return employee != null ? employee.getShiftType() : null;
+        return employee.getShiftType();
+    }
+
+    private Optional<Timetable> resolveTimetableForDate(Employee employee, LocalDate date, Optional<Timetable> currentFallback) {
+        if (employee == null) {
+            return Optional.empty();
+        }
+        EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolve(employee, date);
+        if (resolved.timetableId() != null) {
+            if (currentFallback.isPresent() && Objects.equals(currentFallback.get().getId(), resolved.timetableId())) {
+                return currentFallback;
+            }
+            return timetableRepository.findById(resolved.timetableId());
+        }
+        return currentFallback;
     }
 
     private String buildNotes(List<LeaveRequest> leaves, List<EmployeePermission> permissions, LocalDate date) {

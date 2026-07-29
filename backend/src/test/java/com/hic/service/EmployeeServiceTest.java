@@ -70,6 +70,9 @@ class EmployeeServiceTest {
     @Mock
     private TenantRepository tenantRepository;
 
+    @Mock
+    private ShiftAssignmentService shiftAssignmentService;
+
     @InjectMocks
     private EmployeeService employeeService;
 

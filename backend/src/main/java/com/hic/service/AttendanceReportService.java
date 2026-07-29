@@ -54,6 +54,7 @@ public class AttendanceReportService {
     private final FaceDataRepository faceDataRepository;
     private final TimetableRepository timetableRepository;
     private final AttendanceInferenceService attendanceInferenceService;
+    private final EmployeeShiftResolver employeeShiftResolver;
 
     public PaginatedResponse<AttendanceReportRowDTO> getReport(
             LocalDate start,
@@ -153,10 +154,11 @@ public class AttendanceReportService {
         Map<Long, Employee> employeeMap = employeeRepository.findAllById(employeeIds).stream()
                 .collect(Collectors.toMap(Employee::getId, e -> e));
 
-        Set<Long> timetableIds = employeeMap.values().stream()
-                .map(Employee::getTimetableId)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Map<Long, List<com.hic.model.EmployeeShiftAssignment>> assignmentsByEmployee = tenantId != null
+                ? employeeShiftResolver.loadAssignmentsByEmployee(tenantId, employeeIds, start.minusDays(1), end)
+                : Map.of();
+
+        Set<Long> timetableIds = employeeShiftResolver.collectTimetableIds(employeeMap.values(), assignmentsByEmployee);
         Map<Long, Timetable> timetableMap = timetableIds.isEmpty()
                 ? Map.of()
                 : timetableRepository.findAllById(timetableIds).stream()
@@ -192,13 +194,6 @@ public class AttendanceReportService {
                 continue;
             }
 
-            // Always use the employee's assigned work schedule type — never infer from punches.
-            String scheduleShiftType = resolveAssignedScheduleShiftType(employee, timetableMap);
-
-            // Detailed logs: one response row per unique attendance session (not daily aggregation).
-            // Include any session that overlaps the selected range (night shifts / open sessions),
-            // not only rows whose check-in calendar date falls inside [start, end].
-            // Dedupe collapses identical copies created by concurrent device sync races.
             List<AttendanceLog> employeeLogs = attendanceInferenceService.dedupeSessions(
                     entry.getValue().stream()
                             .filter(log -> log.getCheckInTime() != null)
@@ -208,30 +203,77 @@ public class AttendanceReportService {
                             .toList()
             );
 
-            for (AttendanceLog log : employeeLogs) {
-                AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
-                dto.setAttendanceLogId(log.getId());
-                dto.setEmployeePk(employee.getId());
-                dto.setEmployeeId(employee.getEmployeeId());
-                dto.setFullName((safe(employee.getFirstName()) + " " + safe(employee.getLastName())).trim());
-                dto.setFin(employee.getFinNumber());
-                dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
-                dto.setPosition(positionNames.get(employee.getPositionId()));
-                dto.setArea(employee.getArea());
-                dto.setDate(log.getCheckInTime().toLocalDate());
-                dto.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
-                dto.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
-                if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
-                    dto.setWorkedMinutes((int) Duration.between(
-                            log.getCheckInTime(), log.getCheckOutTime()).toMinutes());
-                } else {
-                    dto.setWorkedMinutes(0);
-                }
-                dto.setVerificationMethod(normalizeVerificationMethod(log.getVerificationMethod()));
-                dto.setShiftType(scheduleShiftType);
-                faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
-                        .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
+            List<AttendanceLog> flexibleLogs = new ArrayList<>();
+            Map<LocalDate, List<AttendanceLog>> standardByDay = new HashMap<>();
+            Map<LocalDate, String> standardShiftTypeByDay = new HashMap<>();
 
+            for (AttendanceLog log : employeeLogs) {
+                LocalDate asOf = log.getCheckInTime().toLocalDate();
+                EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolveFromCache(
+                        employee, asOf, assignmentsByEmployee, timetableMap);
+                String scheduleShiftType = resolved.shiftType();
+
+                if (scheduleShiftType == null || ShiftTypes.isFlexible(scheduleShiftType)) {
+                    // Flexible (or unknown without assignment history): one row per session.
+                    flexibleLogs.add(log);
+                    continue;
+                }
+
+                if (ShiftTypes.STANDARD.equals(ShiftTypes.canonical(scheduleShiftType))) {
+                    // STANDARD: contribute to calendar-day first-in / last-out rows.
+                    for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+                        if (!attendanceInferenceService.overlapsDay(log, day)) {
+                            continue;
+                        }
+                        EmployeeShiftResolver.ResolvedShift dayShift = employeeShiftResolver.resolveFromCache(
+                                employee, day, assignmentsByEmployee, timetableMap);
+                        if (!ShiftTypes.STANDARD.equals(ShiftTypes.canonical(dayShift.shiftType()))) {
+                            continue;
+                        }
+                        standardByDay.computeIfAbsent(day, ignored -> new ArrayList<>()).add(log);
+                        standardShiftTypeByDay.put(day, dayShift.shiftType());
+                    }
+                } else {
+                    // NIGHT / other non-flexible — keep one row per session with as-of shift type.
+                    AttendanceReportRowDTO dto = buildSessionRow(
+                            employee, log, scheduleShiftType, departmentNames, positionNames);
+                    if (predicate.test(dto)) {
+                        rows.add(dto);
+                    }
+                }
+            }
+
+            // Flexible: one row per session, classified by schedule active on check-in day.
+            for (AttendanceLog log : flexibleLogs) {
+                LocalDate asOf = log.getCheckInTime().toLocalDate();
+                EmployeeShiftResolver.ResolvedShift resolved = employeeShiftResolver.resolveFromCache(
+                        employee, asOf, assignmentsByEmployee, timetableMap);
+                String scheduleShiftType = resolved.shiftType() != null ? resolved.shiftType() : employee.getShiftType();
+                AttendanceReportRowDTO dto = buildSessionRow(
+                        employee, log, scheduleShiftType, departmentNames, positionNames);
+                if (predicate.test(dto)) {
+                    rows.add(dto);
+                }
+            }
+
+            // STANDARD: one row per calendar day — first entry / last exit.
+            for (Map.Entry<LocalDate, List<AttendanceLog>> dayEntry : standardByDay.entrySet()) {
+                LocalDate day = dayEntry.getKey();
+                AttendanceInferenceService.AttendanceInference inference =
+                        attendanceInferenceService.inferDay(dayEntry.getValue(), day);
+                if (inference.firstEntry() == null && inference.lastExit() == null && !inference.currentlyInside()) {
+                    continue;
+                }
+                String dayShiftType = standardShiftTypeByDay.getOrDefault(day, ShiftTypes.STANDARD);
+                AttendanceReportRowDTO dto = buildDailyRow(
+                        employee,
+                        day,
+                        inference,
+                        dayShiftType,
+                        dayEntry.getValue(),
+                        departmentNames,
+                        positionNames
+                );
                 if (predicate.test(dto)) {
                     rows.add(dto);
                 }
@@ -244,17 +286,75 @@ public class AttendanceReportService {
                 .toList();
     }
 
-    /**
-     * Prefer timetable.shiftType from the employee's assigned work schedule; fall back to employee.shiftType.
-     */
-    private String resolveAssignedScheduleShiftType(Employee employee, Map<Long, Timetable> timetableMap) {
-        if (employee.getTimetableId() != null) {
-            Timetable timetable = timetableMap.get(employee.getTimetableId());
-            if (timetable != null && timetable.getShiftType() != null && !timetable.getShiftType().isBlank()) {
-                return timetable.getShiftType();
-            }
+    private AttendanceReportRowDTO buildSessionRow(
+            Employee employee,
+            AttendanceLog log,
+            String scheduleShiftType,
+            Map<Long, String> departmentNames,
+            Map<Long, String> positionNames
+    ) {
+        AttendanceReportRowDTO dto = baseEmployeeRow(employee, departmentNames, positionNames);
+        dto.setAttendanceLogId(log.getId());
+        dto.setDate(log.getCheckInTime().toLocalDate());
+        dto.setCheckInTime(toOffsetDateTime(log.getCheckInTime()));
+        dto.setCheckOutTime(toOffsetDateTime(log.getCheckOutTime()));
+        if (log.getCheckOutTime() != null && log.getCheckOutTime().isAfter(log.getCheckInTime())) {
+            dto.setWorkedMinutes((int) Duration.between(log.getCheckInTime(), log.getCheckOutTime()).toMinutes());
+        } else {
+            dto.setWorkedMinutes(0);
         }
-        return employee.getShiftType();
+        dto.setVerificationMethod(normalizeVerificationMethod(log.getVerificationMethod()));
+        dto.setShiftType(scheduleShiftType);
+        return dto;
+    }
+
+    private AttendanceReportRowDTO buildDailyRow(
+            Employee employee,
+            LocalDate day,
+            AttendanceInferenceService.AttendanceInference inference,
+            String scheduleShiftType,
+            List<AttendanceLog> dayLogs,
+            Map<Long, String> departmentNames,
+            Map<Long, String> positionNames
+    ) {
+        AttendanceReportRowDTO dto = baseEmployeeRow(employee, departmentNames, positionNames);
+        Long firstLogId = dayLogs.stream()
+                .filter(l -> l.getCheckInTime() != null)
+                .min(Comparator.comparing(AttendanceLog::getCheckInTime)
+                        .thenComparing(l -> l.getId() != null ? l.getId() : 0L))
+                .map(AttendanceLog::getId)
+                .orElse(null);
+        dto.setAttendanceLogId(firstLogId);
+        dto.setDate(day);
+        dto.setCheckInTime(toOffsetDateTime(inference.firstEntry()));
+        dto.setCheckOutTime(toOffsetDateTime(inference.lastExit()));
+        dto.setWorkedMinutes(inference.workedMinutesForShift(scheduleShiftType));
+        String method = dayLogs.stream()
+                .map(AttendanceLog::getVerificationMethod)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(null);
+        dto.setVerificationMethod(normalizeVerificationMethod(method));
+        dto.setShiftType(scheduleShiftType);
+        return dto;
+    }
+
+    private AttendanceReportRowDTO baseEmployeeRow(
+            Employee employee,
+            Map<Long, String> departmentNames,
+            Map<Long, String> positionNames
+    ) {
+        AttendanceReportRowDTO dto = new AttendanceReportRowDTO();
+        dto.setEmployeePk(employee.getId());
+        dto.setEmployeeId(employee.getEmployeeId());
+        dto.setFullName((safe(employee.getFirstName()) + " " + safe(employee.getLastName())).trim());
+        dto.setFin(employee.getFinNumber());
+        dto.setDepartment(departmentNames.get(employee.getDepartmentId()));
+        dto.setPosition(positionNames.get(employee.getPositionId()));
+        dto.setArea(employee.getArea());
+        faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employee.getId())
+                .ifPresent(face -> dto.setPhotoUrl("/api/faces/employee/" + employee.getId() + "/image"));
+        return dto;
     }
 
     /**

@@ -22,6 +22,7 @@ import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -29,10 +30,14 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -63,6 +68,10 @@ import java.util.Set;
  * same employeeNo + conflicting names → skip and flag; already in DB → skip employee
  * fields but link missing device access. Faces are only taken from devices the employee
  * is linked to.
+ *
+ * <p>Optional post-step ({@code writeToOtherBranchDevices}, default on): after import,
+ * persons found on any scanned device are also written to sibling devices of the same
+ * branch (user record + face when a profile image exists).
  */
 @Service
 @Slf4j
@@ -81,6 +90,7 @@ public class HikDeviceUserImportService {
     private final EncryptionUtil encryptionUtil;
     private final ObjectMapper objectMapper;
     private final EmployeeFaceImageService employeeFaceImageService;
+    private final IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     @Value("${isapi.base-url:}")
     private String isapiBaseUrl;
@@ -96,7 +106,7 @@ public class HikDeviceUserImportService {
             throw new BadRequestException("Device is not assigned to a branch");
         }
         DeviceEmployeeImportDTO.ImportRequest request = new DeviceEmployeeImportDTO.ImportRequest(
-                device.getBranchId(), List.of(deviceConfigId));
+                device.getBranchId(), List.of(deviceConfigId), null);
         DeviceEmployeeImportDTO.ImportResult result = importUsersFromBranch(request);
         return new HikUserInfoSearchDTO.ImportResultDTO(
                 result.getTotalFetched(),
@@ -206,13 +216,22 @@ public class HikDeviceUserImportService {
         }
         result.setFacesSkippedNoMatch(stillWithoutFace);
 
+        boolean writeToOthers = request.getWriteToOtherBranchDevices() == null
+                || Boolean.TRUE.equals(request.getWriteToOtherBranchDevices());
+        if (writeToOthers) {
+            writePersonsToOtherBranchDevices(branchDevices, byEmployeeNo, result);
+        }
+
         result.setMessage(String.format(
-                "Import complete: branch=%s prefix=%s devices=%d failedDevices=%d fetched=%d unique=%d created=%d skippedExisting=%d crossBranchLinked=%d skippedConflict=%d accessLinked=%d facesSynced=%d facesSkippedExisting=%d facesSkippedNoMatch=%d facesFailed=%d errors=%d",
+                "Import complete: branch=%s prefix=%s devices=%d failedDevices=%d fetched=%d unique=%d created=%d skippedExisting=%d crossBranchLinked=%d skippedConflict=%d accessLinked=%d facesSynced=%d facesSkippedExisting=%d facesSkippedNoMatch=%d facesFailed=%d writtenToOther=%d alreadyOnOther=%d otherWriteFailed=%d facesOther=%d facesOtherFailed=%d errors=%d",
                 branch.getName(), branchPrefix, result.getDevicesScanned(), result.getDevicesFailed(),
                 result.getTotalFetched(), result.getUniquePersons(), result.getCreated(),
                 result.getSkippedExisting(), result.getCrossBranchLinked(), result.getSkippedConflict(),
                 result.getAccessLinked(), result.getFacesSynced(), result.getFacesSkippedExisting(),
-                result.getFacesSkippedNoMatch(), result.getFacesFailed(), result.getErrors()));
+                result.getFacesSkippedNoMatch(), result.getFacesFailed(),
+                result.getWrittenToOtherDevices(), result.getAlreadyOnOtherDevices(),
+                result.getOtherDeviceWriteFailed(), result.getFacesWrittenToOtherDevices(),
+                result.getFacesOtherDeviceFailed(), result.getErrors()));
         log.info(result.getMessage());
         return result;
     }
@@ -497,6 +516,199 @@ public class HikDeviceUserImportService {
         status.setFacesSynced(syncedOnDevice);
         log.info("Face sync for deviceConfigId={} isapiId={}: faceIndex={} synced={}",
                 device.getId(), isapiId, faceUrlByFpid.size(), syncedOnDevice);
+    }
+
+    /**
+     * Writes imported persons onto sibling devices of the same branch where they were missing.
+     * Source of truth for "already present on scan" is {@code person.deviceConfigIds}.
+     * Access is linked for every branch device; create+face only runs for devices not in that set.
+     */
+    private void writePersonsToOtherBranchDevices(
+            List<DeviceConfig> branchDevices,
+            Map<String, AggregatedPerson> byEmployeeNo,
+            DeviceEmployeeImportDTO.ImportResult result) {
+
+        if (branchDevices == null || branchDevices.isEmpty() || byEmployeeNo == null || byEmployeeNo.isEmpty()) {
+            return;
+        }
+        if (!StringUtils.hasText(isapiBaseUrl)) {
+            log.warn("Skipping write-to-other-branch-devices: isapi.base-url is not configured");
+            return;
+        }
+
+        for (AggregatedPerson person : byEmployeeNo.values()) {
+            if (person == null || person.conflict || person.employeePk == null) {
+                continue;
+            }
+            Employee employee = employeeRepository.findById(person.employeePk).orElse(null);
+            if (employee == null) {
+                continue;
+            }
+
+            Set<Long> allBranchDeviceIds = new LinkedHashSet<>();
+            for (DeviceConfig d : branchDevices) {
+                if (d != null && d.getId() != null) {
+                    allBranchDeviceIds.add(d.getId());
+                }
+            }
+            int linked = linkMissingAccess(employee, allBranchDeviceIds);
+            result.setAccessLinked(result.getAccessLinked() + linked);
+
+            Set<Long> foundOnScan = new LinkedHashSet<>(person.deviceConfigIds);
+            for (DeviceConfig target : branchDevices) {
+                if (target == null || target.getId() == null) {
+                    continue;
+                }
+                if (foundOnScan.contains(target.getId())) {
+                    continue;
+                }
+
+                Long isapiId = resolveIsapiDeviceId(target);
+                if (isapiId == null) {
+                    result.setOtherDeviceWriteFailed(result.getOtherDeviceWriteFailed() + 1);
+                    result.getErrorsDetail().add(new DeviceEmployeeImportDTO.SkippedPerson(
+                            person.employeeNo,
+                            person.name,
+                            "Digər cihazda ISAPI device id yoxdur: " + target.getDeviceName(),
+                            List.of(target.getId())));
+                    continue;
+                }
+
+                try {
+                    isapiEmployeeUserSyncService.syncEmployee(employee, List.of(isapiId));
+                    person.deviceConfigIds.add(target.getId());
+                    result.setWrittenToOtherDevices(result.getWrittenToOtherDevices() + 1);
+                    pushFaceToDeviceIfAvailable(employee, isapiId, result);
+                } catch (RuntimeException ex) {
+                    if (isAlreadyExistsOnDevice(ex)) {
+                        person.deviceConfigIds.add(target.getId());
+                        result.setAlreadyOnOtherDevices(result.getAlreadyOnOtherDevices() + 1);
+                        pushFaceToDeviceIfAvailable(employee, isapiId, result);
+                    } else {
+                        log.warn("Failed writing employee {} to sibling deviceConfigId={}: {}",
+                                employee.getEmployeeId(), target.getId(), ex.getMessage());
+                        result.setOtherDeviceWriteFailed(result.getOtherDeviceWriteFailed() + 1);
+                        result.getErrorsDetail().add(new DeviceEmployeeImportDTO.SkippedPerson(
+                                person.employeeNo,
+                                person.name,
+                                "Digər cihaza yazıla bilmədi (" + (target.getDeviceName() != null
+                                        ? target.getDeviceName() : target.getId()) + "): " + ex.getMessage(),
+                                List.of(target.getId())));
+                    }
+                }
+            }
+        }
+    }
+
+    private void pushFaceToDeviceIfAvailable(
+            Employee employee,
+            Long isapiDeviceId,
+            DeviceEmployeeImportDTO.ImportResult result) {
+        Optional<EmployeeFaceImageService.FaceImageData> faceOpt =
+                employeeFaceImageService.getLatestFaceImage(employee.getId());
+        if (faceOpt.isEmpty()) {
+            return;
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(faceOpt.get().path());
+            Long deviceUserId = findDeviceUserIdByEmployeeNo(isapiDeviceId, resolveDevicePersonNo(employee));
+            if (deviceUserId == null) {
+                result.setFacesOtherDeviceFailed(result.getFacesOtherDeviceFailed() + 1);
+                return;
+            }
+            uploadFaceBytesToDevice(isapiDeviceId, deviceUserId, bytes, faceOpt.get().contentType());
+            result.setFacesWrittenToOtherDevices(result.getFacesWrittenToOtherDevices() + 1);
+        } catch (Exception ex) {
+            log.warn("Face push to sibling device {} failed for employee {}: {}",
+                    isapiDeviceId, employee.getEmployeeId(), ex.getMessage());
+            result.setFacesOtherDeviceFailed(result.getFacesOtherDeviceFailed() + 1);
+        }
+    }
+
+    private Long findDeviceUserIdByEmployeeNo(Long isapiDeviceId, String employeeNo) throws Exception {
+        if (!StringUtils.hasText(employeeNo)) {
+            return null;
+        }
+        String url = trimTrailingSlash(isapiBaseUrl) + "/api/devices/" + isapiDeviceId + "/users";
+        ResponseEntity<String> raw = restTemplate.exchange(url, HttpMethod.GET, null, String.class);
+        if (raw.getBody() == null) {
+            return null;
+        }
+        // Backend proxy may wrap payload; accept raw array or { data: [...] }.
+        String body = raw.getBody().trim();
+        List<IsapiDeviceUserDto> users;
+        if (body.startsWith("[")) {
+            users = objectMapper.readValue(body, new TypeReference<>() {});
+        } else {
+            var root = objectMapper.readTree(body);
+            var dataNode = root.get("data");
+            if (dataNode != null && dataNode.isArray()) {
+                users = objectMapper.convertValue(dataNode, new TypeReference<>() {});
+            } else {
+                users = objectMapper.convertValue(root, new TypeReference<>() {});
+            }
+        }
+        String key = employeeNo.trim().toLowerCase(Locale.ROOT);
+        for (IsapiDeviceUserDto u : users) {
+            if (u != null && StringUtils.hasText(u.getEmployeeNo())
+                    && key.equals(u.getEmployeeNo().trim().toLowerCase(Locale.ROOT))) {
+                return u.getId();
+            }
+        }
+        return null;
+    }
+
+    private void uploadFaceBytesToDevice(
+            Long isapiDeviceId, Long deviceUserId, byte[] bytes, String contentType) {
+        String url = trimTrailingSlash(isapiBaseUrl)
+                + "/api/devices/" + isapiDeviceId + "/users/" + deviceUserId + "/face";
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+
+        ByteArrayResource fileResource = new ByteArrayResource(bytes) {
+            @Override
+            public String getFilename() {
+                if (contentType != null && contentType.contains("png")) {
+                    return "face.png";
+                }
+                if (contentType != null && contentType.contains("webp")) {
+                    return "face.webp";
+                }
+                return "face.jpg";
+            }
+        };
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("file", fileResource);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(body, headers);
+        ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            throw new IllegalStateException("Face upload HTTP " + response.getStatusCode().value());
+        }
+    }
+
+    private static boolean isAlreadyExistsOnDevice(Throwable ex) {
+        String msg = ex.getMessage();
+        if (!StringUtils.hasText(msg)) {
+            Throwable cause = ex.getCause();
+            msg = cause != null ? cause.getMessage() : null;
+        }
+        if (!StringUtils.hasText(msg)) {
+            return false;
+        }
+        String lower = msg.toLowerCase(Locale.ROOT);
+        return lower.contains("already exist")
+                || lower.contains("already exists")
+                || lower.contains("duplicate")
+                || lower.contains("employee no already")
+                || lower.contains("employeenoexist")
+                || (ex instanceof HttpStatusCodeException hse && hse.getStatusCode().value() == 409);
+    }
+
+    private static String resolveDevicePersonNo(Employee employee) {
+        if (StringUtils.hasText(employee.getDeviceEmployeeNo())) {
+            return employee.getDeviceEmployeeNo().trim();
+        }
+        return employee.getEmployeeId();
     }
 
     private Map<String, String> fetchFaceIndexFromDevice(Long isapiDeviceId) {
@@ -796,6 +1008,13 @@ public class HikDeviceUserImportService {
         private String gender;
         private String beginTime;
         private String endTime;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class IsapiDeviceUserDto {
+        private Long id;
+        private String employeeNo;
     }
 
     @Data

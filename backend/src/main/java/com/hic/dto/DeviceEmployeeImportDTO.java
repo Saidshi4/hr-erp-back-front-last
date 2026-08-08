@@ -25,6 +25,13 @@ public class DeviceEmployeeImportDTO {
          * When null/empty, all devices of the branch are scanned.
          */
         private List<Long> deviceConfigIds;
+
+        /**
+         * When true (default), persons found on any scanned device are also written
+         * to the other devices of the same branch (user record + face when available).
+         * Null is treated as true.
+         */
+        private Boolean writeToOtherBranchDevices;
     }
 
     @Data
@@ -47,6 +54,15 @@ public class DeviceEmployeeImportDTO {
         private int facesSkippedNoMatch;
         private int facesSkippedExisting;
         private int facesFailed;
+        /** Person was created on a sibling branch device where they were missing. */
+        private int writtenToOtherDevices;
+        /** Sibling device already had the person (or create reported already exists). */
+        private int alreadyOnOtherDevices;
+        /** Failed to create the person on a sibling branch device. */
+        private int otherDeviceWriteFailed;
+        /** Face image pushed to a sibling branch device. */
+        private int facesWrittenToOtherDevices;
+        private int facesOtherDeviceFailed;
         private int errors;
         private String message;
         private List<DeviceScanStatus> deviceStatuses = new ArrayList<>();

@@ -49,6 +49,7 @@ class HikDeviceUserImportServiceTest {
     @Mock private TenantRepository tenantRepository;
     @Mock private EncryptionUtil encryptionUtil;
     @Mock private EmployeeFaceImageService employeeFaceImageService;
+    @Mock private IsapiEmployeeUserSyncService isapiEmployeeUserSyncService;
 
     private HikDeviceUserImportService service;
 
@@ -63,7 +64,8 @@ class HikDeviceUserImportServiceTest {
                 tenantRepository,
                 encryptionUtil,
                 new ObjectMapper(),
-                employeeFaceImageService);
+                employeeFaceImageService,
+                isapiEmployeeUserSyncService);
         ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://isapi:8081");
         TenantContext.setTenantId(1L);
     }
@@ -118,7 +120,7 @@ class HikDeviceUserImportServiceTest {
                 .thenReturn(false);
 
         DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
-                new DeviceEmployeeImportDTO.ImportRequest(10L, null));
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null, false));
 
         assertThat(result.getBranchPrefix()).isEqualTo("BAK");
         assertThat(result.getCreated()).isEqualTo(1);
@@ -133,6 +135,7 @@ class HikDeviceUserImportServiceTest {
         assertThat(empCaptor.getValue().getDeviceEmployeeNo()).isEqualTo("1001");
         assertThat(empCaptor.getValue().getBranchId()).isEqualTo(10L);
         verify(employeeDeviceAccessRepository, times(2)).save(any());
+        verify(isapiEmployeeUserSyncService, never()).syncEmployee(any(), any());
     }
 
     @Test
@@ -187,7 +190,7 @@ class HikDeviceUserImportServiceTest {
         }).when(employeeFaceImageService).saveFaceImageBytes(eq(50L), any(byte[].class), eq("jpg"));
 
         DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
-                new DeviceEmployeeImportDTO.ImportRequest(10L, null));
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null, false));
 
         assertThat(result.getCreated()).isEqualTo(2);
         assertThat(result.getFacesSynced()).isEqualTo(1);
@@ -235,7 +238,7 @@ class HikDeviceUserImportServiceTest {
                 .thenReturn(false);
 
         DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
-                new DeviceEmployeeImportDTO.ImportRequest(20L, null));
+                new DeviceEmployeeImportDTO.ImportRequest(20L, null, false));
 
         assertThat(result.getCreated()).isZero();
         assertThat(result.getCrossBranchLinked()).isEqualTo(1);
@@ -267,10 +270,76 @@ class HikDeviceUserImportServiceTest {
                 .thenThrow(new RuntimeException("basic also failed"));
 
         DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
-                new DeviceEmployeeImportDTO.ImportRequest(10L, null));
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null, false));
 
         assertThat(result.getDevicesFailed()).isEqualTo(1);
         assertThat(result.getDevicesScanned()).isEqualTo(2);
+    }
+
+    @Test
+    void importUsersFromBranch_writesMissingPersonToSiblingBranchDevice() {
+        Branch branch = branch(10L, "Baku", "BAK");
+        when(branchRepository.findById(10L)).thenReturn(Optional.of(branch));
+
+        DeviceConfig entry = device(1L, "101", "Entry", "10.0.0.1", 10L);
+        DeviceConfig exit = device(2L, "102", "Exit", "10.0.0.2", 10L);
+        when(deviceConfigRepository.findByBranchId(10L)).thenReturn(List.of(entry, exit));
+
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        [{"employeeNo":"1001","name":"Ali Valiyev","gender":"male","beginTime":"2024-01-01T00:00:00"}]
+                        """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+
+        when(employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(eq(1L), anyString()))
+                .thenReturn(Optional.empty());
+        when(employeeRepository.findByTenantIdAndBranchIdAndDeviceEmployeeNoIgnoreCase(eq(1L), eq(10L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndDeviceEmployeeNoIgnoreCase(eq(1L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndEmployeeIdIn(eq(1L), any()))
+                .thenReturn(List.of());
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
+            Employee e = inv.getArgument(0);
+            e.setId(77L);
+            return e;
+        });
+        when(employeeRepository.findById(77L)).thenAnswer(inv -> {
+            Employee e = new Employee();
+            e.setId(77L);
+            e.setEmployeeId("BAK-1001");
+            e.setDeviceEmployeeNo("1001");
+            e.setFirstName("Ali");
+            e.setLastName("Valiyev");
+            e.setTenantId(1L);
+            e.setBranchId(10L);
+            return Optional.of(e);
+        });
+        when(employeeDeviceAccessRepository.existsByEmployeeIdAndDeviceConfigId(eq(77L), eq(1L)))
+                .thenReturn(false)
+                .thenReturn(true);
+        when(employeeDeviceAccessRepository.existsByEmployeeIdAndDeviceConfigId(eq(77L), eq(2L)))
+                .thenReturn(false);
+        when(employeeFaceImageService.hasFaceImage(77L)).thenReturn(false);
+        when(employeeFaceImageService.getLatestFaceImage(77L)).thenReturn(Optional.empty());
+
+        DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null, true));
+
+        assertThat(result.getCreated()).isEqualTo(1);
+        assertThat(result.getWrittenToOtherDevices()).isEqualTo(1);
+        assertThat(result.getOtherDeviceWriteFailed()).isZero();
+        verify(isapiEmployeeUserSyncService).syncEmployee(any(Employee.class), eq(List.of(102L)));
+        verify(employeeDeviceAccessRepository, times(2)).save(any());
     }
 
     @Test

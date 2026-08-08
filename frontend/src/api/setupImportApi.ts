@@ -3,6 +3,8 @@ import client from './client.ts'
 export interface DeviceEmployeeImportRequest {
   branchId: number
   deviceConfigIds?: number[]
+  /** Default true on backend when omitted: write persons to sibling branch devices. */
+  writeToOtherBranchDevices?: boolean
 }
 
 export interface DeviceScanStatus {
@@ -51,6 +53,11 @@ export interface DeviceEmployeeImportResult {
   facesSkippedNoMatch?: number
   facesSkippedExisting?: number
   facesFailed?: number
+  writtenToOtherDevices?: number
+  alreadyOnOtherDevices?: number
+  otherDeviceWriteFailed?: number
+  facesWrittenToOtherDevices?: number
+  facesOtherDeviceFailed?: number
   errors: number
   message: string
   deviceStatuses: DeviceScanStatus[]

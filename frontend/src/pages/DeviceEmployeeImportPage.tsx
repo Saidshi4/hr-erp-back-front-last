@@ -23,6 +23,7 @@ export default function DeviceEmployeeImportPage() {
   const [branchId, setBranchId] = useState<number | ''>('')
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
   const [useDeviceSubset, setUseDeviceSubset] = useState(false)
+  const [writeToOtherBranchDevices, setWriteToOtherBranchDevices] = useState(true)
   const [loadingMeta, setLoadingMeta] = useState(true)
   const [importing, setImporting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -93,6 +94,7 @@ export default function DeviceEmployeeImportPage() {
     try {
       const payload = {
         branchId: Number(branchId),
+        writeToOtherBranchDevices,
         ...(useDeviceSubset ? { deviceConfigIds: selectedDeviceIds } : {}),
       }
       const res = await setupImportApi.importEmployees(payload)
@@ -112,8 +114,8 @@ export default function DeviceEmployeeImportPage() {
           <p className="text-sm text-gray-500 mt-1">
             Qurulum komandası üçün: filial cihazlarındakı mövcud istifadəçiləri və üz şəkillərini sistemə köçürür.
             Əməkdaş kodu filial prefiksi ilə yazılır (məs. <span className="font-medium text-gray-700">BAK-1001</span>),
-            cihazdakı şəxs ID isə punch/sync üçün saxlanır. Üz şəkli cihazdakı FDLib üzündən oxunub
-            əməkdaş profil şəkli kimi saxlanır; üzü olmayan şəxslərə təsadüfi şəkil verilmir.
+            cihazdakı şəxs ID isə punch/sync üçün saxlanır. Bir cihazda tapılan şəxsi eyni filialın digər
+            cihazlarına da yaza bilərsiniz.
           </p>
         </div>
 
@@ -204,6 +206,26 @@ export default function DeviceEmployeeImportPage() {
                 </div>
               )}
 
+              {branchId !== '' && branchDevices.length > 1 && (
+                <label className="flex items-start gap-3 rounded-lg border border-gray-200 bg-slate-50 px-3 py-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-1"
+                    checked={writeToOtherBranchDevices}
+                    onChange={(e) => setWriteToOtherBranchDevices(e.target.checked)}
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-gray-900">
+                      Filialın digər cihazlarına da yaz
+                    </span>
+                    <span className="block text-xs text-gray-500 mt-0.5">
+                      Bir cihazda tapılan şəxs eyni filialın digər cihazlarında yoxdursa, ora da əlavə olunur
+                      (ad və üz şəkli ilə, əgər üz varsa).
+                    </span>
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
                   {error}
@@ -243,6 +265,10 @@ export default function DeviceEmployeeImportPage() {
               <Stat label="Üzü olmayan" value={result.facesSkippedNoMatch || 0} />
               <Stat label="Şəkil artıq var" value={result.facesSkippedExisting || 0} />
               <Stat label="Şəkil xətası" value={result.facesFailed || 0} tone="red" />
+              <Stat label="Digər cihazlara yazıldı" value={result.writtenToOtherDevices || 0} tone="green" />
+              <Stat label="Artıq digər cihazda var idi" value={result.alreadyOnOtherDevices || 0} />
+              <Stat label="Digər cihaza yazıla bilmədi" value={result.otherDeviceWriteFailed || 0} tone="red" />
+              <Stat label="Üz digər cihaza yazıldı" value={result.facesWrittenToOtherDevices || 0} tone="green" />
             </div>
 
             {(result.branchPrefix || result.branchName) && (

@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/authStore.ts'
 import { t } from '../i18n/index.ts'
 import { roleLabel } from '../i18n/labels.ts'
 import AttendraBrand from '../components/AttendraBrand.tsx'
+import { getApiErrorMessage } from '../utils/apiError.ts'
 
 const AUTH_BG = 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #2d2472 100%)'
 const ACCENT_BAR_GRADIENT = 'linear-gradient(90deg, #7c3aed, #a855f7, #c084fc)'
@@ -88,15 +89,12 @@ export default function SignupPage() {
       setSuccess(true)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      if (status === 400) {
-        const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-        setError(msg ?? t('signup.error'))
-      } else if (status === 401) {
+      if (status === 401) {
         setError(t('signup.authRequired'))
       } else if (status === 403) {
         setError(t('signup.forbidden'))
       } else {
-        setError(t('signup.error'))
+        setError(getApiErrorMessage(err, t('signup.error')))
       }
     } finally {
       setLoading(false)
@@ -138,8 +136,15 @@ export default function SignupPage() {
 
         <div className="p-8 pt-7">
           {/* Back link */}
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) {
+                navigate(-1)
+              } else {
+                navigate(isAuthenticated ? '/employees' : '/login')
+              }
+            }}
             className="flex items-center gap-1.5 text-xs font-medium mb-6 transition-colors"
             style={{ color: '#7c3aed' }}
           >
@@ -147,7 +152,7 @@ export default function SignupPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             {t('signup.back')}
-          </Link>
+          </button>
 
           {/* Brand — full logo */}
           <div className="flex flex-col items-center mb-7">

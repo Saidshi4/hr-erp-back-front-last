@@ -3,11 +3,11 @@ import Layout from '../components/Layout.tsx'
 import { useScheduleStore } from '../store/scheduleStore.ts'
 import { Timetable, Holiday, Permission, PermissionType } from '../types'
 import ShiftAssignmentPage from './ShiftAssignmentPage.tsx'
-import PermissionAssignmentPage from './PermissionAssignmentPage.tsx'
 import { statusLabel } from '../i18n/labels.ts'
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
-const SHIFT_TYPES = ['MORNING', 'STANDARD', 'NIGHT', 'FLEXIBLE']
+/** UI-exposed shift types only. MORNING/NIGHT remain valid in DB/backend. */
+const SHIFT_TYPES = ['STANDARD', 'FLEXIBLE']
 const LATE_OPTIONS = [0, 5, 10, 15, 20, 30, 45, 60]
 const EARLY_OPTIONS = [0, 5, 10, 15, 30]
 const APPLY_SCOPES = ['ALL', 'SPECIFIC_DEPARTMENT', 'SPECIFIC_BRANCH']
@@ -86,10 +86,11 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 // ─── Tab 1: Timetables ────────────────────────────────────────────────────────
 const SHIFT_TYPE_LABELS: Record<string, string> = {
-  MORNING: 'Səhər növbəsi',
   STANDARD: 'Standart növbə',
-  NIGHT: 'Gecə növbəsi',
   FLEXIBLE: 'Çevik növbə',
+  // Legacy values still stored in DB — shown when editing existing schedules
+  MORNING: 'Standart növbə',
+  NIGHT: 'Standart növbə',
 }
 
 const defaultTimetable = (): Partial<Timetable> => ({
@@ -115,6 +116,13 @@ function TimetableModal({ initial, onSave, onClose }: {
 
   const set = (k: keyof Timetable, v: unknown) => setForm(f => ({ ...f, [k]: v }))
   const isFlexible = (form.shiftType ?? '').toUpperCase() === 'FLEXIBLE'
+  const shiftTypeOptions = (() => {
+    const current = (form.shiftType ?? '').toUpperCase()
+    if (current && !(SHIFT_TYPES as string[]).includes(current)) {
+      return [...SHIFT_TYPES, current]
+    }
+    return SHIFT_TYPES
+  })()
 
   const handleSave = async () => {
     if (!form.name?.trim()) { setError('Növbə adı daxil edilməlidir'); return }
@@ -153,7 +161,7 @@ function TimetableModal({ initial, onSave, onClose }: {
               type="text"
               value={form.name ?? ''}
               onChange={e => set('name', e.target.value)}
-              placeholder="məs. Səhər növbəsi, Axşam növbəsi..."
+              placeholder="məs. Standart ofis, Dəstək növbəsi..."
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             />
           </div>
@@ -165,7 +173,7 @@ function TimetableModal({ initial, onSave, onClose }: {
               className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             >
               <option value="">-- Növbə növü seçin --</option>
-              {SHIFT_TYPES.map(s => (
+              {shiftTypeOptions.map(s => (
                 <option key={s} value={s}>{SHIFT_TYPE_LABELS[s] ?? s}</option>
               ))}
             </select>
@@ -268,7 +276,11 @@ function TimetableTab() {
                   </div>
                   <div>
                     <p className="font-semibold text-gray-800 text-sm">{t.name}</p>
-                    {t.shiftType && <span className="text-xs text-purple-600 font-medium">{t.shiftType}</span>}
+                    {t.shiftType && (
+                      <span className="text-xs text-purple-600 font-medium">
+                        {SHIFT_TYPE_LABELS[t.shiftType] ?? t.shiftType}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="flex gap-1">
@@ -675,28 +687,10 @@ function PermissionTab() {
 const TABS = [
   {
     key: 'timetables',
-    label: 'Esas iş qrafiki',
+    label: 'İş qrafiki',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3M5 11h14M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-      </svg>
-    ),
-  },
-  {
-    key: 'holidays',
-    label: 'Bayram günləri',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-      </svg>
-    ),
-  },
-  {
-    key: 'permissions',
-    label: 'İcazələr',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
       </svg>
     ),
   },
@@ -706,15 +700,6 @@ const TABS = [
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    key: 'permission-assignment',
-    label: 'İcazə təyin',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
       </svg>
     ),
   },
@@ -728,7 +713,7 @@ export default function WorkSchedulePage() {
       <div className="p-8 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">İş Qrafiki</h1>
-          <p className="text-sm text-gray-500 mt-1">İş qrafikləri, bayram günləri, növbə və icazə təyinatlarını idarə edin</p>
+          <p className="text-sm text-gray-500 mt-1">İş qrafiklərini və növbə təyinatlarını idarə edin</p>
         </div>
 
         {/* Tabs */}
@@ -754,10 +739,7 @@ export default function WorkSchedulePage() {
         {/* Tab Content */}
         <div>
           {activeTab === 'timetables' && <TimetableTab />}
-          {activeTab === 'holidays' && <HolidayTab />}
-          {activeTab === 'permissions' && <PermissionTab />}
           {activeTab === 'shift-assignment' && <ShiftAssignmentPage />}
-          {activeTab === 'permission-assignment' && <PermissionAssignmentPage />}
         </div>
       </div>
     </Layout>

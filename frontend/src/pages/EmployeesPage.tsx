@@ -10,6 +10,15 @@ import { positionApi } from '../api/positionApi.ts'
 import { deviceApi } from '../api/deviceApi.ts'
 import { deviceUserApi } from '../api/deviceUserApi.ts'
 import { timetableApi } from '../api/timetableApi.ts'
+import { getApiErrorMessage } from '../utils/apiError.ts'
+
+const UI_SHIFT_TYPES = ['STANDARD', 'FLEXIBLE'] as const
+const SHIFT_TYPE_LABELS: Record<string, string> = {
+  STANDARD: 'Standart növbə',
+  FLEXIBLE: 'Çevik növbə',
+  MORNING: 'Standart növbə',
+  NIGHT: 'Standart növbə',
+}
 
 interface EmployeeFormData {
   firstName: string
@@ -459,7 +468,7 @@ export default function EmployeesPage() {
         openProfile(savedEmployee)
       }
     } catch (e: unknown) {
-      setFormError((e as Error).message || 'Saxlamaq alınmadı')
+      setFormError(getApiErrorMessage(e, 'Saxlamaq alınmadı'))
     } finally {
       setSaving(false)
     }
@@ -572,12 +581,12 @@ export default function EmployeesPage() {
     const matchSearch = !search || `${e.firstName} ${e.lastName}`.toLowerCase().includes(search.toLowerCase()) || e.employeeId.toLowerCase().includes(search.toLowerCase())
     const matchDept = !filterDept || String(e.departmentId) === filterDept
     const matchStatus = !filterStatus || e.employmentStatus === filterStatus
-    const matchShift = !filterShift || e.shiftType === filterShift
+    const matchShift = !filterShift || e.shiftType === filterShift || (
+      filterShift === 'STANDARD' && ['MORNING', 'NIGHT', 'STANDARD'].includes((e.shiftType ?? '').toUpperCase())
+    )
     const matchBranch = !filterBranch || String(e.branchId) === filterBranch
     return matchSearch && matchDept && matchStatus && matchShift && matchBranch
   })
-
-  const uniqueShifts = Array.from(new Set(employees.map((e) => e.shiftType).filter(Boolean))) as string[]
 
   const activeCount = employees.filter((e) => e.employmentStatus === 'ACTIVE').length
   const onLeaveCount = employees.filter((e) => e.employmentStatus === 'ON_LEAVE').length
@@ -655,7 +664,9 @@ export default function EmployeesPage() {
 
           <select value={filterShift} onChange={e => setFilterShift(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-400">
             <option value="">Bütün növbələr</option>
-            {uniqueShifts.map(s => <option key={s} value={s}>{s}</option>)}
+            {UI_SHIFT_TYPES.map(s => (
+              <option key={s} value={s}>{SHIFT_TYPE_LABELS[s] ?? s}</option>
+            ))}
           </select>
 
           <select value={filterBranch} onChange={e => setFilterBranch(e.target.value)} className="border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-purple-400">

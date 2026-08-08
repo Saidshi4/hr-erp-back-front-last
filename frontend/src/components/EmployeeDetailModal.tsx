@@ -195,7 +195,14 @@ export default function EmployeeDetailModal({
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="text-[#98a2c8]">NÖVBƏ TİPİ</span>
-                    <span className="text-right font-semibold text-[#1f2d6b]">{employee.shiftType || '—'}</span>
+                    <span className="text-right font-semibold text-[#1f2d6b]">
+                      {{
+                        STANDARD: 'Standart növbə',
+                        FLEXIBLE: 'Çevik növbə',
+                        MORNING: 'Standart növbə',
+                        NIGHT: 'Standart növbə',
+                      }[employee.shiftType ?? ''] ?? employee.shiftType ?? '—'}
+                    </span>
                   </div>
                   <div className="grid grid-cols-2">
                     <span className="text-[#98a2c8]">QRUP</span>

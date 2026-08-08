@@ -48,7 +48,7 @@ const DEFAULT_PERMISSION_TYPES: PermissionType[] = [
   { id: 0, code: 'MATERNITY_LEAVE', name: 'Analıq məzuniyyəti' },
   { id: 0, code: 'PARENTAL_LEAVE', name: 'Valideyn məzuniyyəti' },
   { id: 0, code: 'REMOTE_WORK', name: 'Uzaqdan iş' },
-  { id: 0, code: 'FLEXIBLE_HOURS', name: 'Çevik saatlar' },
+  { id: 0, code: 'FLEXIBLE_HOURS', name: 'Sərbəst saatlar' },
   { id: 0, code: 'UNPAID_LEAVE', name: 'Ödənişsiz məzuniyyət' },
   { id: 0, code: 'SABBATICAL', name: 'Uzunmüddətli məzuniyyət' },
 ]
@@ -59,7 +59,7 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
   MATERNITY_LEAVE: 'Analıq məzuniyyəti',
   PARENTAL_LEAVE: 'Valideyn məzuniyyəti',
   REMOTE_WORK: 'Uzaqdan iş',
-  FLEXIBLE_HOURS: 'Çevik saatlar',
+  FLEXIBLE_HOURS: 'Sərbəst saatlar',
   UNPAID_LEAVE: 'Ödənişsiz məzuniyyət',
   SABBATICAL: 'Uzunmüddətli məzuniyyət',
 }
@@ -86,11 +86,15 @@ function ConfirmDialog({ message, onConfirm, onCancel }: { message: string; onCo
 
 // ─── Tab 1: Timetables ────────────────────────────────────────────────────────
 const SHIFT_TYPE_LABELS: Record<string, string> = {
-  STANDARD: 'Standart növbə',
-  FLEXIBLE: 'Çevik növbə',
+  STANDARD: 'Standart Növbə',
+  FLEXIBLE: 'Sərbəst Növbə',
   // Legacy values still stored in DB — shown when editing existing schedules
-  MORNING: 'Standart növbə',
-  NIGHT: 'Standart növbə',
+  FIRST_ENTRY: 'Sərbəst Növbə',
+  SERBEST: 'Sərbəst Növbə',
+  FREE_SHIFT: 'Sərbəst Növbə',
+  FREE: 'Sərbəst Növbə',
+  MORNING: 'Standart Növbə',
+  NIGHT: 'Standart Növbə',
 }
 
 const defaultTimetable = (): Partial<Timetable> => ({
@@ -115,7 +119,8 @@ function TimetableModal({ initial, onSave, onClose }: {
   const [error, setError] = useState('')
 
   const set = (k: keyof Timetable, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-  const isFlexible = (form.shiftType ?? '').toUpperCase() === 'FLEXIBLE'
+  const isFlexible = ['FLEXIBLE', 'FIRST_ENTRY', 'SERBEST', 'FREE_SHIFT', 'FREE']
+    .includes((form.shiftType ?? '').toUpperCase())
   const shiftTypeOptions = (() => {
     const current = (form.shiftType ?? '').toUpperCase()
     if (current && !(SHIFT_TYPES as string[]).includes(current)) {
@@ -135,12 +140,13 @@ function TimetableModal({ initial, onSave, onClose }: {
     try {
       const payload: Partial<Timetable> = { ...form }
       if (isFlexible) {
-        // Flexible has no fixed hours / late grace — placeholders for NOT NULL DB columns.
+        // Sərbəst Növbə has no fixed hours / late grace — placeholders for NOT NULL DB columns.
         payload.startTime = '00:00'
         payload.endTime = '23:59'
         payload.allowedLateMinutes = 0
         payload.allowedEarlyLeaveMinutes = 0
         payload.crossesMidnight = false
+        payload.shiftType = 'FLEXIBLE'
       }
       await onSave(payload)
       onClose()
@@ -217,7 +223,7 @@ function TimetableModal({ initial, onSave, onClose }: {
           )}
           {isFlexible && (
             <p className="text-sm text-slate-500 rounded-lg bg-slate-50 px-3 py-2">
-              Çevik növbədə sabit başlanğıc/bitmə vaxtı və gecikmə yoxdur. Yalnız iş intervalarının cəmi hesablanır.
+              Sərbəst Növbədə sabit başlanğıc/bitmə vaxtı və gecikmə yoxdur. Yalnız iş intervalarının cəmi hesablanır.
             </p>
           )}
           <div>
@@ -293,8 +299,8 @@ function TimetableTab() {
                 </div>
               </div>
               <div className="text-xs text-gray-500 space-y-1">
-                {(t.shiftType ?? '').toUpperCase() === 'FLEXIBLE' ? (
-                  <span>Çevik saatlar — sabit vaxt / gecikmə yoxdur</span>
+                {['FLEXIBLE', 'FIRST_ENTRY', 'SERBEST', 'FREE_SHIFT', 'FREE'].includes((t.shiftType ?? '').toUpperCase()) ? (
+                  <span>Sərbəst Növbə — sabit vaxt / gecikmə yoxdur</span>
                 ) : (
                   <>
                     <div className="flex items-center gap-1">

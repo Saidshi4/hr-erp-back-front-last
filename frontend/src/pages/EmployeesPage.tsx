@@ -15,10 +15,14 @@ import { getApiErrorMessage } from '../utils/apiError.ts'
 
 const UI_SHIFT_TYPES = ['STANDARD', 'FLEXIBLE'] as const
 const SHIFT_TYPE_LABELS: Record<string, string> = {
-  STANDARD: 'Standart növbə',
-  FLEXIBLE: 'Çevik növbə',
-  MORNING: 'Standart növbə',
-  NIGHT: 'Standart növbə',
+  STANDARD: 'Standart Növbə',
+  FLEXIBLE: 'Sərbəst Növbə',
+  FIRST_ENTRY: 'Sərbəst Növbə',
+  SERBEST: 'Sərbəst Növbə',
+  FREE_SHIFT: 'Sərbəst Növbə',
+  FREE: 'Sərbəst Növbə',
+  MORNING: 'Standart Növbə',
+  NIGHT: 'Standart Növbə',
 }
 
 interface EmployeeFormData {
@@ -343,8 +347,16 @@ export default function EmployeesPage() {
     setForm((prev) => ({ ...prev, [key]: value }))
   }
 
+  /**
+   * Same captured photo is used for:
+   * 1) employee profile photo (always persisted)
+   * 2) Hikvision / face detection (best-effort per assigned device)
+   */
   const uploadFaceForEmployee = async (employee: Employee, file: File | null): Promise<string[]> => {
     if (!file) return []
+
+    // Profile photo first — must not depend on Hikvision success.
+    await employeeApi.uploadFaceImage(employee.id, file)
 
     const deviceIds = employee.deviceIds && employee.deviceIds.length > 0
       ? employee.deviceIds
@@ -372,6 +384,10 @@ export default function EmployeesPage() {
     }
     console.info('[uploadFace] isapiDeviceIds:', isapiDeviceIds)
 
+    if (isapiDeviceIds.length === 0) {
+      return []
+    }
+
     const errors: string[] = []
 
     for (const isapiDeviceId of isapiDeviceIds) {
@@ -386,7 +402,8 @@ export default function EmployeesPage() {
         console.info('[uploadFace] deviceUser for', isapiDeviceId, ':', deviceUser)
         if (deviceUser) {
           console.info('[uploadFace] uploading face to device', isapiDeviceId, 'user', deviceUser.id)
-          await deviceUserApi.uploadFace(isapiDeviceId, deviceUser.id, file, employee.id)
+          // employeeId omitted: profile image already saved above
+          await deviceUserApi.uploadFace(isapiDeviceId, deviceUser.id, file)
           console.info('[uploadFace] uploaded face to device', isapiDeviceId)
         } else {
           errors.push(`Cihaz ${isapiDeviceId}: istifadəçi tapılmadı`)
@@ -397,11 +414,8 @@ export default function EmployeesPage() {
       }
     }
 
-    if (errors.length > 0 && errors.length === isapiDeviceIds.length) {
-      throw new Error(`Şəkil yüklənmədi: ${errors.join('; ')}`)
-    }
     if (errors.length > 0) {
-      console.info('[uploadFace] partial failures:', errors)
+      console.info('[uploadFace] Hikvision sync warnings (profile photo saved):', errors)
     }
     return errors
   }
@@ -470,9 +484,14 @@ export default function EmployeesPage() {
         } catch (e) {
           console.info('[handleSave] refetch employee failed, using original', e)
         }
-        const faceErrors = await uploadFaceForEmployee(savedEmployee, wizardImageFile)
-        if (faceErrors.length > 0) {
-          setFormError('Şəkil yüklənmədi: ' + faceErrors.join('; '))
+        try {
+          const faceErrors = await uploadFaceForEmployee(savedEmployee, wizardImageFile)
+          if (faceErrors.length > 0) {
+            // Profile photo is already saved; device sync issues are non-blocking.
+            console.info('[handleSave] Hikvision face sync warnings:', faceErrors)
+          }
+        } catch (e) {
+          setFormError((e as Error).message || 'Profil şəkli yadda saxlanılmadı')
           setSaving(false)
           return
         }
@@ -601,6 +620,8 @@ export default function EmployeesPage() {
     const matchStatus = !filterStatus || e.employmentStatus === filterStatus
     const matchShift = !filterShift || e.shiftType === filterShift || (
       filterShift === 'STANDARD' && ['MORNING', 'NIGHT', 'STANDARD'].includes((e.shiftType ?? '').toUpperCase())
+    ) || (
+      filterShift === 'FLEXIBLE' && ['FLEXIBLE', 'FIRST_ENTRY', 'SERBEST', 'FREE_SHIFT', 'FREE'].includes((e.shiftType ?? '').toUpperCase())
     )
     const matchBranch = !filterBranch || String(e.branchId) === filterBranch
     return matchSearch && matchDept && matchStatus && matchShift && matchBranch

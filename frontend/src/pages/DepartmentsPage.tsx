@@ -308,7 +308,7 @@ export default function DepartmentsPage() {
                     {dept.calculateOvertime ? 'Əlavə iş aktiv' : 'Əlavə iş deaktiv'}
                   </div>
                   <div className="text-xs text-gray-600">
-                    {dept.flexShift ? 'Çevik növbə' : 'Standart ofis'}
+                    {dept.flexShift ? 'Sərbəst Növbə' : 'Standart Növbə'}
                   </div>
                 </div>
 

@@ -22,4 +22,10 @@ export const employeeApi = {
     client.get<{ data: string[] }>(`/employees/${id}/doors`),
   getDistinctAreas: () =>
     client.get<{ data: string[] }>('/employees/areas'),
+  /** Save captured/uploaded photo as the employee profile face image. */
+  uploadFaceImage: (employeeId: number, file: File) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return client.post(`/faces/employee/${employeeId}/image`, formData)
+  },
 }

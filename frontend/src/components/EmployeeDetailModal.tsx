@@ -197,10 +197,14 @@ export default function EmployeeDetailModal({
                     <span className="text-[#98a2c8]">NÖVBƏ TİPİ</span>
                     <span className="text-right font-semibold text-[#1f2d6b]">
                       {{
-                        STANDARD: 'Standart növbə',
-                        FLEXIBLE: 'Çevik növbə',
-                        MORNING: 'Standart növbə',
-                        NIGHT: 'Standart növbə',
+                        STANDARD: 'Standart Növbə',
+                        FLEXIBLE: 'Sərbəst Növbə',
+                        FIRST_ENTRY: 'Sərbəst Növbə',
+                        SERBEST: 'Sərbəst Növbə',
+                        FREE_SHIFT: 'Sərbəst Növbə',
+                        FREE: 'Sərbəst Növbə',
+                        MORNING: 'Standart Növbə',
+                        NIGHT: 'Standart Növbə',
                       }[employee.shiftType ?? ''] ?? employee.shiftType ?? '—'}
                     </span>
                   </div>

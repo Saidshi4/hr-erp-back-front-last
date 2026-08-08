@@ -321,8 +321,8 @@ export const az = {
     department: 'Depart',
     position: 'Vəzifə',
     allShifts: 'Bütün növbələr',
-    freeShift: 'Çevik növbə',
-    standardShift: 'Standart növbə',
+    freeShift: 'Sərbəst Növbə',
+    standardShift: 'Standart Növbə',
   },
   employees: {
     employeeId: 'ƏMƏKDAŞ ID',
@@ -383,8 +383,8 @@ export const az = {
     members: 'nəfər',
     overtimeOn: 'Əlavə iş aktiv',
     overtimeOff: 'Əlavə iş deaktiv',
-    flexShift: 'Çevik növbə',
-    officeStandard: 'Standart ofis',
+    flexShift: 'Sərbəst Növbə',
+    officeStandard: 'Standart Növbə',
     assignEmployees: 'Əməkdaşları təyin et',
     noEmployeesFound: 'Əməkdaş tapılmadı',
     noPosition: 'Vəzifə yoxdur',
@@ -406,7 +406,7 @@ export const az = {
   },
   positions: {
     overtimeOff: 'Əlavə iş deaktiv',
-    officeStandard: 'Standart ofis',
+    officeStandard: 'Standart Növbə',
   },
   leaves: {
     employee: 'Əməkdaş',

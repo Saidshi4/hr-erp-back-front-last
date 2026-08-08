@@ -110,10 +110,10 @@ export default function DeviceEmployeeImportPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Cihazdan əməkdaş idxalı</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Qurulum komandası üçün: filial cihazlarındakı mövcud istifadəçiləri sistemə köçürür.
+            Qurulum komandası üçün: filial cihazlarındakı mövcud istifadəçiləri və üz şəkillərini sistemə köçürür.
             Əməkdaş kodu filial prefiksi ilə yazılır (məs. <span className="font-medium text-gray-700">BAK-1001</span>),
-            cihazdakı şəxs ID isə punch/sync üçün saxlanır. Ev filialı seçilmiş filialdır;
-            eyni şəxs digər filialda tapılarsa yalnız giriş icazəsi əlavə olunur.
+            cihazdakı şəxs ID isə punch/sync üçün saxlanır. Üz şəkli cihazdakı FDLib üzündən oxunub
+            əməkdaş profil şəkli kimi saxlanır; üzü olmayan şəxslərə təsadüfi şəkil verilmir.
           </p>
         </div>
 
@@ -239,6 +239,10 @@ export default function DeviceEmployeeImportPage() {
               <Stat label="Cihaz skanı" value={result.devicesScanned} />
               <Stat label="Cihaz xətası" value={result.devicesFailed} tone="red" />
               <Stat label="Giriş əlaqələndirildi" value={result.accessLinked} tone="green" />
+              <Stat label="Üz şəkli sinxron" value={result.facesSynced || 0} tone="green" />
+              <Stat label="Üzü olmayan" value={result.facesSkippedNoMatch || 0} />
+              <Stat label="Şəkil artıq var" value={result.facesSkippedExisting || 0} />
+              <Stat label="Şəkil xətası" value={result.facesFailed || 0} tone="red" />
             </div>
 
             {(result.branchPrefix || result.branchName) && (
@@ -257,7 +261,9 @@ export default function DeviceEmployeeImportPage() {
                         <th className="py-2 pr-3">Cihaz</th>
                         <th className="py-2 pr-3">IP</th>
                         <th className="py-2 pr-3">Vəziyyət</th>
-                        <th className="py-2">İstifadəçi</th>
+                        <th className="py-2 pr-3">İstifadəçi</th>
+                        <th className="py-2 pr-3">Üz</th>
+                        <th className="py-2">Şəkil sinxron</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -272,7 +278,9 @@ export default function DeviceEmployeeImportPage() {
                               <span className="text-red-600" title={s.error}>Xəta</span>
                             )}
                           </td>
-                          <td className="py-2">{s.userCount}</td>
+                          <td className="py-2 pr-3">{s.userCount}</td>
+                          <td className="py-2 pr-3">{s.faceCount ?? '—'}</td>
+                          <td className="py-2">{s.facesSynced ?? '—'}</td>
                         </tr>
                       ))}
                     </tbody>

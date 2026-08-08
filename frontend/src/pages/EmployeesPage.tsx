@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Layout from '../components/Layout.tsx'
 import EmployeeDetailModal from '../components/EmployeeDetailModal.tsx'
+import EmployeeAvatar from '../components/EmployeeAvatar.tsx'
 import { useEmployeeStore } from '../store/employeeStore.ts'
 import { useBranchStore } from '../store/branchStore.ts'
 import { Department, Employee, Position, Timetable } from '../types'
@@ -94,6 +95,16 @@ function getAvatarColor(name: string) {
   let hash = 0
   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash)
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length]
+}
+
+/** Match ISAPI device user by Hikvision person ID (deviceEmployeeNo), not prefixed HR code. */
+function matchesDevicePerson(deviceEmployeeNo: string | undefined, employeeId: string | undefined, candidateNo: unknown): boolean {
+  const no = String(candidateNo || '').trim()
+  if (!no) return false
+  const deviceNo = (deviceEmployeeNo || '').trim()
+  if (deviceNo && no === deviceNo) return true
+  const hrId = (employeeId || '').trim()
+  return !!hrId && no === hrId
 }
 
 export default function EmployeesPage() {
@@ -258,13 +269,16 @@ export default function EmployeesPage() {
               deviceMap.set(Number(d.id), Number(d.deviceId))
             }
           }
+          // Match device user by Hikvision person ID (deviceEmployeeNo), not prefixed HR employeeId.
           for (const backendDeviceId of details.deviceIds) {
             const isapiDeviceId = deviceMap.get(Number(backendDeviceId))
             if (!isapiDeviceId) continue
             try {
               const usersRes = await deviceUserApi.getAll(isapiDeviceId)
               const users = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data as any)?.data ?? []
-              const deviceUser = users.find((u: any) => u.employeeNo === details.employeeId)
+              const deviceUser = users.find((u: any) =>
+                matchesDevicePerson(details.deviceEmployeeNo, details.employeeId, u.employeeNo)
+              )
               if (deviceUser) {
                 const syncRes = await deviceUserApi.syncFaceFromDevice(isapiDeviceId, deviceUser.id, details.id)
                 if (syncRes.data?.status === 'SUCCESS' || (syncRes.data as any)?.status === 'SUCCESS') {
@@ -366,7 +380,9 @@ export default function EmployeesPage() {
         const usersRes = await deviceUserApi.getAll(isapiDeviceId)
         console.info('[uploadFace] usersRes for', isapiDeviceId, ':', usersRes.data)
         const users = Array.isArray(usersRes.data) ? usersRes.data : (usersRes.data as any)?.data ?? []
-        const deviceUser = users.find((u: any) => u.employeeNo === employee.employeeId)
+        const deviceUser = users.find((u: any) =>
+          matchesDevicePerson(employee.deviceEmployeeNo, employee.employeeId, u.employeeNo)
+        )
         console.info('[uploadFace] deviceUser for', isapiDeviceId, ':', deviceUser)
         if (deviceUser) {
           console.info('[uploadFace] uploading face to device', isapiDeviceId, 'user', deviceUser.id)
@@ -515,9 +531,11 @@ export default function EmployeesPage() {
     setDeletingFaceEmployeeId(employee.id)
     try {
       const usersRes = await deviceUserApi.getAll(defaultDeviceId)
-      const deviceUser = usersRes.data.find((u) => u.employeeNo === employee.employeeId)
+      const deviceUser = usersRes.data.find((u) =>
+        matchesDevicePerson(employee.deviceEmployeeNo, employee.employeeId, u.employeeNo)
+      )
       if (!deviceUser) {
-        throw new Error(`Cihaz istifadəçi tapılmadı (${employee.employeeId})`)
+        throw new Error(`Cihaz istifadəçi tapılmadı (${employee.deviceEmployeeNo || employee.employeeId})`)
       }
       await deviceUserApi.deleteFace(defaultDeviceId, deviceUser.id, employee.id)
       await fetchEmployees(currentPage, 20)
@@ -772,9 +790,12 @@ export default function EmployeesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ background: avatarColor }}>
-                          {initials}
-                        </div>
+                        <EmployeeAvatar
+                          faceImageUrl={emp.faceImageUrl}
+                          initials={initials}
+                          background={avatarColor}
+                          alt={name}
+                        />
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-gray-600">{emp.employeeId}</td>
                       <td className="px-4 py-3 font-semibold text-gray-800">{name}</td>

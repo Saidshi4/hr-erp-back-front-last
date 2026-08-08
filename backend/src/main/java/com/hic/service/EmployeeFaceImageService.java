@@ -89,6 +89,13 @@ public class EmployeeFaceImageService {
                 .map(faceData -> "/api/faces/employee/" + employeeId + "/image");
     }
 
+    public boolean hasFaceImage(Long employeeId) {
+        if (employeeId == null) {
+            return false;
+        }
+        return getLatestFaceImage(employeeId).isPresent();
+    }
+
     public Optional<FaceImageData> getLatestFaceImage(Long employeeId) {
         return faceDataRepository.findTopByEmployeeIdOrderByCreatedAtDesc(employeeId)
                 .flatMap(this::toFaceImageData);

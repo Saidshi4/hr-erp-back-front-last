@@ -217,6 +217,89 @@ public class DeviceUserService {
     ) {
     }
 
+    /**
+     * Live pull of all face-library records on the physical device (FPID + faceURL).
+     * FPID matches UserInfo.employeeNo on Hikvision Access Control terminals.
+     */
+    public List<DeviceFaceFromDevice> fetchFacesFromDevice(Long deviceId) {
+        DeviceEntity device = requireDevice(deviceId);
+        log.info("ActionLog.deviceUser.fetchFacesFromDevice.started deviceId={}", deviceId);
+        try {
+            List<IsapiClient.DeviceFaceRecord> faces = isapiClient.searchAllFaceRecords(device);
+            List<DeviceFaceFromDevice> mapped = faces.stream()
+                    .map(f -> new DeviceFaceFromDevice(f.fpid(), f.faceUrl()))
+                    .toList();
+            log.info("ActionLog.deviceUser.fetchFacesFromDevice.ended deviceId={} count={}",
+                    deviceId, mapped.size());
+            return mapped;
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            log.error("ActionLog.deviceUser.fetchFacesFromDevice.failed deviceId={} error={}",
+                    deviceId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
+                    "Failed to fetch faces from device: " + e.getMessage());
+        }
+    }
+
+    public record DeviceFaceFromDevice(String fpid, String faceUrl) {
+    }
+
+    /**
+     * Downloads a face image from the device by person ID (employeeNo / FPID).
+     * Does not require a local device_users row — used by HR employee import.
+     */
+    public DeviceUserFaceSyncResponse downloadFaceByEmployeeNo(Long deviceId, String employeeNo) {
+        DeviceEntity device = requireDevice(deviceId);
+        if (employeeNo == null || employeeNo.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "employeeNo is required");
+        }
+        String personId = employeeNo.trim();
+        log.info("ActionLog.deviceUser.face.downloadByNo.started deviceId={} employeeNo={}",
+                deviceId, personId);
+
+        try {
+            Optional<String> faceUrlOpt = isapiClient.findFaceUrlByEmployeeNo(device, personId);
+            String faceUrl = faceUrlOpt.orElse(null);
+            Optional<byte[]> imageOpt = Optional.empty();
+
+            if (faceUrl != null && !faceUrl.isBlank()) {
+                imageOpt = isapiClient.downloadFaceImage(device, faceUrl);
+            }
+            if (imageOpt.isEmpty()) {
+                imageOpt = isapiClient.downloadFaceImageByEmployeeNo(device, personId);
+            }
+            if (imageOpt.isEmpty()) {
+                String status = faceUrl == null ? "NOT_FOUND" : "FAILED";
+                String message = faceUrl == null
+                        ? "No face image found in device FDLib"
+                        : "Face URL found but image could not be downloaded";
+                return new DeviceUserFaceSyncResponse(null, personId, status, message, faceUrl, null);
+            }
+
+            String base64Image = Base64.getEncoder().encodeToString(imageOpt.get());
+            log.info("ActionLog.deviceUser.face.downloadByNo.ended deviceId={} employeeNo={} bytes={}",
+                    deviceId, personId, imageOpt.get().length);
+            return new DeviceUserFaceSyncResponse(
+                    null,
+                    personId,
+                    "SUCCESS",
+                    "Face image downloaded from device",
+                    faceUrl,
+                    base64Image
+            );
+        } catch (IOException | InterruptedException e) {
+            if (e instanceof InterruptedException) Thread.currentThread().interrupt();
+            return new DeviceUserFaceSyncResponse(
+                    null,
+                    personId,
+                    "FAILED",
+                    "Face download error: " + e.getMessage(),
+                    null,
+                    null
+            );
+        }
+    }
+
     public DeviceUserSyncResponse syncUserToDevice(Long deviceId, Long userId) {
         log.info("ActionLog.deviceUser.sync.started deviceId={} userId={}", deviceId, userId);
         DeviceEntity device = requireDevice(deviceId);

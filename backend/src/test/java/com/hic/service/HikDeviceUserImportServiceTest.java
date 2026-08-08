@@ -48,6 +48,7 @@ class HikDeviceUserImportServiceTest {
     @Mock private BranchRepository branchRepository;
     @Mock private TenantRepository tenantRepository;
     @Mock private EncryptionUtil encryptionUtil;
+    @Mock private EmployeeFaceImageService employeeFaceImageService;
 
     private HikDeviceUserImportService service;
 
@@ -61,7 +62,8 @@ class HikDeviceUserImportServiceTest {
                 branchRepository,
                 tenantRepository,
                 encryptionUtil,
-                new ObjectMapper());
+                new ObjectMapper(),
+                employeeFaceImageService);
         ReflectionTestUtils.setField(service, "isapiBaseUrl", "http://isapi:8081");
         TenantContext.setTenantId(1L);
     }
@@ -92,6 +94,12 @@ class HikDeviceUserImportServiceTest {
                         [{"employeeNo":"1001","name":"Ali Valiyev","gender":"male"},
                          {"employeeNo":"1002","name":"B","gender":"male"}]
                         """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
 
         when(employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(eq(1L), anyString()))
                 .thenReturn(Optional.empty());
@@ -128,6 +136,67 @@ class HikDeviceUserImportServiceTest {
     }
 
     @Test
+    void importUsersFromBranch_syncsFaceWhenFpidMatchesDeviceEmployeeNo() {
+        Branch branch = branch(10L, "Baku", "BAK");
+        when(branchRepository.findById(10L)).thenReturn(Optional.of(branch));
+        DeviceConfig entry = device(1L, "101", "Entry", "10.0.0.1", 10L);
+        when(deviceConfigRepository.findByBranchId(10L)).thenReturn(List.of(entry));
+
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        [{"employeeNo":"1001","name":"Ali Valiyev"},
+                         {"employeeNo":"1002","name":"No Face User"}]
+                        """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        [{"fpid":"1001","faceUrl":"http://10.0.0.1/LOCALS/pic/face1.jpg"}]
+                        """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/faces/1001/download"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        {"employeeNo":"1001","status":"SUCCESS","imageBase64":"AQID"}
+                        """));
+
+        when(employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(eq(1L), anyString()))
+                .thenReturn(Optional.empty());
+        when(employeeRepository.findByTenantIdAndBranchIdAndDeviceEmployeeNoIgnoreCase(eq(1L), eq(10L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndDeviceEmployeeNoIgnoreCase(eq(1L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndEmployeeIdIn(eq(1L), any()))
+                .thenReturn(List.of());
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
+            Employee e = inv.getArgument(0);
+            if ("BAK-1001".equals(e.getEmployeeId())) {
+                e.setId(50L);
+            } else {
+                e.setId(51L);
+            }
+            return e;
+        });
+        when(employeeDeviceAccessRepository.existsByEmployeeIdAndDeviceConfigId(anyLong(), anyLong()))
+                .thenReturn(false);
+        java.util.concurrent.atomic.AtomicBoolean faceSavedFor50 = new java.util.concurrent.atomic.AtomicBoolean(false);
+        when(employeeFaceImageService.hasFaceImage(50L)).thenAnswer(inv -> faceSavedFor50.get());
+        when(employeeFaceImageService.hasFaceImage(51L)).thenReturn(false);
+        org.mockito.Mockito.doAnswer(inv -> {
+            faceSavedFor50.set(true);
+            return null;
+        }).when(employeeFaceImageService).saveFaceImageBytes(eq(50L), any(byte[].class), eq("jpg"));
+
+        DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null));
+
+        assertThat(result.getCreated()).isEqualTo(2);
+        assertThat(result.getFacesSynced()).isEqualTo(1);
+        assertThat(result.getFacesSkippedNoMatch()).isEqualTo(1);
+        verify(employeeFaceImageService).saveFaceImageBytes(eq(50L), any(byte[].class), eq("jpg"));
+        verify(employeeFaceImageService, never()).saveFaceImageBytes(eq(51L), any(byte[].class), anyString());
+    }
+
+    @Test
     void importUsersFromBranch_crossBranchSamePerson_linksAccessOnly() {
         Branch branch = branch(20L, "Ganja", "GAN");
         when(branchRepository.findById(20L)).thenReturn(Optional.of(branch));
@@ -135,9 +204,15 @@ class HikDeviceUserImportServiceTest {
         when(deviceConfigRepository.findByBranchId(20L)).thenReturn(List.of(entry));
 
         when(restTemplate.exchange(anyString(), eq(HttpMethod.GET), eq(null), eq(String.class)))
-                .thenReturn(ResponseEntity.ok("""
-                        [{"employeeNo":"1001","name":"Ali Valiyev"}]
-                        """));
+                .thenAnswer(inv -> {
+                    String url = inv.getArgument(0);
+                    if (url != null && url.contains("/faces/")) {
+                        return ResponseEntity.ok("[]");
+                    }
+                    return ResponseEntity.ok("""
+                            [{"employeeNo":"1001","name":"Ali Valiyev"}]
+                            """);
+                });
 
         when(employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(1L, "GAN-1001"))
                 .thenReturn(Optional.empty());
@@ -180,6 +255,9 @@ class HikDeviceUserImportServiceTest {
                 eq(HttpMethod.GET), eq(null), eq(String.class)))
                 .thenThrow(new RuntimeException("down"));
         when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(new ResponseEntity<>("[]", HttpStatus.OK));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/faces/from-device"),
                 eq(HttpMethod.GET), eq(null), eq(String.class)))
                 .thenReturn(new ResponseEntity<>("[]", HttpStatus.OK));
         when(encryptionUtil.decrypt(any())).thenReturn("pass");

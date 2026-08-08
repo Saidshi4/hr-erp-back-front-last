@@ -48,15 +48,21 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Setup-team import: pull persons from Hikvision devices into local employees.
+ * Setup-team import: pull persons and face images from Hikvision devices into local employees.
  *
  * <p>Match key is device {@code employeeNo} (person ID). HikCentral Professional
  * documents name-based matching for "Import from Device"; we use employeeNo because
  * it is the stable ISAPI identity and what attendance already resolves against.
  *
+ * <p>Face photos come from FDLib FDSearch: MatchList.FPID is matched to UserInfo.employeeNo
+ * (stored as {@code device_employee_no}). Images are downloaded via isapi Digest auth and
+ * stored locally under {@code face_data} / {@code uploads/faces}, served by
+ * {@code GET /api/faces/employee/{id}/image}.
+ *
  * <p>Across devices of a branch: same employeeNo + consistent name → one employee;
  * same employeeNo + conflicting names → skip and flag; already in DB → skip employee
- * fields but link missing device access.
+ * fields but link missing device access. Faces are only taken from devices the employee
+ * is linked to.
  */
 @Service
 @Slf4j
@@ -74,6 +80,7 @@ public class HikDeviceUserImportService {
     private final TenantRepository tenantRepository;
     private final EncryptionUtil encryptionUtil;
     private final ObjectMapper objectMapper;
+    private final EmployeeFaceImageService employeeFaceImageService;
 
     @Value("${isapi.base-url:}")
     private String isapiBaseUrl;
@@ -164,12 +171,48 @@ public class HikDeviceUserImportService {
             }
         }
 
+        // After employees exist (or are linked), pull FDLib faces from each successful device
+        // and associate them by FPID ↔ device employeeNo. Never assign a face without a match.
+        for (DeviceEmployeeImportDTO.DeviceScanStatus status : result.getDeviceStatuses()) {
+            if (!status.isSuccess() || status.getDeviceConfigId() == null) {
+                continue;
+            }
+            DeviceConfig device = devices.stream()
+                    .filter(d -> status.getDeviceConfigId().equals(d.getId()))
+                    .findFirst()
+                    .orElse(null);
+            if (device == null) {
+                continue;
+            }
+            try {
+                syncFacesFromDevice(device, byEmployeeNo, result, status);
+            } catch (Exception ex) {
+                log.error("Face sync failed for deviceConfigId={}: {}", device.getId(), ex.getMessage(), ex);
+                result.setFacesFailed(result.getFacesFailed() + 1);
+                if (status.getError() == null) {
+                    status.setError("Face sync: " + ex.getMessage());
+                }
+            }
+        }
+
+        int stillWithoutFace = 0;
+        for (AggregatedPerson person : byEmployeeNo.values()) {
+            if (person.conflict || person.employeePk == null) {
+                continue;
+            }
+            if (!employeeFaceImageService.hasFaceImage(person.employeePk)) {
+                stillWithoutFace++;
+            }
+        }
+        result.setFacesSkippedNoMatch(stillWithoutFace);
+
         result.setMessage(String.format(
-                "Import complete: branch=%s prefix=%s devices=%d failedDevices=%d fetched=%d unique=%d created=%d skippedExisting=%d crossBranchLinked=%d skippedConflict=%d accessLinked=%d errors=%d",
+                "Import complete: branch=%s prefix=%s devices=%d failedDevices=%d fetched=%d unique=%d created=%d skippedExisting=%d crossBranchLinked=%d skippedConflict=%d accessLinked=%d facesSynced=%d facesSkippedExisting=%d facesSkippedNoMatch=%d facesFailed=%d errors=%d",
                 branch.getName(), branchPrefix, result.getDevicesScanned(), result.getDevicesFailed(),
                 result.getTotalFetched(), result.getUniquePersons(), result.getCreated(),
                 result.getSkippedExisting(), result.getCrossBranchLinked(), result.getSkippedConflict(),
-                result.getAccessLinked(), result.getErrors()));
+                result.getAccessLinked(), result.getFacesSynced(), result.getFacesSkippedExisting(),
+                result.getFacesSkippedNoMatch(), result.getFacesFailed(), result.getErrors()));
         log.info(result.getMessage());
         return result;
     }
@@ -355,6 +398,7 @@ public class HikDeviceUserImportService {
             ensureDeviceEmployeeNo(existing, person.employeeNo);
             int linked = linkMissingAccess(existing, person.deviceConfigIds);
             result.setAccessLinked(result.getAccessLinked() + linked);
+            person.employeePk = existing.getId();
             return;
         }
 
@@ -367,6 +411,7 @@ public class HikDeviceUserImportService {
             result.setAccessLinked(result.getAccessLinked() + linked);
             result.setCrossBranchLinked(result.getCrossBranchLinked() + 1);
             result.setSkippedExisting(result.getSkippedExisting() + 1);
+            person.employeePk = existing.getId();
             return;
         }
 
@@ -376,6 +421,7 @@ public class HikDeviceUserImportService {
         int linked = linkMissingAccess(saved, person.deviceConfigIds);
         result.setAccessLinked(result.getAccessLinked() + linked);
         result.setCreated(result.getCreated() + 1);
+        person.employeePk = saved.getId();
         result.getCreatedPersons().add(new DeviceEmployeeImportDTO.CreatedPerson(
                 saved.getId(),
                 person.employeeNo,
@@ -385,6 +431,117 @@ public class HikDeviceUserImportService {
                 saved.getFirstName(),
                 saved.getLastName(),
                 new ArrayList<>(person.deviceConfigIds)));
+    }
+
+    /**
+     * Pulls FDLib face records from one device and saves matching images as employee profile photos.
+     * Match key: FDSearch FPID ↔ UserInfo.employeeNo (stored as {@code device_employee_no}).
+     * This equals the FPID used when this project uploads faces via FDLib FDSetUp.
+     * Faces are only taken from the device the employee is linked to — never cross-device.
+     */
+    private void syncFacesFromDevice(
+            DeviceConfig device,
+            Map<String, AggregatedPerson> byEmployeeNo,
+            DeviceEmployeeImportDTO.ImportResult result,
+            DeviceEmployeeImportDTO.DeviceScanStatus status) {
+
+        Long isapiId = resolveIsapiDeviceId(device);
+        if (isapiId == null || !StringUtils.hasText(isapiBaseUrl)) {
+            log.warn("Skipping face sync for deviceConfigId={}: isapi device id or base-url missing",
+                    device.getId());
+            return;
+        }
+
+        Map<String, String> faceUrlByFpid = fetchFaceIndexFromDevice(isapiId);
+        status.setFaceCount(faceUrlByFpid.size());
+        if (faceUrlByFpid.isEmpty()) {
+            log.info("No face records on deviceConfigId={} isapiId={}", device.getId(), isapiId);
+            return;
+        }
+
+        int syncedOnDevice = 0;
+        for (AggregatedPerson person : byEmployeeNo.values()) {
+            if (person.conflict || person.employeePk == null) {
+                continue;
+            }
+            if (!person.deviceConfigIds.contains(device.getId())) {
+                continue;
+            }
+
+            String fpidKey = person.employeeNo.toLowerCase(Locale.ROOT);
+            if (!faceUrlByFpid.containsKey(fpidKey)) {
+                // No FDLib record for this person on this device — do not assign any image.
+                continue;
+            }
+
+            if (employeeFaceImageService.hasFaceImage(person.employeePk)) {
+                result.setFacesSkippedExisting(result.getFacesSkippedExisting() + 1);
+                continue;
+            }
+
+            try {
+                Optional<byte[]> imageBytes = downloadFaceBytesFromDevice(isapiId, person.employeeNo);
+                if (imageBytes.isEmpty()) {
+                    result.setFacesFailed(result.getFacesFailed() + 1);
+                    continue;
+                }
+                employeeFaceImageService.saveFaceImageBytes(person.employeePk, imageBytes.get(), "jpg");
+                result.setFacesSynced(result.getFacesSynced() + 1);
+                syncedOnDevice++;
+            } catch (Exception ex) {
+                log.warn("Failed to sync face for employeeNo={} deviceConfigId={}: {}",
+                        person.employeeNo, device.getId(), ex.getMessage());
+                result.setFacesFailed(result.getFacesFailed() + 1);
+            }
+        }
+        status.setFacesSynced(syncedOnDevice);
+        log.info("Face sync for deviceConfigId={} isapiId={}: faceIndex={} synced={}",
+                device.getId(), isapiId, faceUrlByFpid.size(), syncedOnDevice);
+    }
+
+    private Map<String, String> fetchFaceIndexFromDevice(Long isapiDeviceId) {
+        String url = trimTrailingSlash(isapiBaseUrl) + "/api/devices/" + isapiDeviceId + "/faces/from-device";
+        ResponseEntity<String> raw = restTemplate.exchange(url, HttpMethod.GET, null, String.class);
+        if (raw.getBody() == null) {
+            return Map.of();
+        }
+        try {
+            List<IsapiFaceDto> list = objectMapper.readValue(raw.getBody(), new TypeReference<>() {});
+            Map<String, String> byFpid = new LinkedHashMap<>();
+            for (IsapiFaceDto dto : list) {
+                if (dto == null || !StringUtils.hasText(dto.getFpid())) {
+                    continue;
+                }
+                String key = dto.getFpid().trim().toLowerCase(Locale.ROOT);
+                // First face wins; keep association device-scoped by caller.
+                byFpid.putIfAbsent(key, dto.getFaceUrl());
+            }
+            return byFpid;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Failed to parse face index from isapi: " + ex.getMessage(), ex);
+        }
+    }
+
+    private Optional<byte[]> downloadFaceBytesFromDevice(Long isapiDeviceId, String employeeNo) {
+        String encoded = org.springframework.web.util.UriUtils.encodePathSegment(
+                employeeNo, StandardCharsets.UTF_8);
+        String url = trimTrailingSlash(isapiBaseUrl)
+                + "/api/devices/" + isapiDeviceId + "/faces/" + encoded + "/download";
+        ResponseEntity<String> raw = restTemplate.exchange(url, HttpMethod.GET, null, String.class);
+        if (raw.getBody() == null) {
+            return Optional.empty();
+        }
+        try {
+            IsapiFaceDownloadDto dto = objectMapper.readValue(raw.getBody(), IsapiFaceDownloadDto.class);
+            if (dto == null || !"SUCCESS".equalsIgnoreCase(dto.getStatus())
+                    || !StringUtils.hasText(dto.getImageBase64())) {
+                return Optional.empty();
+            }
+            return Optional.of(Base64.getDecoder().decode(dto.getImageBase64()));
+        } catch (Exception ex) {
+            log.warn("Failed to decode face download for employeeNo={}: {}", employeeNo, ex.getMessage());
+            return Optional.empty();
+        }
     }
 
     private Optional<Employee> findExistingForBranch(
@@ -624,6 +781,7 @@ public class HikDeviceUserImportService {
         private String beginTime;
         private boolean conflict;
         private String conflictReason;
+        private Long employeePk;
         private final Set<Long> deviceConfigIds = new LinkedHashSet<>();
     }
 
@@ -638,5 +796,23 @@ public class HikDeviceUserImportService {
         private String gender;
         private String beginTime;
         private String endTime;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class IsapiFaceDto {
+        private String fpid;
+        private String faceUrl;
+    }
+
+    @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    private static class IsapiFaceDownloadDto {
+        private Long id;
+        private String employeeNo;
+        private String status;
+        private String message;
+        private String faceUrl;
+        private String imageBase64;
     }
 }

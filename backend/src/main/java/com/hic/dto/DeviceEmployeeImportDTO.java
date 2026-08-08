@@ -43,6 +43,10 @@ public class DeviceEmployeeImportDTO {
         private int skippedConflict;
         private int crossBranchLinked;
         private int accessLinked;
+        private int facesSynced;
+        private int facesSkippedNoMatch;
+        private int facesSkippedExisting;
+        private int facesFailed;
         private int errors;
         private String message;
         private List<DeviceScanStatus> deviceStatuses = new ArrayList<>();
@@ -60,6 +64,8 @@ public class DeviceEmployeeImportDTO {
         private String deviceIp;
         private boolean success;
         private int userCount;
+        private int faceCount;
+        private int facesSynced;
         private String error;
     }
 

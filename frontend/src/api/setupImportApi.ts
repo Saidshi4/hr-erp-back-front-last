@@ -11,6 +11,8 @@ export interface DeviceScanStatus {
   deviceIp?: string
   success: boolean
   userCount: number
+  faceCount?: number
+  facesSynced?: number
   error?: string
 }
 
@@ -45,6 +47,10 @@ export interface DeviceEmployeeImportResult {
   skippedConflict: number
   crossBranchLinked: number
   accessLinked: number
+  facesSynced?: number
+  facesSkippedNoMatch?: number
+  facesSkippedExisting?: number
+  facesFailed?: number
   errors: number
   message: string
   deviceStatuses: DeviceScanStatus[]

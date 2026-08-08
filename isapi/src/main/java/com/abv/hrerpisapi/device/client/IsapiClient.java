@@ -250,10 +250,7 @@ public class IsapiClient {
             }
 
             JsonNode root = OM.readTree(resp.body());
-            JsonNode list = root.path("MatchList");
-            if (!list.isArray() || list.isEmpty()) {
-                list = root.path("FaceSearchResult").path("MatchList");
-            }
+            JsonNode list = extractFaceMatchList(root);
             if (!list.isArray() || list.isEmpty()) {
                 continue;
             }
@@ -265,6 +262,120 @@ public class IsapiClient {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Pages through all face library records on the device via FDSearch (no FPID filter).
+     * On Hikvision Access Control terminals, FPID is the person ID and matches UserInfo.employeeNo
+     * (the same value this project stores as device_employee_no and uses when uploading faces).
+     */
+    public List<DeviceFaceRecord> searchAllFaceRecords(DeviceEntity device)
+            throws IOException, InterruptedException {
+
+        String searchId = "face-import-" + UUID.randomUUID();
+        List<DeviceFaceRecord> result = new ArrayList<>();
+        int position = 0;
+        final int pageSize = 30;
+
+        while (true) {
+            Map<String, Object> cond = new LinkedHashMap<>();
+            cond.put("searchID", searchId);
+            cond.put("searchResultPosition", position);
+            cond.put("maxResults", pageSize);
+            cond.put("faceLibType", "blackFD");
+            cond.put("FDID", "1");
+
+            List<String> requestBodies = List.of(
+                    OM.writeValueAsString(Map.of("FaceFDLibSearchCond", cond)),
+                    OM.writeValueAsString(cond)
+            );
+
+            JsonNode list = null;
+            String status = "";
+            int numOfMatches = 0;
+            boolean pageOk = false;
+
+            for (String body : requestBodies) {
+                HttpResponse<String> resp = clientFor(device)
+                        .post("/ISAPI/Intelligent/FDLib/FDSearch?format=json", "application/json", body);
+                if (resp.statusCode() != 200) {
+                    log.warn("FDSearch (all) returned HTTP {} for device {} position {} bodySnippet={}",
+                            resp.statusCode(), device.getId(), position, snippet(resp.body()));
+                    continue;
+                }
+
+                JsonNode root = OM.readTree(resp.body());
+                status = root.path("responseStatusStrg").asText("");
+                if (status.isBlank()) {
+                    status = root.path("FaceSearchResult").path("responseStatusStrg").asText("");
+                }
+                list = extractFaceMatchList(root);
+                if (!list.isArray()) {
+                    continue;
+                }
+                numOfMatches = root.path("numOfMatches").asInt(0);
+                if (numOfMatches <= 0) {
+                    numOfMatches = root.path("FaceSearchResult").path("numOfMatches").asInt(list.size());
+                }
+                pageOk = true;
+                break;
+            }
+
+            if (!pageOk || list == null || !list.isArray() || list.isEmpty()
+                    || status.toUpperCase().contains("NO")) {
+                break;
+            }
+
+            int got = 0;
+            for (JsonNode node : list) {
+                String fpid = node.path("FPID").asText("").trim();
+                if (fpid.isBlank()) {
+                    fpid = node.path("fpid").asText("").trim();
+                }
+                if (fpid.isBlank()) {
+                    continue;
+                }
+                String faceUrl = node.path("faceURL").asText("");
+                if (faceUrl.isBlank()) {
+                    faceUrl = node.path("faceUrl").asText("");
+                }
+                result.add(new DeviceFaceRecord(fpid, faceUrl.isBlank() ? null : faceUrl));
+                got++;
+            }
+
+            if (numOfMatches <= 0) {
+                numOfMatches = got;
+            }
+
+            if ("OK".equalsIgnoreCase(status) || numOfMatches < pageSize || got == 0) {
+                break;
+            }
+
+            position += numOfMatches;
+            if (position > 100_000) {
+                log.warn("Aborting FDSearch pagination for device {} after position={}",
+                        device.getId(), position);
+                break;
+            }
+        }
+
+        log.info("FDSearch (all) completed for device {} faceCount={}", device.getId(), result.size());
+        return result;
+    }
+
+    private static JsonNode extractFaceMatchList(JsonNode root) {
+        JsonNode list = root.path("MatchList");
+        if (list.isArray()) {
+            return list;
+        }
+        list = root.path("FaceSearchResult").path("MatchList");
+        if (list.isArray()) {
+            return list;
+        }
+        return root.path("MatchList");
+    }
+
+    public record DeviceFaceRecord(String fpid, String faceUrl) {
     }
 
     public Optional<byte[]> downloadFaceImage(DeviceEntity device, String faceUrl)

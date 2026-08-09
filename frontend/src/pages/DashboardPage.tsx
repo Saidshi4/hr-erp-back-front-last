@@ -109,17 +109,6 @@ export default function DashboardPage() {
       light: '#f3e8ff',
     },
     {
-      label: 'İcazə alanlar',
-      value: stats?.todayAttendance ?? 0,
-      icon: (
-        <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-      bg: '#f59e0b',
-      light: '#fef3c7',
-    },
-    {
       label: 'Məzuniyyətdə olanlar',
       value: stats?.onLeaveEmployees ?? 0,
       icon: (
@@ -148,7 +137,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {summaryCards.map((card) => (
             <div key={card.label} className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
               <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: card.bg }}>

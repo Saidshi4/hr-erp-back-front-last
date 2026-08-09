@@ -27,7 +27,6 @@ const PERMISSION_STATUSES = ['ACTIVE', 'INACTIVE', 'PENDING', 'APPROVED', 'REJEC
 const DEFAULT_TIMETABLE_NAMES = [
   'Standart ofis',
   'Əməliyyat növbəsi',
-  'Gecə nəzarəti',
   'Dəstək növbəsi',
   'Səhər növbəsi',
   'Axşam növbəsi',
@@ -114,20 +113,23 @@ function TimetableModal({ initial, onSave, onClose }: {
   onSave: (data: Partial<Timetable>) => Promise<void>
   onClose: () => void
 }) {
-  const [form, setForm] = useState<Partial<Timetable>>(initial ?? defaultTimetable())
+  const normalizeUiShiftType = (raw?: string): string => {
+    const current = (raw ?? '').toUpperCase()
+    if (['FLEXIBLE', 'FIRST_ENTRY', 'SERBEST', 'FREE_SHIFT', 'FREE'].includes(current)) return 'FLEXIBLE'
+    if (current) return 'STANDARD'
+    return ''
+  }
+
+  const [form, setForm] = useState<Partial<Timetable>>(() => {
+    const base = initial ?? defaultTimetable()
+    return { ...base, shiftType: normalizeUiShiftType(base.shiftType) || base.shiftType || '' }
+  })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const set = (k: keyof Timetable, v: unknown) => setForm(f => ({ ...f, [k]: v }))
-  const isFlexible = ['FLEXIBLE', 'FIRST_ENTRY', 'SERBEST', 'FREE_SHIFT', 'FREE']
-    .includes((form.shiftType ?? '').toUpperCase())
-  const shiftTypeOptions = (() => {
-    const current = (form.shiftType ?? '').toUpperCase()
-    if (current && !(SHIFT_TYPES as string[]).includes(current)) {
-      return [...SHIFT_TYPES, current]
-    }
-    return SHIFT_TYPES
-  })()
+  const isFlexible = (form.shiftType ?? '').toUpperCase() === 'FLEXIBLE'
+  const shiftTypeOptions = SHIFT_TYPES
 
   const handleSave = async () => {
     if (!form.name?.trim()) { setError('Növbə adı daxil edilməlidir'); return }
@@ -147,6 +149,8 @@ function TimetableModal({ initial, onSave, onClose }: {
         payload.allowedEarlyLeaveMinutes = 0
         payload.crossesMidnight = false
         payload.shiftType = 'FLEXIBLE'
+      } else {
+        payload.shiftType = 'STANDARD'
       }
       await onSave(payload)
       onClose()

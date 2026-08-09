@@ -55,7 +55,7 @@ export default function SignupPage() {
     return HR_ROLES.filter((r) => (ROLE_RANK[r.value] ?? 99) > callerRank)
   }, [isAuthenticated, user?.userType])
 
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [password, setPassword] = useState('')
@@ -70,6 +70,10 @@ export default function SignupPage() {
     e.preventDefault()
     setError('')
 
+    if (!username.trim()) {
+      setError(t('signup.usernameRequired'))
+      return
+    }
     if (password.length < 8) {
       setError(t('signup.passwordMinLength'))
       return
@@ -85,7 +89,7 @@ export default function SignupPage() {
 
     setLoading(true)
     try {
-      await authApi.signup({ email, firstName, lastName, password, role })
+      await authApi.signup({ username: username.trim(), firstName, lastName, password, role })
       setSuccess(true)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
@@ -169,21 +173,22 @@ export default function SignupPage() {
           )}
 
           <form onSubmit={handleSignup} className="space-y-4">
-            {/* Email */}
+            {/* Username */}
             <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('signup.email')}</label>
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">{t('signup.username')}</label>
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                   </svg>
                 </span>
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type="text"
+                  autoComplete="username"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className={INPUT_CLS}
-                  placeholder="istifadeci@company.az"
+                  placeholder="ali.hasanov"
                   required
                 />
               </div>

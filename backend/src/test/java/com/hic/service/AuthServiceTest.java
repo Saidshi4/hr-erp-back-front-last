@@ -51,7 +51,7 @@ class AuthServiceTest {
     void setUp() {
         testUser = new User();
         testUser.setId(1L);
-        testUser.setUsername("admin@hic.az");
+        testUser.setUsername("admin");
         testUser.setEmail("admin@hic.az");
         testUser.setPasswordHash("$2a$10$hashedpassword");
         testUser.setUserType(UserType.HEAD_OFFICE_HR);
@@ -61,12 +61,12 @@ class AuthServiceTest {
     // ---- Login tests ----
 
     @Test
-    void login_validEmailCredentials_returnsLoginResponse() {
+    void login_validUsernameCredentials_returnsLoginResponse() {
         LoginRequest request = new LoginRequest();
-        request.setEmail("admin@hic.az");
+        request.setUsername("admin");
         request.setPassword("admin123");
 
-        when(userRepository.findByEmail("admin@hic.az")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
         when(passwordUtil.verifyPassword("admin123", testUser.getPasswordHash())).thenReturn(true);
         when(jwtUtil.generateToken(anyString(), any(UserType.class), any(), any())).thenReturn("access-token");
         when(jwtUtil.generateRefreshToken(anyString())).thenReturn("refresh-token");
@@ -77,53 +77,47 @@ class AuthServiceTest {
         assertThat(response.getToken()).isEqualTo("access-token");
         assertThat(response.getRefreshToken()).isEqualTo("refresh-token");
         assertThat(response.getUser()).isNotNull();
-        assertThat(response.getUser().getEmail()).isEqualTo("admin@hic.az");
+        assertThat(response.getUser().getUsername()).isEqualTo("admin");
         assertThat(response.getUser().getUserType()).isEqualTo(UserType.HEAD_OFFICE_HR);
     }
 
     @Test
-    void login_legacyUsernameField_returnsLoginResponse() {
-        // Backward-compat: if email is null, fall back to username field
+    void login_unknownUsername_throwsUnauthorizedException() {
         LoginRequest request = new LoginRequest();
-        request.setUsername("admin@hic.az");
-        request.setPassword("admin123");
-
-        when(userRepository.findByEmail("admin@hic.az")).thenReturn(Optional.of(testUser));
-        when(passwordUtil.verifyPassword("admin123", testUser.getPasswordHash())).thenReturn(true);
-        when(jwtUtil.generateToken(anyString(), any(UserType.class), any(), any())).thenReturn("access-token");
-        when(jwtUtil.generateRefreshToken(anyString())).thenReturn("refresh-token");
-
-        LoginResponse response = authService.login(request);
-
-        assertThat(response.getToken()).isEqualTo("access-token");
-    }
-
-    @Test
-    void login_unknownEmail_throwsUnauthorizedException() {
-        LoginRequest request = new LoginRequest();
-        request.setEmail("unknown@hic.az");
+        request.setUsername("unknown");
         request.setPassword("password");
 
-        when(userRepository.findByEmail("unknown@hic.az")).thenReturn(Optional.empty());
-        when(userRepository.findByUsername("unknown@hic.az")).thenReturn(Optional.empty());
+        when(userRepository.findByUsername("unknown")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessageContaining("Invalid email or password");
+                .hasMessageContaining("İstifadəçi adı");
     }
 
     @Test
     void login_wrongPassword_throwsUnauthorizedException() {
         LoginRequest request = new LoginRequest();
-        request.setEmail("admin@hic.az");
+        request.setUsername("admin");
         request.setPassword("wrongpassword");
 
-        when(userRepository.findByEmail("admin@hic.az")).thenReturn(Optional.of(testUser));
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
         when(passwordUtil.verifyPassword("wrongpassword", testUser.getPasswordHash())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessageContaining("Invalid email or password");
+                .hasMessageContaining("İstifadəçi adı");
+    }
+
+    @Test
+    void login_emailAsLoginId_failsUnlessUsernameMatches() {
+        LoginRequest request = new LoginRequest();
+        request.setUsername("admin@hic.az");
+        request.setPassword("admin123");
+
+        when(userRepository.findByUsername("admin@hic.az")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(UnauthorizedException.class);
     }
 
     // ---- Signup / RBAC tests ----
@@ -134,13 +128,13 @@ class AuthServiceTest {
         tenant.setId(1L);
 
         SignupRequest request = new SignupRequest();
-        request.setEmail("new@hic.az");
+        request.setUsername("new.user");
         request.setFirstName("New");
         request.setLastName("User");
         request.setPassword("password1");
         request.setRole("OFFICE_HR");
 
-        when(userRepository.existsByEmail("new@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("new.user")).thenReturn(false);
         when(tenantRepository.findByTenantCode("DEFAULT")).thenReturn(Optional.of(tenant));
         when(passwordUtil.hashPassword("password1")).thenReturn("hash");
         when(userRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -151,20 +145,20 @@ class AuthServiceTest {
 
         assertThat(response).isNotNull();
         assertThat(response.getUser().getUserType()).isEqualTo(UserType.OFFICE_HR);
+        assertThat(response.getUser().getUsername()).isEqualTo("new.user");
     }
 
     @Test
     void signup_callerCannotCreateEqualRole_throws() {
         SignupRequest request = new SignupRequest();
-        request.setEmail("peer@hic.az");
+        request.setUsername("peer.user");
         request.setFirstName("Peer");
         request.setLastName("User");
         request.setPassword("password1");
         request.setRole("OFFICE_HR");
 
-        when(userRepository.existsByEmail("peer@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("peer.user")).thenReturn(false);
 
-        // OFFICE_HR trying to create another OFFICE_HR — same rank, must be rejected
         assertThatThrownBy(() -> authService.signup(request, UserType.OFFICE_HR))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("OFFICE_HR");
@@ -173,44 +167,43 @@ class AuthServiceTest {
     @Test
     void signup_callerCannotCreateHigherRole_throws() {
         SignupRequest request = new SignupRequest();
-        request.setEmail("boss@hic.az");
+        request.setUsername("boss.user");
         request.setFirstName("Boss");
         request.setLastName("User");
         request.setPassword("password1");
         request.setRole("HEAD_OFFICE_HR");
 
-        when(userRepository.existsByEmail("boss@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("boss.user")).thenReturn(false);
 
-        // DEPARTMENT_HR trying to create HEAD_OFFICE_HR — higher rank, must be rejected
         assertThatThrownBy(() -> authService.signup(request, UserType.DEPARTMENT_HR))
                 .isInstanceOf(BadRequestException.class);
     }
 
     @Test
-    void signup_duplicateEmail_throws() {
+    void signup_duplicateUsername_throws() {
         SignupRequest request = new SignupRequest();
-        request.setEmail("existing@hic.az");
+        request.setUsername("existing");
         request.setFirstName("Ex");
         request.setLastName("Ist");
         request.setPassword("password1");
 
-        when(userRepository.existsByEmail("existing@hic.az")).thenReturn(true);
+        when(userRepository.existsByUsername("existing")).thenReturn(true);
 
         assertThatThrownBy(() -> authService.signup(request, UserType.HEAD_OFFICE_HR))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Email already registered");
+                .hasMessageContaining("istifadəçi adı");
     }
 
     @Test
     void signup_anonymousWhenUsersExist_throwsUnauthorized() {
         SignupRequest request = new SignupRequest();
-        request.setEmail("second@hic.az");
+        request.setUsername("second.admin");
         request.setFirstName("Second");
         request.setLastName("User");
         request.setPassword("password1");
         request.setRole("HEAD_OFFICE_HR");
 
-        when(userRepository.existsByEmail("second@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("second.admin")).thenReturn(false);
         when(userRepository.count()).thenReturn(1L);
 
         assertThatThrownBy(() -> authService.signup(request, null))
@@ -224,13 +217,13 @@ class AuthServiceTest {
         tenant.setId(1L);
 
         SignupRequest request = new SignupRequest();
-        request.setEmail("first@hic.az");
+        request.setUsername("first.admin");
         request.setFirstName("First");
         request.setLastName("Admin");
         request.setPassword("password1");
         request.setRole("HEAD_OFFICE_HR");
 
-        when(userRepository.existsByEmail("first@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("first.admin")).thenReturn(false);
         when(userRepository.count()).thenReturn(0L);
         when(tenantRepository.findByTenantCode("DEFAULT")).thenReturn(Optional.of(tenant));
         when(passwordUtil.hashPassword("password1")).thenReturn("hash");
@@ -246,13 +239,13 @@ class AuthServiceTest {
     @Test
     void signup_headOfficeCannotCreatePeerHeadOffice_throws() {
         SignupRequest request = new SignupRequest();
-        request.setEmail("peer-head@hic.az");
+        request.setUsername("peer.head");
         request.setFirstName("Peer");
         request.setLastName("Head");
         request.setPassword("password1");
         request.setRole("HEAD_OFFICE_HR");
 
-        when(userRepository.existsByEmail("peer-head@hic.az")).thenReturn(false);
+        when(userRepository.existsByUsername("peer.head")).thenReturn(false);
 
         assertThatThrownBy(() -> authService.signup(request, UserType.HEAD_OFFICE_HR))
                 .isInstanceOf(BadRequestException.class)
@@ -276,8 +269,8 @@ class AuthServiceTest {
     @Test
     void refreshToken_validRefreshToken_returnsNewAccessToken() {
         when(jwtUtil.validateToken("valid-refresh-token")).thenReturn(true);
-        when(jwtUtil.extractUsername("valid-refresh-token")).thenReturn("admin@hic.az");
-        when(userRepository.findByUsername("admin@hic.az")).thenReturn(Optional.of(testUser));
+        when(jwtUtil.extractUsername("valid-refresh-token")).thenReturn("admin");
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
         when(jwtUtil.generateToken(anyString(), any(UserType.class), any(), any())).thenReturn("new-access-token");
 
         String newToken = authService.refreshToken("valid-refresh-token");
@@ -297,13 +290,13 @@ class AuthServiceTest {
     @Test
     void getUserFromToken_validToken_returnsUserDTO() {
         when(jwtUtil.validateToken("valid-token")).thenReturn(true);
-        when(jwtUtil.extractUsername("valid-token")).thenReturn("admin@hic.az");
-        when(userRepository.findByUsername("admin@hic.az")).thenReturn(Optional.of(testUser));
+        when(jwtUtil.extractUsername("valid-token")).thenReturn("admin");
+        when(userRepository.findByUsername("admin")).thenReturn(Optional.of(testUser));
 
         UserDTO userDTO = authService.getUserFromToken("valid-token");
 
         assertThat(userDTO).isNotNull();
-        assertThat(userDTO.getEmail()).isEqualTo("admin@hic.az");
+        assertThat(userDTO.getUsername()).isEqualTo("admin");
     }
 
     @Test

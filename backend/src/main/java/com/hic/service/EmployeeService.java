@@ -172,11 +172,13 @@ public class EmployeeService {
         if (dto.getFinNumber() != null && !dto.getFinNumber().isBlank()) {
             if (tenantId != null) {
                 employeeRepository.findByTenantIdAndFinNumber(tenantId, dto.getFinNumber()).ifPresent(e -> {
-                    throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
+                    throw new BadRequestException(
+                            "Bu FIN kodu artıq mövcuddur. Eyni FIN kodu ilə ikinci əməkdaş yaratmaq mümkün deyil.");
                 });
             } else {
                 employeeRepository.findByFinNumber(dto.getFinNumber()).ifPresent(e -> {
-                    throw new BadRequestException("Employee with FIN number already exists: " + dto.getFinNumber());
+                    throw new BadRequestException(
+                            "Bu FIN kodu artıq mövcuddur. Eyni FIN kodu ilə ikinci əməkdaş yaratmaq mümkün deyil.");
                 });
             }
         }
@@ -210,6 +212,25 @@ public class EmployeeService {
 
         validateDepartmentExists(dto.getDepartmentId());
         Long tenantId = employee.getTenantId() != null ? employee.getTenantId() : TenantContext.getTenantId();
+
+        if (dto.getFinNumber() != null && !dto.getFinNumber().isBlank()) {
+            if (tenantId != null) {
+                employeeRepository.findByTenantIdAndFinNumber(tenantId, dto.getFinNumber()).ifPresent(existing -> {
+                    if (!existing.getId().equals(employee.getId())) {
+                        throw new BadRequestException(
+                                "Bu FIN kodu artıq mövcuddur. Eyni FIN kodu ilə ikinci əməkdaş yaratmaq mümkün deyil.");
+                    }
+                });
+            } else {
+                employeeRepository.findByFinNumber(dto.getFinNumber()).ifPresent(existing -> {
+                    if (!existing.getId().equals(employee.getId())) {
+                        throw new BadRequestException(
+                                "Bu FIN kodu artıq mövcuddur. Eyni FIN kodu ilə ikinci əməkdaş yaratmaq mümkün deyil.");
+                    }
+                });
+            }
+        }
+
         Long previousTimetableId = employee.getTimetableId();
         mapDtoToEmployee(dto, employee);
         if (!java.util.Objects.equals(previousTimetableId, employee.getTimetableId())) {

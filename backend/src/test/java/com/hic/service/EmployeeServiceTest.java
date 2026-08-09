@@ -175,7 +175,7 @@ class EmployeeServiceTest {
 
         assertThatThrownBy(() -> employeeService.create(testEmployeeDTO))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("FIN number");
+                .hasMessageContaining("FIN kodu");
     }
 
     @Test

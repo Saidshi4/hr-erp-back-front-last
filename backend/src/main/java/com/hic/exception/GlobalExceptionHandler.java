@@ -1,6 +1,7 @@
 package com.hic.exception;
 
 import com.hic.dto.ApiResponse;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -13,6 +14,11 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final String DUPLICATE_FIN_MESSAGE =
+            "Bu FIN kodu artıq mövcuddur. Eyni FIN kodu ilə ikinci əməkdaş yaratmaq mümkün deyil.";
+    private static final String DUPLICATE_USERNAME_MESSAGE =
+            "Bu istifadəçi adı artıq mövcuddur";
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
@@ -54,6 +60,28 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleUpstreamApi(UpstreamApiException ex) {
         return ResponseEntity.status(ex.getStatusCode())
                 .body(ApiResponse.error(ex.getMessage()));
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        String details = String.valueOf(ex.getMostSpecificCause() != null
+                ? ex.getMostSpecificCause().getMessage()
+                : ex.getMessage()).toLowerCase();
+
+        if (details.contains("uq_employees_tenant_fin_number")
+                || details.contains("employees_fin_number")
+                || details.contains("fin_number")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(DUPLICATE_FIN_MESSAGE));
+        }
+        if (details.contains("users_username")
+                || details.contains("username")) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(ApiResponse.error(DUPLICATE_USERNAME_MESSAGE));
+        }
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error("Məlumat unikallıq məhdudiyyətinə görə saxlanıla bilmədi"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

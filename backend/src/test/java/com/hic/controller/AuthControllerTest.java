@@ -50,13 +50,13 @@ class AuthControllerTest {
     @Test
     void signup_validRequest_returns201WithTokens() throws Exception {
         SignupRequest request = new SignupRequest();
-        request.setEmail("newuser@example.com");
+        request.setUsername("newuser");
         request.setFirstName("New");
         request.setLastName("User");
         request.setPassword("password1");
         request.setRole("OFFICE_HR");
 
-        UserDTO userDTO = new UserDTO(2L, "newuser@example.com", "newuser@example.com",
+        UserDTO userDTO = new UserDTO(2L, "newuser", null,
                 "New", "User", UserType.OFFICE_HR, null, null, 1L);
         LoginResponse response = new LoginResponse("access-token", "refresh-token", userDTO);
 
@@ -67,20 +67,20 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.token").value("access-token"))
-                .andExpect(jsonPath("$.user.email").value("newuser@example.com"))
+                .andExpect(jsonPath("$.user.username").value("newuser"))
                 .andExpect(jsonPath("$.user.userType").value("OFFICE_HR"));
     }
 
     @Test
-    void signup_duplicateEmail_returns400() throws Exception {
+    void signup_duplicateUsername_returns400() throws Exception {
         SignupRequest request = new SignupRequest();
-        request.setEmail("existing@example.com");
+        request.setUsername("existing");
         request.setFirstName("Existing");
         request.setLastName("User");
         request.setPassword("password1");
 
         when(authService.signup(any(SignupRequest.class), nullable(UserType.class)))
-                .thenThrow(new BadRequestException("Email already registered"));
+                .thenThrow(new BadRequestException("Bu istifadəçi adı artıq mövcuddur"));
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -89,8 +89,8 @@ class AuthControllerTest {
     }
 
     @Test
-    void signup_invalidEmail_returns400() throws Exception {
-        String body = "{\"email\":\"not-an-email\",\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"password1\"}";
+    void signup_missingUsername_returns400() throws Exception {
+        String body = "{\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"password1\"}";
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -100,7 +100,7 @@ class AuthControllerTest {
 
     @Test
     void signup_shortPassword_returns400() throws Exception {
-        String body = "{\"email\":\"user@example.com\",\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"abc\"}";
+        String body = "{\"username\":\"user1\",\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"abc\"}";
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -110,7 +110,7 @@ class AuthControllerTest {
 
     @Test
     void signup_passwordNoDigit_returns400() throws Exception {
-        String body = "{\"email\":\"user@example.com\",\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"abcdefgh\"}";
+        String body = "{\"username\":\"user1\",\"firstName\":\"A\",\"lastName\":\"B\",\"password\":\"abcdefgh\"}";
 
         mockMvc.perform(post("/api/auth/signup")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -121,7 +121,7 @@ class AuthControllerTest {
     @Test
     void login_validCredentials_returns200WithTokens() throws Exception {
         LoginRequest request = new LoginRequest();
-        request.setEmail("admin@hic.az");
+        request.setUsername("admin");
         request.setPassword("admin123");
 
         UserDTO userDTO = new UserDTO(1L, "admin", "admin@hic.az", null, null, UserType.HEAD_OFFICE_HR, 1L, null, null);
@@ -139,8 +139,8 @@ class AuthControllerTest {
     }
 
     @Test
-    void login_missingEmail_returns400() throws Exception {
-        String body = "{\"email\": \"\", \"password\": \"password\"}";
+    void login_missingUsername_returns400() throws Exception {
+        String body = "{\"username\": \"\", \"password\": \"password\"}";
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -150,7 +150,7 @@ class AuthControllerTest {
 
     @Test
     void login_missingPassword_returns400() throws Exception {
-        String body = "{\"email\": \"admin@hic.az\", \"password\": \"\"}";
+        String body = "{\"username\": \"admin\", \"password\": \"\"}";
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -174,11 +174,11 @@ class AuthControllerTest {
     @Test
     void login_serviceThrowsUnauthorized_returns401() throws Exception {
         LoginRequest request = new LoginRequest();
-        request.setEmail("admin@hic.az");
+        request.setUsername("admin");
         request.setPassword("wrong");
 
         when(authService.login(any(LoginRequest.class)))
-                .thenThrow(new UnauthorizedException("Invalid email or password"));
+                .thenThrow(new UnauthorizedException("İstifadəçi adı və ya şifrə yanlışdır"));
 
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)

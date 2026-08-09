@@ -13,6 +13,7 @@ import com.hic.util.JwtUtil;
 import com.hic.util.PasswordUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 @Service
 @RequiredArgsConstructor
@@ -40,8 +41,15 @@ public class AuthService {
      * @param callerRole authenticated caller's role, or {@code null} for anonymous bootstrap
      */
     public LoginResponse signup(SignupRequest request, User.UserType callerRole) {
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new BadRequestException("Email already registered");
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
+        if (!StringUtils.hasText(username)) {
+            throw new BadRequestException("Username is required");
+        }
+        if (userRepository.existsByUsername(username)) {
+            throw new BadRequestException("Bu istifadəçi adı artıq mövcuddur");
+        }
+        if (StringUtils.hasText(request.getEmail()) && userRepository.existsByEmail(request.getEmail().trim())) {
+            throw new BadRequestException("Bu e-poçt artıq mövcuddur");
         }
 
         User.UserType targetRole = User.UserType.EMPLOYEE;
@@ -69,8 +77,8 @@ public class AuthService {
                 .orElseThrow(() -> new BadRequestException("Default tenant not configured"));
 
         User user = new User();
-        user.setUsername(request.getEmail());
-        user.setEmail(request.getEmail());
+        user.setUsername(username);
+        user.setEmail(StringUtils.hasText(request.getEmail()) ? request.getEmail().trim() : null);
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
         user.setPasswordHash(passwordUtil.hashPassword(request.getPassword()));
@@ -85,20 +93,16 @@ public class AuthService {
     }
 
     public LoginResponse login(LoginRequest request) {
-        String loginId = (request.getEmail() != null && !request.getEmail().isBlank())
-                ? request.getEmail()
-                : request.getUsername();
-
-        if (loginId == null || loginId.isBlank()) {
-            throw new UnauthorizedException("Email is required");
+        String username = request.getUsername() != null ? request.getUsername().trim() : "";
+        if (!StringUtils.hasText(username)) {
+            throw new UnauthorizedException("İstifadəçi adı və ya şifrə yanlışdır");
         }
 
-        User user = userRepository.findByEmail(loginId)
-                .or(() -> userRepository.findByUsername(loginId))
-                .orElseThrow(() -> new UnauthorizedException("Invalid email or password"));
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UnauthorizedException("İstifadəçi adı və ya şifrə yanlışdır"));
 
         if (!passwordUtil.verifyPassword(request.getPassword(), user.getPasswordHash())) {
-            throw new UnauthorizedException("Invalid email or password");
+            throw new UnauthorizedException("İstifadəçi adı və ya şifrə yanlışdır");
         }
 
         String token = jwtUtil.generateToken(user.getUsername(), user.getUserType(), user.getTenantId(), user.getId());

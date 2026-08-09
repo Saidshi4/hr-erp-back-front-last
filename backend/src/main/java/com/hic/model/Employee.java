@@ -52,7 +52,7 @@ public class Employee {
     @Column(name = "email")
     private String email;
 
-    @Column(name = "fin_number", unique = true)
+    @Column(name = "fin_number")
     private String finNumber;
 
     @Column(name = "face_id")

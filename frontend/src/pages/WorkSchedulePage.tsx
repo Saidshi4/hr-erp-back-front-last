@@ -105,7 +105,6 @@ const defaultTimetable = (): Partial<Timetable> => ({
   allowedLateMinutes: 10,
   allowedEarlyLeaveMinutes: 5,
   shiftType: '',
-  crossesMidnight: false,
 })
 
 function TimetableModal({ initial, onSave, onClose }: {
@@ -147,7 +146,6 @@ function TimetableModal({ initial, onSave, onClose }: {
         payload.endTime = '23:59'
         payload.allowedLateMinutes = 0
         payload.allowedEarlyLeaveMinutes = 0
-        payload.crossesMidnight = false
         payload.shiftType = 'FLEXIBLE'
       } else {
         payload.shiftType = 'STANDARD'
@@ -218,10 +216,6 @@ function TimetableModal({ initial, onSave, onClose }: {
                     {LATE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="crossesMidnight" checked={!!form.crossesMidnight} onChange={e => set('crossesMidnight', e.target.checked)} className="rounded" />
-                <label htmlFor="crossesMidnight" className="text-sm text-gray-700">Gecəyarısını keçir</label>
               </div>
             </>
           )}

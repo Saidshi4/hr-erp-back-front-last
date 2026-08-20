@@ -23,8 +23,11 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 
@@ -350,6 +353,86 @@ class HikDeviceUserImportServiceTest {
                 .isEqualTo("GNC");
         assertThat(HikDeviceUserImportService.buildPrefixedEmployeeId("BAK", "1001"))
                 .isEqualTo("BAK-1001");
+    }
+
+    @Test
+    void importUsersFromBranch_faceAlreadyOnSiblingDevice_doesNotFailImport() throws Exception {
+        Branch branch = branch(10L, "Baku", "BAK");
+        when(branchRepository.findById(10L)).thenReturn(Optional.of(branch));
+
+        DeviceConfig entry = device(1L, "101", "Entry", "10.0.0.1", 10L);
+        DeviceConfig exit = device(2L, "102", "Exit", "10.0.0.2", 10L);
+        when(deviceConfigRepository.findByBranchId(10L)).thenReturn(List.of(entry, exit));
+
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("""
+                        [{"employeeNo":"1001","name":"Ali Valiyev","gender":"male","beginTime":"2024-01-01T00:00:00"}]
+                        """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/users/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/101/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/faces/from-device"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"));
+
+        when(employeeRepository.findByTenantIdAndEmployeeIdIgnoreCase(eq(1L), anyString()))
+                .thenReturn(Optional.empty());
+        when(employeeRepository.findByTenantIdAndBranchIdAndDeviceEmployeeNoIgnoreCase(eq(1L), eq(10L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndDeviceEmployeeNoIgnoreCase(eq(1L), anyString()))
+                .thenReturn(List.of());
+        when(employeeRepository.findByTenantIdAndEmployeeIdIn(eq(1L), any()))
+                .thenReturn(List.of());
+        when(employeeRepository.save(any(Employee.class))).thenAnswer(inv -> {
+            Employee e = inv.getArgument(0);
+            e.setId(77L);
+            return e;
+        });
+        when(employeeRepository.findById(77L)).thenAnswer(inv -> {
+            Employee e = new Employee();
+            e.setId(77L);
+            e.setEmployeeId("BAK-1001");
+            e.setDeviceEmployeeNo("1001");
+            e.setFirstName("Ali");
+            e.setLastName("Valiyev");
+            e.setTenantId(1L);
+            e.setBranchId(10L);
+            return Optional.of(e);
+        });
+        when(employeeDeviceAccessRepository.existsByEmployeeIdAndDeviceConfigId(eq(77L), eq(1L)))
+                .thenReturn(false)
+                .thenReturn(true);
+        when(employeeDeviceAccessRepository.existsByEmployeeIdAndDeviceConfigId(eq(77L), eq(2L)))
+                .thenReturn(false);
+        when(employeeFaceImageService.hasFaceImage(77L)).thenReturn(true);
+
+        Path tempFace = Files.createTempFile("import-face-", ".jpg");
+        Files.write(tempFace, new byte[]{1, 2, 3});
+        when(employeeFaceImageService.getLatestFaceImage(77L))
+                .thenReturn(Optional.of(new EmployeeFaceImageService.FaceImageData(tempFace, "image/jpeg")));
+
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/users"),
+                eq(HttpMethod.GET), eq(null), eq(String.class)))
+                .thenReturn(ResponseEntity.ok("[]"))
+                .thenReturn(ResponseEntity.ok("""
+                        [{"id":5,"employeeNo":"1001"}]
+                        """));
+        when(restTemplate.exchange(eq("http://isapi:8081/api/devices/102/users/5/face"),
+                eq(HttpMethod.POST), any(), eq(String.class)))
+                .thenThrow(new HttpClientErrorException(HttpStatus.CONFLICT, "duplicate"));
+
+        DeviceEmployeeImportDTO.ImportResult result = service.importUsersFromBranch(
+                new DeviceEmployeeImportDTO.ImportRequest(10L, null, true));
+
+        assertThat(result.getCreated()).isEqualTo(1);
+        assertThat(result.getWrittenToOtherDevices()).isEqualTo(1);
+        assertThat(result.getFacesOtherDeviceFailed()).isZero();
+        verify(restTemplate, times(2)).exchange(eq("http://isapi:8081/api/devices/102/users"),
+                eq(HttpMethod.GET), eq(null), eq(String.class));
     }
 
     private static Branch branch(Long id, String name, String code) {

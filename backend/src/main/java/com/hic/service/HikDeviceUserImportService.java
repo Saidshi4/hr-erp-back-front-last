@@ -80,6 +80,8 @@ public class HikDeviceUserImportService {
 
     private static final String SEARCH_PATH = "/ISAPI/AccessControl/UserInfo/Search?format=json";
     private static final int PAGE_SIZE = 30;
+    private static final int FACE_USER_LOOKUP_MAX_ATTEMPTS = 3;
+    private static final long FACE_USER_LOOKUP_RETRY_DELAY_MS = 300L;
 
     private final RestTemplate restTemplate;
     private final DeviceConfigRepository deviceConfigRepository;
@@ -611,18 +613,45 @@ public class HikDeviceUserImportService {
         }
         try {
             byte[] bytes = Files.readAllBytes(faceOpt.get().path());
-            Long deviceUserId = findDeviceUserIdByEmployeeNo(isapiDeviceId, resolveDevicePersonNo(employee));
+            Long deviceUserId = findDeviceUserIdByEmployeeNoWithRetry(isapiDeviceId, resolveDevicePersonNo(employee));
             if (deviceUserId == null) {
                 result.setFacesOtherDeviceFailed(result.getFacesOtherDeviceFailed() + 1);
                 return;
             }
             uploadFaceBytesToDevice(isapiDeviceId, deviceUserId, bytes, faceOpt.get().contentType());
             result.setFacesWrittenToOtherDevices(result.getFacesWrittenToOtherDevices() + 1);
+        } catch (HttpStatusCodeException ex) {
+            if (isFaceAlreadyExistsOnDevice(ex)) {
+                log.info("Face already exists on device {} for employee {}",
+                        isapiDeviceId, employee.getEmployeeId());
+                return;
+            }
+            log.warn("Face push to sibling device {} failed for employee {}: {}",
+                    isapiDeviceId, employee.getEmployeeId(), ex.getMessage());
+            result.setFacesOtherDeviceFailed(result.getFacesOtherDeviceFailed() + 1);
         } catch (Exception ex) {
             log.warn("Face push to sibling device {} failed for employee {}: {}",
                     isapiDeviceId, employee.getEmployeeId(), ex.getMessage());
             result.setFacesOtherDeviceFailed(result.getFacesOtherDeviceFailed() + 1);
         }
+    }
+
+    private Long findDeviceUserIdByEmployeeNoWithRetry(Long isapiDeviceId, String employeeNo) throws Exception {
+        for (int attempt = 1; attempt <= FACE_USER_LOOKUP_MAX_ATTEMPTS; attempt++) {
+            Long userId = findDeviceUserIdByEmployeeNo(isapiDeviceId, employeeNo);
+            if (userId != null) {
+                return userId;
+            }
+            if (attempt < FACE_USER_LOOKUP_MAX_ATTEMPTS) {
+                try {
+                    Thread.sleep(FACE_USER_LOOKUP_RETRY_DELAY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            }
+        }
+        return null;
     }
 
     private Long findDeviceUserIdByEmployeeNo(Long isapiDeviceId, String employeeNo) throws Exception {
@@ -702,6 +731,19 @@ public class HikDeviceUserImportService {
                 || lower.contains("employee no already")
                 || lower.contains("employeenoexist")
                 || (ex instanceof HttpStatusCodeException hse && hse.getStatusCode().value() == 409);
+    }
+
+    private static boolean isFaceAlreadyExistsOnDevice(HttpStatusCodeException ex) {
+        String body = ex.getResponseBodyAsString();
+        String message = body != null ? body : ex.getMessage();
+        if (!StringUtils.hasText(message)) {
+            return ex.getStatusCode().value() == 409;
+        }
+        String lower = message.toLowerCase(Locale.ROOT);
+        return ex.getStatusCode().value() == 409
+                || lower.contains("already exist")
+                || lower.contains("already exists")
+                || lower.contains("duplicate");
     }
 
     private static String resolveDevicePersonNo(Employee employee) {
